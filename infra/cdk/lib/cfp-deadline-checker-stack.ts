@@ -3,13 +3,39 @@ import { Construct } from 'constructs';
 import { DataTables } from './constructs/data-tables';
 import { StaticSite } from './constructs/static-site';
 
+/**
+ * メインスタック (ap-northeast-1) のプロパティ
+ *
+ * webAclArn: us-east-1 の EdgeStack で作成された WAF WebACL の ARN。
+ *            CloudFront Distribution に関連付ける。
+ *            crossRegionReferences 経由で渡される。
+ */
+export interface CfpDeadlineCheckerStackProps extends cdk.StackProps {
+  readonly webAclArn?: string;
+}
+
+/**
+ * メインスタック
+ *
+ * ap-northeast-1 にデプロイされる。以下のリソースを内包:
+ * - DynamoDB 3 テーブル
+ * - 静的サイト用 S3 + CloudFront
+ * - (今後追加) Lambda PHP / EventBridge / 各種 IAM
+ */
 export class CfpDeadlineCheckerStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(
+    scope: Construct,
+    id: string,
+    props?: CfpDeadlineCheckerStackProps,
+  ) {
     super(scope, id, props);
 
     const dataTables = new DataTables(this, 'DataTables');
 
-    const staticSite = new StaticSite(this, 'StaticSite');
+    // 静的サイトの配信構成。WAF WebACL ARN が渡されれば関連付ける。
+    const staticSite = new StaticSite(this, 'StaticSite', {
+      webAclArn: props?.webAclArn,
+    });
 
     new cdk.CfnOutput(this, 'ConferencesTableName', {
       value: dataTables.conferences.tableName,
@@ -42,10 +68,8 @@ export class CfpDeadlineCheckerStack extends cdk.Stack {
     });
 
     // TODO: Lambda PHP (admin API) via Bref
-    // TODO: Lambda@Edge for Basic Auth (us-east-1 stack)
-    // TODO: AWS WAF for /admin/*
-    // TODO: Route 53 + ACM
-    // TODO: Secrets Manager
-    // TODO: EventBridge schedule (daily safety net build)
+    // TODO: /admin/* CloudFront behavior with Lambda@Edge auth (step 3 で追加)
+    // TODO: Route 53 + ACM (step 4 で追加)
+    // TODO: EventBridge schedule (step 5 で追加)
   }
 }
