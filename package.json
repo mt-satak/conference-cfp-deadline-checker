@@ -13,6 +13,12 @@
     "dev": "pnpm -r --parallel dev",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "db:up": "docker compose -f docker/compose.yaml up -d",
+    "db:down": "docker compose -f docker/compose.yaml down",
+    "db:logs": "docker compose -f docker/compose.yaml logs -f",
+    "db:init": "pnpm --filter @cfp/db-tools run init",
+    "db:reset": "pnpm --filter @cfp/db-tools run reset",
+    "db:nuke": "docker compose -f docker/compose.yaml down -v"
   }
 }

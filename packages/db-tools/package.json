@@ -1,0 +1,21 @@
+{
+  "name": "@cfp/db-tools",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local DynamoDB management tools for development",
+  "type": "module",
+  "scripts": {
+    "init": "tsx src/init.ts",
+    "reset": "tsx src/reset.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1040.0",
+    "@aws-sdk/lib-dynamodb": "^3.1040.0"
+  }
+}
