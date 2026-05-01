@@ -4,6 +4,7 @@ import { ARecord, HostedZone, RecordTarget } from 'aws-cdk-lib/aws-route53';
 import { Construct } from 'constructs';
 import { AdminApi } from './constructs/admin-api';
 import { DataTables } from './constructs/data-tables';
+import { Operations } from './constructs/operations';
 import { StaticSite } from './constructs/static-site';
 
 /**
@@ -20,6 +21,10 @@ import { StaticSite } from './constructs/static-site';
  * domainName / hostedZoneId / zoneName / certificateArn:
  *   独自ドメインを使う場合のみ指定。すべて渡されたとき、CloudFront に
  *   カスタムドメインを設定し、Route 53 にエイリアスレコードを作成する。
+ *
+ * alertEmail:
+ *   運用アラームの通知先メールアドレス。指定すると SNS トピックに購読が
+ *   自動登録される (受信者側で確認リンクをクリックする必要あり)。
  */
 export interface CfpDeadlineCheckerStackProps extends cdk.StackProps {
   readonly webAclArn?: string;
@@ -28,6 +33,7 @@ export interface CfpDeadlineCheckerStackProps extends cdk.StackProps {
   readonly hostedZoneId?: string;
   readonly zoneName?: string;
   readonly certificateArn?: string;
+  readonly alertEmail?: string;
 }
 
 /**
@@ -65,6 +71,13 @@ export class CfpDeadlineCheckerStack extends cdk.Stack {
       basicAuthFunctionVersionArn: props?.basicAuthFunctionVersionArn,
       domainName: props?.domainName,
       certificateArn: props?.certificateArn,
+    });
+
+    // 運用観測 (CloudWatch アラーム + SNS 通知トピック)。
+    // alertEmail が指定されていればメール購読まで自動セットアップする。
+    const operations = new Operations(this, 'Operations', {
+      adminApiFunction: adminApi.function,
+      alertEmail: props?.alertEmail,
     });
 
     // ── 独自ドメインのエイリアスレコード (任意) ──
@@ -137,6 +150,12 @@ export class CfpDeadlineCheckerStack extends cdk.Stack {
       description: 'CloudFront distribution domain name (xxxxx.cloudfront.net)',
     });
 
-    // TODO: EventBridge schedule for daily build (step 5 で追加)
+    new cdk.CfnOutput(this, 'AlarmTopicArn', {
+      value: operations.alarmTopic.topicArn,
+      description: 'SNS topic ARN for operational alarms',
+    });
+
+    // TODO: EventBridge による日次保険ビルドは Amplify の Webhook URL が
+    //       確定してから別コミットで追加する (Amplify アプリは現時点では未作成)。
   }
 }

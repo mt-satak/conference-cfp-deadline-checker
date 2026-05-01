@@ -19,6 +19,11 @@ const account = process.env.CDK_DEFAULT_ACCOUNT;
 const domainName = app.node.tryGetContext('domainName') as string | undefined;
 const rootDomain = app.node.tryGetContext('rootDomain') as string | undefined;
 
+// ── 運用アラーム通知先 (任意) ──
+// 例: pnpm cdk deploy --context alertEmail=ops@example.com
+// 受信者側で確認リンクをクリックするまで通知は届かない。
+const alertEmail = app.node.tryGetContext('alertEmail') as string | undefined;
+
 // ── EdgeStack: us-east-1 にデプロイ ──
 // CloudFront に紐付く Lambda@Edge / WAF / Secrets Manager / ACM 証明書 /
 // Route 53 Hosted Zone は仕様上 us-east-1 必須。crossRegionReferences を
@@ -47,6 +52,7 @@ const mainStack = new CfpDeadlineCheckerStack(app, 'CfpDeadlineCheckerStack', {
   hostedZoneId: edgeStack.hostedZoneId,
   zoneName: edgeStack.zoneName,
   certificateArn: edgeStack.certificateArn,
+  alertEmail,
   description: 'Conference CfP Deadline Checker - main stack',
 });
 
