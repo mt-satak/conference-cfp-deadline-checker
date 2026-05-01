@@ -30,6 +30,7 @@ const mainStack = new CfpDeadlineCheckerStack(app, 'CfpDeadlineCheckerStack', {
   },
   crossRegionReferences: true,
   webAclArn: edgeStack.webAclArn,
+  basicAuthFunctionVersionArn: edgeStack.basicAuthFunctionVersion.functionArn,
   description: 'Conference CfP Deadline Checker - main stack',
 });
 
