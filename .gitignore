@@ -1,0 +1,43 @@
+# Design documents (gitignored, locally maintained)
+concept.md
+architecture.md
+
+# Node
+node_modules/
+.pnpm-store/
+.pnpm-debug.log*
+npm-debug.log*
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build outputs
+dist/
+build/
+.astro/
+.turbo/
+
+# CDK
+cdk.out/
+*.d.ts.map
+*.js.map
+
+# PHP / Composer
+vendor/
+
+# Logs
+*.log
+logs/
+
+# Test artifacts
+coverage/
+.nyc_output/

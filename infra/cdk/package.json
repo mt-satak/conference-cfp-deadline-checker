@@ -1,0 +1,33 @@
+{
+  "name": "@cfp/cdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AWS CDK infrastructure for Conference CfP Deadline Checker",
+  "bin": {
+    "cdk": "bin/cfp-deadline-checker.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "cdk": "cdk",
+    "synth": "cdk synth",
+    "deploy": "cdk deploy",
+    "diff": "cdk diff",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "aws-cdk": "2.1120.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.252.0",
+    "constructs": "^10.6.0",
+    "source-map-support": "^0.5.21"
+  }
+}

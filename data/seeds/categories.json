@@ -1,0 +1,287 @@
+{
+  "_meta": {
+    "description": "Conference CfP Deadline Checker のカテゴリマスタ初期投入データ",
+    "totalCount": 34,
+    "axes": {
+      "A": "プログラミング言語 (12件)",
+      "B": "フレームワーク・ライブラリ (3件)",
+      "C": "技術領域 (14件)",
+      "D": "プロセス・文化・キャリア (5件)"
+    },
+    "displayOrderRule": "100番台=A, 300番台=B, 400-500番台=C, 600番台=D"
+  },
+  "categories": [
+    {
+      "categoryId": "0c1f7a40-1e6a-4d52-9b1f-3b5c8a21d301",
+      "name": "Ruby",
+      "slug": "ruby",
+      "displayOrder": 100,
+      "axis": "A",
+      "exampleConferences": ["RubyKaigi", "Kaigi on Rails", "大江戸Ruby会議"]
+    },
+    {
+      "categoryId": "1d4f2a83-6b48-4f1c-9c8a-7e2b3d4f5a02",
+      "name": "PHP",
+      "slug": "php",
+      "displayOrder": 110,
+      "axis": "A",
+      "exampleConferences": ["PHPカンファレンス（東京/関西/福岡/沖縄/北海道）", "PHPerKaigi"]
+    },
+    {
+      "categoryId": "2e5a3b94-7c59-4a2d-8d9b-8f3c4e5a6b03",
+      "name": "JavaScript",
+      "slug": "javascript",
+      "displayOrder": 120,
+      "axis": "A",
+      "exampleConferences": ["JSConf JP", "Node学園祭"]
+    },
+    {
+      "categoryId": "3f6b4ca5-8d6a-4b3e-9eac-9a4d5f6b7c04",
+      "name": "TypeScript",
+      "slug": "typescript",
+      "displayOrder": 130,
+      "axis": "A",
+      "exampleConferences": ["TSKaigi"]
+    },
+    {
+      "categoryId": "4a7c5db6-9e7b-4c4f-aebd-ab5e6a7c8d05",
+      "name": "Python",
+      "slug": "python",
+      "displayOrder": 140,
+      "axis": "A",
+      "exampleConferences": ["PyCon JP", "PyCon mini"]
+    },
+    {
+      "categoryId": "5b8d6ec7-af8c-4d5a-bfce-bc6f7b8d9e06",
+      "name": "Go",
+      "slug": "go",
+      "displayOrder": 150,
+      "axis": "A",
+      "exampleConferences": ["Go Conference"]
+    },
+    {
+      "categoryId": "6c9e7fd8-ba9d-4e6b-cadf-cd7a8c9eaf07",
+      "name": "Swift",
+      "slug": "swift",
+      "displayOrder": 160,
+      "axis": "A",
+      "exampleConferences": ["iOSDC Japan", "try! Swift Tokyo"]
+    },
+    {
+      "categoryId": "7daf8ae9-cbae-4f7c-dbea-de8b9daf0a08",
+      "name": "Kotlin",
+      "slug": "kotlin",
+      "displayOrder": 170,
+      "axis": "A",
+      "exampleConferences": ["Kotlin Fest", "DroidKaigi"]
+    },
+    {
+      "categoryId": "8ea09bfa-dcbf-4a8d-ecfb-ef9cae0b1b09",
+      "name": "Java",
+      "slug": "java",
+      "displayOrder": 180,
+      "axis": "A",
+      "exampleConferences": ["JJUG CCC"]
+    },
+    {
+      "categoryId": "9fb1ac0b-edca-4b9e-fdac-fa0dbf1c2c0a",
+      "name": "Rust",
+      "slug": "rust",
+      "displayOrder": 190,
+      "axis": "A",
+      "exampleConferences": ["Rust.Tokyo"]
+    },
+    {
+      "categoryId": "a0c2bd1c-fedb-4cae-aebd-ab1eca2d3d0b",
+      "name": "Scala",
+      "slug": "scala",
+      "displayOrder": 200,
+      "axis": "A",
+      "exampleConferences": ["ScalaMatsuri"]
+    },
+    {
+      "categoryId": "b1d3ce2d-afec-4dbf-bfce-bc2fdb3e4e0c",
+      "name": "Elixir",
+      "slug": "elixir",
+      "displayOrder": 210,
+      "axis": "A",
+      "exampleConferences": ["ElixirConf Japan"]
+    },
+    {
+      "categoryId": "c2e4df3e-bafd-4eca-cadf-cd3aec4f5f0d",
+      "name": "Ruby on Rails",
+      "slug": "ruby-on-rails",
+      "displayOrder": 300,
+      "axis": "B",
+      "exampleConferences": ["Kaigi on Rails"]
+    },
+    {
+      "categoryId": "d3f5ea4f-cbae-4fdb-dbea-de4bfd5a6a0e",
+      "name": "Laravel",
+      "slug": "laravel",
+      "displayOrder": 310,
+      "axis": "B",
+      "exampleConferences": ["Laravel JP Conference"]
+    },
+    {
+      "categoryId": "e4a6fb5a-dcbf-4aec-ecfb-ef5cae6b7b0f",
+      "name": "Vue.js",
+      "slug": "vuejs",
+      "displayOrder": 320,
+      "axis": "B",
+      "exampleConferences": ["Vue Fes Japan"]
+    },
+    {
+      "categoryId": "f5b7ac6b-edca-4bfd-fdac-fa6dbf7c8c10",
+      "name": "フロントエンド",
+      "slug": "frontend",
+      "displayOrder": 400,
+      "axis": "C",
+      "exampleConferences": ["Frontend Conference Fukuoka", "Frontend Conference Hokkaido"]
+    },
+    {
+      "categoryId": "06c8bd7c-fedb-4cae-aebd-ab7eca8d9d11",
+      "name": "バックエンド",
+      "slug": "backend",
+      "displayOrder": 410,
+      "axis": "C",
+      "exampleConferences": ["（各言語系カンファレンスのバックエンドトラック）"]
+    },
+    {
+      "categoryId": "17d9ce8d-afec-4dbf-bfce-bc8fdb9eae12",
+      "name": "モバイル iOS",
+      "slug": "mobile-ios",
+      "displayOrder": 420,
+      "axis": "C",
+      "exampleConferences": ["iOSDC Japan", "try! Swift Tokyo"]
+    },
+    {
+      "categoryId": "28eadf9e-bafd-4eca-cadf-cd9aecaebf13",
+      "name": "モバイル Android",
+      "slug": "mobile-android",
+      "displayOrder": 430,
+      "axis": "C",
+      "exampleConferences": ["DroidKaigi"]
+    },
+    {
+      "categoryId": "39fbeaaf-cbae-4fdb-dbea-deabfdbfca14",
+      "name": "インフラ",
+      "slug": "infrastructure",
+      "displayOrder": 440,
+      "axis": "C",
+      "exampleConferences": ["July Tech Festa", "Internet Week"]
+    },
+    {
+      "categoryId": "4a0cfbba-dcbf-4aec-ecfb-efbcaecadb15",
+      "name": "クラウドネイティブ",
+      "slug": "cloud-native",
+      "displayOrder": 450,
+      "axis": "C",
+      "exampleConferences": ["CloudNative Days Tokyo", "KubeCon Japan"]
+    },
+    {
+      "categoryId": "5b1dacca-edca-4bfd-fdac-fabdbfdbec16",
+      "name": "SRE",
+      "slug": "sre",
+      "displayOrder": 460,
+      "axis": "C",
+      "exampleConferences": ["SRE NEXT"]
+    },
+    {
+      "categoryId": "6c2ebddb-fedb-4cae-aebd-abcecaecfd17",
+      "name": "DevOps",
+      "slug": "devops",
+      "displayOrder": 470,
+      "axis": "C",
+      "exampleConferences": ["DevOpsDays Tokyo"]
+    },
+    {
+      "categoryId": "7d3fceec-afec-4dbf-bfce-bcdfdbfdae18",
+      "name": "データベース",
+      "slug": "database",
+      "displayOrder": 480,
+      "axis": "C",
+      "exampleConferences": ["db tech showcase", "PostgreSQL Conference Japan", "MySQL Conference"]
+    },
+    {
+      "categoryId": "8e40dffd-bafd-4eca-cadf-cdeaecaebf19",
+      "name": "セキュリティ",
+      "slug": "security",
+      "displayOrder": 490,
+      "axis": "C",
+      "exampleConferences": ["CODE BLUE", "AV Tokyo", "SECCON", "OWASP Day"]
+    },
+    {
+      "categoryId": "9f51eaae-cbae-4fdb-dbea-defbfdbfca1a",
+      "name": "機械学習・AI",
+      "slug": "machine-learning",
+      "displayOrder": 500,
+      "axis": "C",
+      "exampleConferences": ["MLCT", "PyData Tokyo", "機械学習工学"]
+    },
+    {
+      "categoryId": "a062fbbf-dcbf-4aec-ecfb-efacaecadb1b",
+      "name": "データエンジニアリング",
+      "slug": "data-engineering",
+      "displayOrder": 510,
+      "axis": "C",
+      "exampleConferences": ["Data Engineering Study", "JapanR"]
+    },
+    {
+      "categoryId": "b173accc-edca-4bfd-fdac-fabdbfdbec1c",
+      "name": "ゲーム開発",
+      "slug": "game-development",
+      "displayOrder": 520,
+      "axis": "C",
+      "exampleConferences": ["CEDEC"]
+    },
+    {
+      "categoryId": "c284bddd-fedb-4cae-aebd-abcecaecfd1d",
+      "name": "アクセシビリティ",
+      "slug": "accessibility",
+      "displayOrder": 530,
+      "axis": "C",
+      "exampleConferences": ["a11y Conf Japan"]
+    },
+    {
+      "categoryId": "d395ceee-afec-4dbf-bfce-bcdfdbfdae1e",
+      "name": "アジャイル",
+      "slug": "agile",
+      "displayOrder": 600,
+      "axis": "D",
+      "exampleConferences": ["Agile Japan", "XP祭り"]
+    },
+    {
+      "categoryId": "e4a6dfff-bafd-4eca-cadf-cdeaecaebf1f",
+      "name": "スクラム",
+      "slug": "scrum",
+      "displayOrder": 610,
+      "axis": "D",
+      "exampleConferences": ["Regional Scrum Gathering Tokyo", "Scrum Fest（Osaka/Sapporo/Mikawa/Niigata/Sendai/Fukuoka）"]
+    },
+    {
+      "categoryId": "f5b7eaaa-cbae-4fdb-dbea-defbfdbfca20",
+      "name": "テスト・QA",
+      "slug": "testing-qa",
+      "displayOrder": 620,
+      "axis": "D",
+      "exampleConferences": ["JaSST", "JaSST Review"]
+    },
+    {
+      "categoryId": "06c8fbbb-dcbf-4aec-ecfb-efacaecadb21",
+      "name": "エンジニアリングマネジメント",
+      "slug": "engineering-management",
+      "displayOrder": 630,
+      "axis": "D",
+      "exampleConferences": ["Engineering Manager Conference Japan", "EM Oasis"]
+    },
+    {
+      "categoryId": "17d9accc-edca-4bfd-fdac-fabdbfdbec22",
+      "name": "開発生産性",
+      "slug": "developer-productivity",
+      "displayOrder": 640,
+      "axis": "D",
+      "exampleConferences": ["開発生産性 Conference"]
+    }
+  ]
+}
