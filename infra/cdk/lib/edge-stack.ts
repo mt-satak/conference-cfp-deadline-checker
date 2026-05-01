@@ -1,5 +1,6 @@
 import * as path from 'node:path';
 import * as cdk from 'aws-cdk-lib';
+import { Certificate, CertificateValidation } from 'aws-cdk-lib/aws-certificatemanager';
 import {
   CompositePrincipal,
   ManagedPolicy,
@@ -8,17 +9,37 @@ import {
 } from 'aws-cdk-lib/aws-iam';
 import { Runtime, type IVersion } from 'aws-cdk-lib/aws-lambda';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
+import { HostedZone, type IHostedZone } from 'aws-cdk-lib/aws-route53';
 import { Secret } from 'aws-cdk-lib/aws-secretsmanager';
 import { CfnWebACL } from 'aws-cdk-lib/aws-wafv2';
 import { Construct } from 'constructs';
 
 /**
+ * EdgeStack のオプション
+ *
+ * domainName / rootDomain:
+ *   ドメイン取得後にコンテキスト経由で渡される。
+ *   - rootDomain: Hosted Zone を作るドメイン (例: "example.com")
+ *   - domainName: 実際にサイトを配信するホスト名 (例: "cfp.example.com")
+ *   両方が指定されている場合のみ Route 53 Hosted Zone と
+ *   ACM 証明書を生成する。未指定時は DNS リソースは作成しない。
+ */
+export interface EdgeStackProps extends cdk.StackProps {
+  readonly domainName?: string;
+  readonly rootDomain?: string;
+}
+
+/**
  * us-east-1 にデプロイされるエッジ系リソース用スタック
  *
- * このスタックには以下の 3 つを定義する:
+ * 必須リソース:
  * 1. Basic 認証用 Secrets Manager シークレット
  * 2. /admin/* の Basic 認証を担う Lambda@Edge 関数
  * 3. CloudFront 用 AWS WAF WebACL（CLOUDFRONT スコープ）
+ *
+ * 任意リソース (ドメイン指定時のみ):
+ * 4. Route 53 Hosted Zone (rootDomain で指定された値)
+ * 5. ACM 証明書 (domainName 用、DNS 検証で自動発行)
  *
  * CloudFront に紐付くこれらのリソースは仕様上 us-east-1 必須のため、
  * メインスタック (ap-northeast-1) とは分離して配置する。
@@ -27,8 +48,12 @@ export class EdgeStack extends cdk.Stack {
   public readonly basicAuthFunctionVersion: IVersion;
   public readonly webAclArn: string;
   public readonly basicAuthSecret: Secret;
+  public readonly hostedZone?: IHostedZone;
+  public readonly hostedZoneId?: string;
+  public readonly zoneName?: string;
+  public readonly certificateArn?: string;
 
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props?: EdgeStackProps) {
     super(scope, id, props);
 
     // ── 1. Basic 認証情報を保管する Secrets Manager シークレット ──
@@ -172,6 +197,43 @@ export class EdgeStack extends cdk.Stack {
     });
 
     this.webAclArn = webAcl.attrArn;
+
+    // ── 5. Route 53 Hosted Zone と ACM 証明書 (任意) ──
+    // ドメインが取得済みでコンテキストで渡された場合のみ作成する。
+    // Hosted Zone は AWS アカウントレベルでグローバルだが、CDK 上は
+    // 何らかのスタックに所属させる必要があるため、us-east-1 の EdgeStack に置く。
+    // ACM 証明書は CloudFront 用なので必ず us-east-1 必須。
+    if (props?.domainName && props?.rootDomain) {
+      this.hostedZone = new HostedZone(this, 'HostedZone', {
+        zoneName: props.rootDomain,
+        comment: `Hosted zone for ${props.rootDomain}`,
+      });
+      this.hostedZoneId = this.hostedZone.hostedZoneId;
+      this.zoneName = this.hostedZone.zoneName;
+
+      // ACM 証明書 (CloudFront 用なので us-east-1 で発行)
+      // DNS 検証で自動発行・自動更新される。
+      const certificate = new Certificate(this, 'Certificate', {
+        domainName: props.domainName,
+        validation: CertificateValidation.fromDns(this.hostedZone),
+      });
+      this.certificateArn = certificate.certificateArn;
+
+      new cdk.CfnOutput(this, 'HostedZoneId', {
+        value: this.hostedZone.hostedZoneId,
+        description: 'Route 53 hosted zone ID',
+      });
+
+      new cdk.CfnOutput(this, 'HostedZoneNameServers', {
+        value: cdk.Fn.join(',', this.hostedZone.hostedZoneNameServers ?? []),
+        description: 'Route 53 hosted zone name servers (configure at registrar)',
+      });
+
+      new cdk.CfnOutput(this, 'CertificateArn', {
+        value: certificate.certificateArn,
+        description: 'ACM certificate ARN for CloudFront',
+      });
+    }
 
     new cdk.CfnOutput(this, 'BasicAuthFunctionVersionArn', {
       value: this.basicAuthFunctionVersion.functionArn,

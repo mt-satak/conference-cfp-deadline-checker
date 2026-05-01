@@ -1,5 +1,9 @@
 import { Duration, RemovalPolicy } from 'aws-cdk-lib';
 import {
+  Certificate,
+  type ICertificate,
+} from 'aws-cdk-lib/aws-certificatemanager';
+import {
   AllowedMethods,
   type BehaviorOptions,
   CachePolicy,
@@ -38,11 +42,18 @@ import { Construct } from 'constructs';
  *   us-east-1 の Lambda@Edge (Basic 認証) Version ARN。指定すると
  *   /admin/* のビヘイビアに Viewer Request トリガーとして関連付ける。
  *   adminFunctionUrl と同時指定することを想定。
+ *
+ * domainName / certificateArn:
+ *   独自ドメインを使う場合に指定。両方が揃ったときのみ CloudFront に
+ *   カスタムドメイン (Aliases) と TLS 証明書を関連付ける。
+ *   未指定時は CloudFront のデフォルトドメイン (xxxxx.cloudfront.net) で配信。
  */
 export interface StaticSiteProps {
   readonly webAclArn?: string;
   readonly adminFunctionUrl?: IFunctionUrl;
   readonly basicAuthFunctionVersionArn?: string;
+  readonly domainName?: string;
+  readonly certificateArn?: string;
 }
 
 /**
@@ -56,6 +67,10 @@ export interface StaticSiteProps {
  *   adminFunctionUrl が渡されたとき有効化。Lambda Function URL を
  *   オリジンとし、Lambda@Edge の Basic 認証を Viewer Request で実行。
  *   キャッシュは無効化し動的レスポンスをそのまま返す。
+ *
+ * 独自ドメイン (任意):
+ *   domainName + certificateArn が渡されたとき、CloudFront に
+ *   Aliases (Cname) と TLS 証明書を関連付ける。
  */
 export class StaticSite extends Construct {
   public readonly bucket: Bucket;
@@ -151,12 +166,28 @@ export class StaticSite extends Construct {
           }
         : undefined;
 
+    // ── カスタムドメイン (任意) ──
+    // domainName + certificateArn が両方揃った時だけ証明書を取り込み、
+    // CloudFront にエイリアスを設定する。
+    let domainNames: string[] | undefined;
+    let certificate: ICertificate | undefined;
+    if (props.domainName && props.certificateArn) {
+      domainNames = [props.domainName];
+      certificate = Certificate.fromCertificateArn(
+        this,
+        'ImportedCertificate',
+        props.certificateArn,
+      );
+    }
+
     // ── CloudFront Distribution ──
     // 既定動作は S3 オリジンへのアクセスで、HTTP は HTTPS にリダイレクト。
     // WAF WebACL が指定されていれば Distribution に関連付ける。
     this.distribution = new Distribution(this, 'Distribution', {
       comment: 'Conference CfP Deadline Checker',
       webAclId: props.webAclArn,
+      domainNames,
+      certificate,
       defaultBehavior: {
         origin: S3BucketOrigin.withOriginAccessControl(this.bucket),
         viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,

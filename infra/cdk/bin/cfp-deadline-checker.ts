@@ -10,15 +10,27 @@ const app = new cdk.App();
 // 未設定の場合は環境非依存の合成（synth）になり、deploy 時に解決される。
 const account = process.env.CDK_DEFAULT_ACCOUNT;
 
+// ── ドメイン設定 (任意) ──
+// ドメイン取得後、以下のように指定して有効化する:
+//   pnpm cdk deploy --context domainName=cfp.example.com --context rootDomain=example.com
+// rootDomain: Hosted Zone を作るドメイン (apex)
+// domainName: 実際のサイト配信ホスト名 (rootDomain と同じ apex でも可)
+// 両方指定された場合のみ Route 53 / ACM / カスタムドメイン関連リソースを生成する。
+const domainName = app.node.tryGetContext('domainName') as string | undefined;
+const rootDomain = app.node.tryGetContext('rootDomain') as string | undefined;
+
 // ── EdgeStack: us-east-1 にデプロイ ──
-// CloudFront に紐付く Lambda@Edge / WAF / Secrets Manager は仕様上 us-east-1 必須。
-// crossRegionReferences を有効化することで、メインスタックが別リージョンから
-// このスタックの出力 (WebACL ARN 等) を参照できるようになる
-// (CDK が裏で SSM Parameter Store を介して値を共有する)。
+// CloudFront に紐付く Lambda@Edge / WAF / Secrets Manager / ACM 証明書 /
+// Route 53 Hosted Zone は仕様上 us-east-1 必須。crossRegionReferences を
+// 有効化することで、メインスタックが別リージョンから us-east-1 の出力を
+// 参照できる (CDK が裏で SSM Parameter Store を介して値を共有する)。
 const edgeStack = new EdgeStack(app, 'CfpDeadlineCheckerEdgeStack', {
   env: { account, region: 'us-east-1' },
   crossRegionReferences: true,
-  description: 'Edge resources (Lambda@Edge / WAF / Secrets) for CFP Deadline Checker',
+  domainName,
+  rootDomain,
+  description:
+    'Edge resources (Lambda@Edge / WAF / Secrets / ACM / Route53) for CFP Deadline Checker',
 });
 
 // ── メインスタック: ap-northeast-1 にデプロイ ──
@@ -31,6 +43,10 @@ const mainStack = new CfpDeadlineCheckerStack(app, 'CfpDeadlineCheckerStack', {
   crossRegionReferences: true,
   webAclArn: edgeStack.webAclArn,
   basicAuthFunctionVersionArn: edgeStack.basicAuthFunctionVersion.functionArn,
+  domainName,
+  hostedZoneId: edgeStack.hostedZoneId,
+  zoneName: edgeStack.zoneName,
+  certificateArn: edgeStack.certificateArn,
   description: 'Conference CfP Deadline Checker - main stack',
 });
 

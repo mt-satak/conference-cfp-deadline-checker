@@ -1,4 +1,6 @@
 import * as cdk from 'aws-cdk-lib';
+import { CloudFrontTarget } from 'aws-cdk-lib/aws-route53-targets';
+import { ARecord, HostedZone, RecordTarget } from 'aws-cdk-lib/aws-route53';
 import { Construct } from 'constructs';
 import { AdminApi } from './constructs/admin-api';
 import { DataTables } from './constructs/data-tables';
@@ -14,10 +16,18 @@ import { StaticSite } from './constructs/static-site';
  * basicAuthFunctionVersionArn:
  *   us-east-1 の Lambda@Edge (Basic 認証) Version ARN。
  *   /admin/* ビヘイビアの Viewer Request トリガーとして関連付ける。
+ *
+ * domainName / hostedZoneId / zoneName / certificateArn:
+ *   独自ドメインを使う場合のみ指定。すべて渡されたとき、CloudFront に
+ *   カスタムドメインを設定し、Route 53 にエイリアスレコードを作成する。
  */
 export interface CfpDeadlineCheckerStackProps extends cdk.StackProps {
   readonly webAclArn?: string;
   readonly basicAuthFunctionVersionArn?: string;
+  readonly domainName?: string;
+  readonly hostedZoneId?: string;
+  readonly zoneName?: string;
+  readonly certificateArn?: string;
 }
 
 /**
@@ -27,7 +37,8 @@ export interface CfpDeadlineCheckerStackProps extends cdk.StackProps {
  * - DynamoDB 3 テーブル
  * - 管理 API Lambda (Bref + PHP-FPM)
  * - 静的サイト + 管理画面ルーティング (S3 + CloudFront)
- * - (今後追加) Route 53 + ACM / EventBridge 等
+ * - 独自ドメイン使用時の Route 53 エイリアスレコード
+ * - (今後追加) EventBridge 等
  */
 export class CfpDeadlineCheckerStack extends cdk.Stack {
   constructor(
@@ -52,7 +63,39 @@ export class CfpDeadlineCheckerStack extends cdk.Stack {
       webAclArn: props?.webAclArn,
       adminFunctionUrl: adminApi.functionUrl,
       basicAuthFunctionVersionArn: props?.basicAuthFunctionVersionArn,
+      domainName: props?.domainName,
+      certificateArn: props?.certificateArn,
     });
+
+    // ── 独自ドメインのエイリアスレコード (任意) ──
+    // domainName / hostedZoneId / zoneName が渡された場合のみ、Route 53 に
+    // CloudFront を指す A レコード (ALIAS) を作成する。
+    // hostedZoneId と zoneName は EdgeStack で生成された値を crossRegionReferences
+    // 経由で受け取り、HostedZone.fromHostedZoneAttributes で参照する。
+    if (props?.domainName && props?.hostedZoneId && props?.zoneName) {
+      const hostedZone = HostedZone.fromHostedZoneAttributes(
+        this,
+        'ImportedHostedZone',
+        {
+          hostedZoneId: props.hostedZoneId,
+          zoneName: props.zoneName,
+        },
+      );
+
+      new ARecord(this, 'AliasRecord', {
+        zone: hostedZone,
+        recordName: props.domainName,
+        target: RecordTarget.fromAlias(
+          new CloudFrontTarget(staticSite.distribution),
+        ),
+        comment: `Alias for CloudFront distribution`,
+      });
+
+      new cdk.CfnOutput(this, 'SiteUrl', {
+        value: `https://${props.domainName}`,
+        description: 'Public site URL with custom domain',
+      });
+    }
 
     new cdk.CfnOutput(this, 'ConferencesTableName', {
       value: dataTables.conferences.tableName,
@@ -94,7 +137,6 @@ export class CfpDeadlineCheckerStack extends cdk.Stack {
       description: 'CloudFront distribution domain name (xxxxx.cloudfront.net)',
     });
 
-    // TODO: Route 53 + ACM (step 4 で追加)
     // TODO: EventBridge schedule for daily build (step 5 で追加)
   }
 }
