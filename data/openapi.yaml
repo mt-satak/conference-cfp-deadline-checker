@@ -1,0 +1,1295 @@
+openapi: 3.1.0
+
+info:
+  title: Conference CfP Deadline Checker - Admin API
+  version: 0.1.0
+  description: |
+    国内テックカンファレンスの CfP 期限を一元管理するサイトの管理 API。
+    管理画面 (運営者) からカンファレンス・カテゴリ・カンパ情報の CRUD と
+    サイト再ビルドのキックを行うためのエンドポイント群。
+
+    認証は二段構え:
+    1. CloudFront 前段の Lambda@Edge による Basic 認証 (本仕様書の対象外、
+       インフラ層で完結)
+    2. Laravel セッション + CSRF トークンによる API 自体の保護
+
+    一般公開ページ向けの API はここには含まれない (公開ページは静的 SSG で
+    生成されるため、ランタイム API を持たない)。
+
+servers:
+  - url: https://{domainName}/admin/api
+    description: 本番環境 (独自ドメイン) または CloudFront デフォルトドメイン
+    variables:
+      domainName:
+        default: cfp.example.com
+        description: CDK でデプロイ後に確定するドメイン名
+
+tags:
+  - name: Health
+    description: サーバー稼働確認
+  - name: CSRF
+    description: CSRF トークン取得 (SPA フロント想定時)
+  - name: Conferences
+    description: カンファレンス情報の CRUD
+  - name: Categories
+    description: カテゴリ (タグ) マスタの CRUD
+  - name: Donations
+    description: カンパ受領履歴の CRUD と集計
+  - name: Build
+    description: 静的サイトの再ビルドトリガー
+
+# ── セキュリティ ──
+# 全エンドポイントが Laravel セッション Cookie を要求する。
+# 状態変更系 (POST/PUT/DELETE) はさらに CSRF トークンを要求する。
+# Basic 認証は CloudFront/Lambda@Edge 層で完結するため OpenAPI には含めない。
+security:
+  - sessionCookie: []
+
+paths:
+  # ============================================================
+  # Health
+  # ============================================================
+  /health:
+    get:
+      tags: [Health]
+      operationId: healthCheck
+      summary: ヘルスチェック
+      description: サーバー稼働確認用。認証不要。
+      security: []
+      responses:
+        '200':
+          description: 稼働中
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  # ============================================================
+  # CSRF Token
+  # ============================================================
+  /csrf-token:
+    get:
+      tags: [CSRF]
+      operationId: getCsrfToken
+      summary: CSRF トークン取得
+      description: |
+        SPA フロントから状態変更系リクエストを行う前に呼び出して、
+        XSRF-TOKEN Cookie をセットする。以後のリクエストは
+        `X-XSRF-TOKEN` ヘッダにこの値を含める必要がある。
+        SSR Blade / Inertia 利用時は通常不要 (HTML 側で meta タグから取得)。
+      responses:
+        '200':
+          description: トークン発行成功
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: XSRF-TOKEN=...; Path=/; Secure; SameSite=Strict
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      csrfToken:
+                        type: string
+                        description: 同値が XSRF-TOKEN Cookie にもセットされる
+
+  # ============================================================
+  # Conferences
+  # ============================================================
+  /conferences:
+    get:
+      tags: [Conferences]
+      operationId: listConferences
+      summary: カンファレンス一覧取得
+      description: |
+        全カンファレンス情報を返す。検索・ソート・フィルタ可。
+        フィルタは AND 結合 (例: category と status を同時指定すると両方を満たすもののみ取得)。
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: 名称・トラック名・概要のいずれかを部分一致検索
+          schema:
+            type: string
+        - name: category
+          in: query
+          required: false
+          description: |
+            categories.categoryId を 1 つ指定すると、その ID を含むカンファレンスのみ取得。
+            複数指定時は categoryId をカンマ区切り (OR 結合: いずれかを含むものを取得)。
+          schema:
+            type: string
+            example: "0c1f7a40-1e6a-4d52-9b1f-3b5c8a21d301,1d4f2a83-6b48-4f1c-9c8a-7e2b3d4f5a02"
+        - name: status
+          in: query
+          required: false
+          description: |
+            CfP の状態でフィルタ:
+            - upcoming: cfpStartDate > 今日 (応募開始前)
+            - active: cfpStartDate <= 今日 <= cfpEndDate (応募受付中)
+            - closed: cfpEndDate < 今日 (応募締切済み、参考情報)
+          schema:
+            type: string
+            enum: [upcoming, active, closed]
+        - name: sort
+          in: query
+          required: false
+          description: ソート対象フィールド
+          schema:
+            type: string
+            enum: [cfpEndDate, eventStartDate, cfpStartDate, name, createdAt]
+            default: cfpEndDate
+        - name: order
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Conference'
+                  meta:
+                    type: object
+                    properties:
+                      count:
+                        type: integer
+
+    post:
+      tags: [Conferences]
+      operationId: createConference
+      summary: カンファレンス新規登録
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConferenceCreate'
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Conference'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/CsrfMismatch'
+
+  /conferences/{id}:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathParam'
+    get:
+      tags: [Conferences]
+      operationId: getConference
+      summary: カンファレンス 1 件取得
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Conference'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Conferences]
+      operationId: updateConference
+      summary: カンファレンス更新
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConferenceUpdate'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Conference'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/CsrfMismatch'
+
+    delete:
+      tags: [Conferences]
+      operationId: deleteConference
+      summary: カンファレンス削除
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '204':
+          description: 削除成功
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/CsrfMismatch'
+
+  /conferences/bulk:
+    post:
+      tags: [Conferences]
+      operationId: bulkImportConferences
+      summary: カンファレンスを一括インポート
+      description: |
+        複数件のカンファレンスを一括登録する。初期データ投入や
+        一斉移行時の利便性のため。1 リクエストあたり最大 100 件。
+
+        部分失敗時の挙動は all-or-nothing (1 件でも失敗すれば全件
+        ロールバック)。失敗時は 422 と各件のエラー詳細を返す。
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items:
+                    $ref: '#/components/schemas/ConferenceCreate'
+      responses:
+        '201':
+          description: 全件登録成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Conference'
+                  meta:
+                    type: object
+                    properties:
+                      created:
+                        type: integer
+                        description: 登録された件数
+        '422':
+          description: |
+            バリデーション失敗。詳細にどの行 (index) のどのフィールドが
+            違反したかを含める。1 件でも失敗すれば全件ロールバック。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                example:
+                  value:
+                    error:
+                      code: VALIDATION_FAILED
+                      message: "Bulk import failed at one or more items"
+                      details:
+                        - field: "data[2].cfpEndDate"
+                          rule: required
+                        - field: "data[5].officialUrl"
+                          rule: url_https
+        '403':
+          $ref: '#/components/responses/CsrfMismatch'
+
+  # ============================================================
+  # Categories
+  # ============================================================
+  /categories:
+    get:
+      tags: [Categories]
+      operationId: listCategories
+      summary: カテゴリ一覧取得
+      description: 全カテゴリを displayOrder 昇順で返す。
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+                  meta:
+                    type: object
+                    properties:
+                      count:
+                        type: integer
+
+    post:
+      tags: [Categories]
+      operationId: createCategory
+      summary: カテゴリ新規登録
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryCreate'
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Category'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/CsrfMismatch'
+
+  /categories/{id}:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathParam'
+    get:
+      tags: [Categories]
+      operationId: getCategory
+      summary: カテゴリ 1 件取得
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Category'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Categories]
+      operationId: updateCategory
+      summary: カテゴリ更新
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryUpdate'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Category'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/CsrfMismatch'
+
+    delete:
+      tags: [Categories]
+      operationId: deleteCategory
+      summary: カテゴリ削除
+      description: |
+        対象 categoryId を参照する conferences が存在する場合は 409 を返す。
+        運営者は事前にカンファレンス側のタグ付けを外す必要がある。
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '204':
+          description: 削除成功
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '403':
+          $ref: '#/components/responses/CsrfMismatch'
+
+  # ============================================================
+  # Donations
+  # ============================================================
+  /donations:
+    get:
+      tags: [Donations]
+      operationId: listDonations
+      summary: カンパ一覧取得
+      description: 受領日時の範囲指定で取得 (DynamoDB GSI1 で範囲クエリ)。
+      parameters:
+        - name: from
+          in: query
+          required: false
+          description: 開始日 (ISO 8601 date 形式、含む)
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          description: 終了日 (ISO 8601 date 形式、含む)
+          schema:
+            type: string
+            format: date
+        - name: order
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Donation'
+                  meta:
+                    type: object
+                    properties:
+                      count:
+                        type: integer
+                      totalAmount:
+                        type: integer
+                        description: 取得期間内のカンパ総額 (JPY)
+
+    post:
+      tags: [Donations]
+      operationId: createDonation
+      summary: カンパ新規登録
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DonationCreate'
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Donation'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/CsrfMismatch'
+
+  /donations/{id}:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathParam'
+    get:
+      tags: [Donations]
+      operationId: getDonation
+      summary: カンパ 1 件取得
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Donation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Donations]
+      operationId: updateDonation
+      summary: カンパ更新
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DonationUpdate'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Donation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/CsrfMismatch'
+
+    delete:
+      tags: [Donations]
+      operationId: deleteDonation
+      summary: カンパ削除
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '204':
+          description: 削除成功
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/CsrfMismatch'
+
+  /donations/summary:
+    get:
+      tags: [Donations]
+      operationId: getDonationsSummary
+      summary: カンパ集計 (月次 / 年次)
+      description: |
+        指定された粒度 (月 or 年) で受領金額を集計する。
+        将来的にカンパ報告ページに利用する想定。
+
+        from と to の両方を指定した場合、`from > to` であれば 422 を返す
+        (バリデーション違反扱い)。片方のみの指定 / 両方未指定は許容し、
+        全期間または開始/終了片側のみで集計する。
+      parameters:
+        - name: period
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [monthly, yearly]
+        - name: from
+          in: query
+          required: false
+          description: 集計開始日 (ISO 8601 date、含む)
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          description: 集計終了日 (ISO 8601 date、含む)
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: 集計成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      required: [period, total, count]
+                      properties:
+                        period:
+                          type: string
+                          description: 月次なら "YYYY-MM"、年次なら "YYYY"
+                          examples: ["2026-04", "2026"]
+                        total:
+                          type: integer
+                          description: 期間内合計金額 (JPY)
+                        count:
+                          type: integer
+                          description: 期間内のカンパ件数
+                  meta:
+                    type: object
+                    properties:
+                      grandTotal:
+                        type: integer
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  # ============================================================
+  # Build trigger
+  # ============================================================
+  /build/trigger:
+    post:
+      tags: [Build]
+      operationId: triggerBuild
+      summary: 静的サイトの再ビルドをトリガー
+      description: |
+        通常はカンファレンス・カテゴリの保存時に自動でビルドが走るが、
+        手動で再ビルドしたい場合のためのエンドポイント。
+        実行は Amplify Webhook の呼び出しで行う。
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '202':
+          description: ビルド要求受付完了 (非同期実行)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      requestedAt:
+                        type: string
+                        format: date-time
+                      message:
+                        type: string
+                        example: "Build triggered. It typically takes 1-2 minutes to complete."
+        '403':
+          $ref: '#/components/responses/CsrfMismatch'
+        '503':
+          description: ビルドサービス未設定 (Amplify Webhook URL が未構成)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /build/status:
+    get:
+      tags: [Build]
+      operationId: getBuildStatus
+      summary: 直近のビルド状態を取得
+      description: |
+        最新の Amplify ビルド状態を取得する。管理画面で「ビルド中…」「失敗」
+        などのステータスを表示する用途。
+
+        Amplify の API を Lambda PHP 側で叩き、結果を整形して返す。
+        ビルド履歴は最大 10 件まで返却。
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BuildStatus'
+                  meta:
+                    type: object
+                    properties:
+                      latestStatus:
+                        type: string
+                        enum: [PENDING, PROVISIONING, RUNNING, FAILED, SUCCEED, CANCELLING, CANCELLED]
+                        description: 最も新しいビルドのステータス
+        '503':
+          description: ビルドサービス未設定 (Amplify アプリ ID が未構成)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  # ──────────────────────────────────────────────────────────
+  # Security Schemes
+  # ──────────────────────────────────────────────────────────
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: laravel_session
+      description: Laravel セッション Cookie
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-XSRF-TOKEN
+      description: |
+        CSRF トークン。`GET /csrf-token` で取得した値、または
+        XSRF-TOKEN Cookie の値をヘッダにコピーして送信する。
+        Origin / Referer ヘッダ検証も併用する (S3 セキュリティ要件)。
+
+  # ──────────────────────────────────────────────────────────
+  # Parameters
+  # ──────────────────────────────────────────────────────────
+  parameters:
+    UuidPathParam:
+      name: id
+      in: path
+      required: true
+      description: リソース ID (UUID v4)
+      schema:
+        type: string
+        format: uuid
+        pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+
+  # ──────────────────────────────────────────────────────────
+  # Common Responses
+  # ──────────────────────────────────────────────────────────
+  responses:
+    ValidationError:
+      description: 入力値バリデーション失敗
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            multipleFields:
+              summary: 複数フィールドのエラー
+              value:
+                error:
+                  code: VALIDATION_FAILED
+                  message: "Validation failed for one or more fields"
+                  details:
+                    - field: cfpEndDate
+                      rule: required
+                    - field: officialUrl
+                      rule: url_https
+
+    NotFound:
+      description: 指定 ID のリソースが見つからない
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            example:
+              value:
+                error:
+                  code: NOT_FOUND
+                  message: "Resource not found"
+
+    Conflict:
+      description: |
+        他リソースとの整合性違反。例:
+        - カテゴリの slug / name 重複
+        - 削除しようとしたカテゴリが他のカンファレンスから参照されている
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            duplicate:
+              summary: 重複
+              value:
+                error:
+                  code: DUPLICATE
+                  message: "A resource with the same slug already exists"
+            inUse:
+              summary: 参照中のため削除不可
+              value:
+                error:
+                  code: IN_USE
+                  message: "Category is referenced by 3 conferences and cannot be deleted"
+                  details:
+                    - field: categoryId
+                      rule: in_use_by_conferences
+
+    CsrfMismatch:
+      description: |
+        CSRF トークン不一致 / Origin・Referer 不正のいずれか。
+        どちらの違反であっても 403 を返すが、エラーコードで区別可能。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            csrfMismatch:
+              summary: CSRF トークン不一致
+              value:
+                error:
+                  code: CSRF_TOKEN_MISMATCH
+                  message: "Invalid or missing CSRF token"
+            invalidOrigin:
+              summary: Origin / Referer ヘッダが管理画面ドメインと一致しない
+              value:
+                error:
+                  code: INVALID_ORIGIN
+                  message: "Request origin does not match the admin domain"
+
+  # ──────────────────────────────────────────────────────────
+  # Schemas
+  # ──────────────────────────────────────────────────────────
+  schemas:
+    # ── 汎用 Error ──
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: エラー識別コード (機械可読)
+              enum:
+                - VALIDATION_FAILED
+                - NOT_FOUND
+                - DUPLICATE
+                - IN_USE
+                - CSRF_TOKEN_MISMATCH
+                - INVALID_ORIGIN
+                - INTERNAL_ERROR
+                - SERVICE_UNAVAILABLE
+            message:
+              type: string
+              description: 人間可読なエラーメッセージ
+            details:
+              type: array
+              description: フィールドレベルのエラー詳細 (任意)
+              items:
+                type: object
+                required: [field, rule]
+                properties:
+                  field:
+                    type: string
+                    description: 該当フィールド名 (camelCase)
+                  rule:
+                    type: string
+                    description: 違反ルール (例 required, url_https, max_length)
+
+    # ── Conference (応答用フル) ──
+    Conference:
+      type: object
+      required:
+        - conferenceId
+        - name
+        - officialUrl
+        - cfpUrl
+        - eventStartDate
+        - eventEndDate
+        - venue
+        - format
+        - cfpEndDate
+        - categories
+        - createdAt
+        - updatedAt
+      properties:
+        conferenceId:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: カンファレンス名
+        trackName:
+          type: string
+          maxLength: 100
+          description: トラック名 (複数 CfP がある場合のみ)
+        officialUrl:
+          type: string
+          format: uri
+          pattern: '^https://'
+          description: 公式サイト URL (https のみ)
+        cfpUrl:
+          type: string
+          format: uri
+          pattern: '^https://'
+          description: CfP 応募ページ URL (https のみ)
+        eventStartDate:
+          type: string
+          format: date
+          description: 開催開始日 (JST)
+        eventEndDate:
+          type: string
+          format: date
+          description: 開催終了日 (JST)
+        venue:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: 開催地 (例 "東京", "オンライン")
+        format:
+          type: string
+          enum: [online, offline, hybrid]
+        cfpStartDate:
+          type: string
+          format: date
+          description: CfP 開始日 (任意。不明時は省略)
+        cfpEndDate:
+          type: string
+          format: date
+          description: CfP 締切日 (JST 23:59 を期限とする)
+        categories:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            format: uuid
+          description: categories.categoryId の配列
+        description:
+          type: string
+          maxLength: 2000
+          description: 概要・備考 (HTML 不可、プレーンテキストのみ)
+        themeColor:
+          type: string
+          pattern: '^#[0-9a-fA-F]{6}$'
+          description: HEX カラー (例 "#FF6B6B")
+        ttl:
+          type: integer
+          readOnly: true
+          description: |
+            DynamoDB TTL 用 UNIX タイムスタンプ (サーバー側で算出)。
+            cfpEndDate の翌日 00:00 JST を UNIX タイムスタンプ化した値。
+            cfpEndDate を PUT で更新した場合は自動的に再計算される。
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+
+    # ── Conference (作成用、ID と日時自動採番) ──
+    ConferenceCreate:
+      type: object
+      required:
+        - name
+        - officialUrl
+        - cfpUrl
+        - eventStartDate
+        - eventEndDate
+        - venue
+        - format
+        - cfpEndDate
+        - categories
+      properties:
+        name:
+          $ref: '#/components/schemas/Conference/properties/name'
+        trackName:
+          $ref: '#/components/schemas/Conference/properties/trackName'
+        officialUrl:
+          $ref: '#/components/schemas/Conference/properties/officialUrl'
+        cfpUrl:
+          $ref: '#/components/schemas/Conference/properties/cfpUrl'
+        eventStartDate:
+          $ref: '#/components/schemas/Conference/properties/eventStartDate'
+        eventEndDate:
+          $ref: '#/components/schemas/Conference/properties/eventEndDate'
+        venue:
+          $ref: '#/components/schemas/Conference/properties/venue'
+        format:
+          $ref: '#/components/schemas/Conference/properties/format'
+        cfpStartDate:
+          $ref: '#/components/schemas/Conference/properties/cfpStartDate'
+        cfpEndDate:
+          $ref: '#/components/schemas/Conference/properties/cfpEndDate'
+        categories:
+          $ref: '#/components/schemas/Conference/properties/categories'
+        description:
+          $ref: '#/components/schemas/Conference/properties/description'
+        themeColor:
+          $ref: '#/components/schemas/Conference/properties/themeColor'
+      description: |
+        以下の整合性ルールがサーバー側で検証される (違反は 422):
+        - cfpStartDate <= cfpEndDate (cfpStartDate 指定時)
+        - cfpEndDate <= eventStartDate
+        - eventStartDate <= eventEndDate
+        - categories の各 ID が categories テーブルに存在
+
+    # ── Conference (更新用、全フィールド任意) ──
+    ConferenceUpdate:
+      type: object
+      description: |
+        部分更新 (PATCH 相当) を PUT で許容する。指定されたフィールドのみ更新。
+        整合性ルールは ConferenceCreate と同じ。
+
+        サーバー側挙動の注意点:
+        - cfpEndDate を更新した場合、サーバーは ttl 属性を再計算する
+          (新しい cfpEndDate の翌日 00:00 JST を UNIX タイムスタンプ化)。
+        - categories を空配列で送ると minItems: 1 に違反するため 422 を返す。
+          カテゴリを完全に剥がしたい場合は最低 1 件の categoryId を残す必要がある
+          (運用上「未分類」相当のカテゴリを 1 件持っておくと運用が楽)。
+      properties:
+        name:
+          $ref: '#/components/schemas/Conference/properties/name'
+        trackName:
+          $ref: '#/components/schemas/Conference/properties/trackName'
+        officialUrl:
+          $ref: '#/components/schemas/Conference/properties/officialUrl'
+        cfpUrl:
+          $ref: '#/components/schemas/Conference/properties/cfpUrl'
+        eventStartDate:
+          $ref: '#/components/schemas/Conference/properties/eventStartDate'
+        eventEndDate:
+          $ref: '#/components/schemas/Conference/properties/eventEndDate'
+        venue:
+          $ref: '#/components/schemas/Conference/properties/venue'
+        format:
+          $ref: '#/components/schemas/Conference/properties/format'
+        cfpStartDate:
+          $ref: '#/components/schemas/Conference/properties/cfpStartDate'
+        cfpEndDate:
+          $ref: '#/components/schemas/Conference/properties/cfpEndDate'
+        categories:
+          $ref: '#/components/schemas/Conference/properties/categories'
+        description:
+          $ref: '#/components/schemas/Conference/properties/description'
+        themeColor:
+          $ref: '#/components/schemas/Conference/properties/themeColor'
+
+    # ── Category (応答用フル) ──
+    Category:
+      type: object
+      required:
+        - categoryId
+        - name
+        - slug
+        - displayOrder
+        - createdAt
+        - updatedAt
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: 表示名 (例 "PHP", "フロントエンド")
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: '^[a-z0-9-]+$'
+          description: URL/フィルタ用識別子
+        displayOrder:
+          type: integer
+          description: 表示順 (軸ごとに番号帯を分割した整数値)
+        axis:
+          type: string
+          enum: [A, B, C, D]
+          description: 軸ラベル (運用補助。表示には使わない)
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+
+    # ── Category (作成用) ──
+    CategoryCreate:
+      type: object
+      required: [name, slug, displayOrder]
+      properties:
+        name:
+          $ref: '#/components/schemas/Category/properties/name'
+        slug:
+          $ref: '#/components/schemas/Category/properties/slug'
+        displayOrder:
+          $ref: '#/components/schemas/Category/properties/displayOrder'
+        axis:
+          $ref: '#/components/schemas/Category/properties/axis'
+      description: |
+        - name と slug は既存と重複してはならない (違反は 409)
+
+    # ── Category (更新用) ──
+    CategoryUpdate:
+      type: object
+      properties:
+        name:
+          $ref: '#/components/schemas/Category/properties/name'
+        slug:
+          $ref: '#/components/schemas/Category/properties/slug'
+        displayOrder:
+          $ref: '#/components/schemas/Category/properties/displayOrder'
+        axis:
+          $ref: '#/components/schemas/Category/properties/axis'
+
+    # ── Donation (応答用フル) ──
+    Donation:
+      type: object
+      required:
+        - donationId
+        - receivedAt
+        - amount
+        - source
+        - createdAt
+        - updatedAt
+      properties:
+        donationId:
+          type: string
+          format: uuid
+          readOnly: true
+        receivedAt:
+          type: string
+          format: date-time
+          description: 受領日時 (JST)
+        amount:
+          type: integer
+          minimum: 1
+          description: 金額 (JPY、整数)
+        source:
+          type: string
+          minLength: 1
+          maxLength: 50
+          description: 受領経路 (例 "Stripe", "BOOTH", "BuyMeACoffee")
+        donorName:
+          type: string
+          maxLength: 100
+          description: 寄付者名 (任意。プライバシーポリシーで取扱明示が必要)
+        note:
+          type: string
+          maxLength: 500
+          description: 備考
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+
+    # ── Donation (作成用) ──
+    DonationCreate:
+      type: object
+      required: [receivedAt, amount, source]
+      properties:
+        receivedAt:
+          $ref: '#/components/schemas/Donation/properties/receivedAt'
+        amount:
+          $ref: '#/components/schemas/Donation/properties/amount'
+        source:
+          $ref: '#/components/schemas/Donation/properties/source'
+        donorName:
+          $ref: '#/components/schemas/Donation/properties/donorName'
+        note:
+          $ref: '#/components/schemas/Donation/properties/note'
+
+    # ── Donation (更新用) ──
+    DonationUpdate:
+      type: object
+      properties:
+        receivedAt:
+          $ref: '#/components/schemas/Donation/properties/receivedAt'
+        amount:
+          $ref: '#/components/schemas/Donation/properties/amount'
+        source:
+          $ref: '#/components/schemas/Donation/properties/source'
+        donorName:
+          $ref: '#/components/schemas/Donation/properties/donorName'
+        note:
+          $ref: '#/components/schemas/Donation/properties/note'
+
+    # ── BuildStatus (Amplify ビルド状態) ──
+    BuildStatus:
+      type: object
+      required: [jobId, status, startedAt]
+      properties:
+        jobId:
+          type: string
+          description: Amplify ビルドジョブ ID
+        status:
+          type: string
+          enum: [PENDING, PROVISIONING, RUNNING, FAILED, SUCCEED, CANCELLING, CANCELLED]
+          description: ビルドステータス (Amplify SDK の値をそのまま転記)
+        commitId:
+          type: string
+          description: ビルド対象の Git コミット SHA (リポジトリ連携時のみ)
+        commitMessage:
+          type: string
+          description: コミットメッセージ (リポジトリ連携時のみ)
+        startedAt:
+          type: string
+          format: date-time
+          description: ビルド開始日時
+        endedAt:
+          type: string
+          format: date-time
+          description: ビルド終了日時 (完了済みのみ)
+        triggerSource:
+          type: string
+          enum: [admin-manual, admin-save, scheduled, repository-push]
+          description: |
+            ビルド起因の経路:
+            - admin-manual: 管理画面の「再ビルド」ボタン
+            - admin-save: カンファレンス・カテゴリ等の保存アクション
+            - scheduled: EventBridge 日次保険ビルド
+            - repository-push: Git リポジトリへの push (本構成では基本未使用)
