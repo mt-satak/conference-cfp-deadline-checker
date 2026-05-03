@@ -52,6 +52,7 @@ paths:
   /health:
     get:
       tags: [Health]
+      operationId: healthCheck
       summary: ヘルスチェック
       description: サーバー稼働確認用。認証不要。
       security: []
@@ -76,6 +77,7 @@ paths:
   /csrf-token:
     get:
       tags: [CSRF]
+      operationId: getCsrfToken
       summary: CSRF トークン取得
       description: |
         SPA フロントから状態変更系リクエストを行う前に呼び出して、
@@ -108,6 +110,7 @@ paths:
   /conferences:
     get:
       tags: [Conferences]
+      operationId: listConferences
       summary: カンファレンス一覧取得
       description: |
         全カンファレンス情報を返す。検索・ソート・フィルタ可。
@@ -175,6 +178,7 @@ paths:
 
     post:
       tags: [Conferences]
+      operationId: createConference
       summary: カンファレンス新規登録
       security:
         - sessionCookie: []
@@ -206,6 +210,7 @@ paths:
       - $ref: '#/components/parameters/UuidPathParam'
     get:
       tags: [Conferences]
+      operationId: getConference
       summary: カンファレンス 1 件取得
       responses:
         '200':
@@ -223,6 +228,7 @@ paths:
 
     put:
       tags: [Conferences]
+      operationId: updateConference
       summary: カンファレンス更新
       security:
         - sessionCookie: []
@@ -253,6 +259,7 @@ paths:
 
     delete:
       tags: [Conferences]
+      operationId: deleteConference
       summary: カンファレンス削除
       security:
         - sessionCookie: []
@@ -271,6 +278,7 @@ paths:
   /categories:
     get:
       tags: [Categories]
+      operationId: listCategories
       summary: カテゴリ一覧取得
       description: 全カテゴリを displayOrder 昇順で返す。
       responses:
@@ -294,6 +302,7 @@ paths:
 
     post:
       tags: [Categories]
+      operationId: createCategory
       summary: カテゴリ新規登録
       security:
         - sessionCookie: []
@@ -327,6 +336,7 @@ paths:
       - $ref: '#/components/parameters/UuidPathParam'
     get:
       tags: [Categories]
+      operationId: getCategory
       summary: カテゴリ 1 件取得
       responses:
         '200':
@@ -344,6 +354,7 @@ paths:
 
     put:
       tags: [Categories]
+      operationId: updateCategory
       summary: カテゴリ更新
       security:
         - sessionCookie: []
@@ -376,6 +387,7 @@ paths:
 
     delete:
       tags: [Categories]
+      operationId: deleteCategory
       summary: カテゴリ削除
       description: |
         対象 categoryId を参照する conferences が存在する場合は 409 を返す。
@@ -399,6 +411,7 @@ paths:
   /donations:
     get:
       tags: [Donations]
+      operationId: listDonations
       summary: カンパ一覧取得
       description: 受領日時の範囲指定で取得 (DynamoDB GSI1 で範囲クエリ)。
       parameters:
@@ -447,6 +460,7 @@ paths:
 
     post:
       tags: [Donations]
+      operationId: createDonation
       summary: カンパ新規登録
       security:
         - sessionCookie: []
@@ -478,6 +492,7 @@ paths:
       - $ref: '#/components/parameters/UuidPathParam'
     get:
       tags: [Donations]
+      operationId: getDonation
       summary: カンパ 1 件取得
       responses:
         '200':
@@ -495,6 +510,7 @@ paths:
 
     put:
       tags: [Donations]
+      operationId: updateDonation
       summary: カンパ更新
       security:
         - sessionCookie: []
@@ -525,6 +541,7 @@ paths:
 
     delete:
       tags: [Donations]
+      operationId: deleteDonation
       summary: カンパ削除
       security:
         - sessionCookie: []
@@ -540,6 +557,7 @@ paths:
   /donations/summary:
     get:
       tags: [Donations]
+      operationId: getDonationsSummary
       summary: カンパ集計 (月次 / 年次)
       description: |
         指定された粒度 (月 or 年) で受領金額を集計する。
@@ -608,6 +626,7 @@ paths:
   /build/trigger:
     post:
       tags: [Build]
+      operationId: triggerBuild
       summary: 静的サイトの再ビルドをトリガー
       description: |
         通常はカンファレンス・カテゴリの保存時に自動でビルドが走るが、
