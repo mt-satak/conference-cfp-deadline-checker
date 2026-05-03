@@ -544,6 +544,10 @@ paths:
       description: |
         指定された粒度 (月 or 年) で受領金額を集計する。
         将来的にカンパ報告ページに利用する想定。
+
+        from と to の両方を指定した場合、`from > to` であれば 422 を返す
+        (バリデーション違反扱い)。片方のみの指定 / 両方未指定は許容し、
+        全期間または開始/終了片側のみで集計する。
       parameters:
         - name: period
           in: query
@@ -554,14 +558,14 @@ paths:
         - name: from
           in: query
           required: false
-          description: 集計開始日 (ISO 8601 date)
+          description: 集計開始日 (ISO 8601 date、含む)
           schema:
             type: string
             format: date
         - name: to
           in: query
           required: false
-          description: 集計終了日 (ISO 8601 date)
+          description: 集計終了日 (ISO 8601 date、含む)
           schema:
             type: string
             format: date
@@ -595,6 +599,8 @@ paths:
                     properties:
                       grandTotal:
                         type: integer
+        '422':
+          $ref: '#/components/responses/ValidationError'
 
   # ============================================================
   # Build trigger
@@ -733,17 +739,26 @@ components:
                       rule: in_use_by_conferences
 
     CsrfMismatch:
-      description: CSRF トークン不一致または Origin/Referer 不正
+      description: |
+        CSRF トークン不一致 / Origin・Referer 不正のいずれか。
+        どちらの違反であっても 403 を返すが、エラーコードで区別可能。
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
           examples:
-            example:
+            csrfMismatch:
+              summary: CSRF トークン不一致
               value:
                 error:
                   code: CSRF_TOKEN_MISMATCH
                   message: "Invalid or missing CSRF token"
+            invalidOrigin:
+              summary: Origin / Referer ヘッダが管理画面ドメインと一致しない
+              value:
+                error:
+                  code: INVALID_ORIGIN
+                  message: "Request origin does not match the admin domain"
 
   # ──────────────────────────────────────────────────────────
   # Schemas
@@ -869,7 +884,10 @@ components:
         ttl:
           type: integer
           readOnly: true
-          description: DynamoDB TTL 用 UNIX タイムスタンプ (サーバー側で算出)
+          description: |
+            DynamoDB TTL 用 UNIX タイムスタンプ (サーバー側で算出)。
+            cfpEndDate の翌日 00:00 JST を UNIX タイムスタンプ化した値。
+            cfpEndDate を PUT で更新した場合は自動的に再計算される。
         createdAt:
           type: string
           format: date-time
@@ -932,6 +950,13 @@ components:
       description: |
         部分更新 (PATCH 相当) を PUT で許容する。指定されたフィールドのみ更新。
         整合性ルールは ConferenceCreate と同じ。
+
+        サーバー側挙動の注意点:
+        - cfpEndDate を更新した場合、サーバーは ttl 属性を再計算する
+          (新しい cfpEndDate の翌日 00:00 JST を UNIX タイムスタンプ化)。
+        - categories を空配列で送ると minItems: 1 に違反するため 422 を返す。
+          カテゴリを完全に剥がしたい場合は最低 1 件の categoryId を残す必要がある
+          (運用上「未分類」相当のカテゴリを 1 件持っておくと運用が楽)。
       properties:
         name:
           $ref: '#/components/schemas/Conference/properties/name'
