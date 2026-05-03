@@ -272,6 +272,75 @@ paths:
         '403':
           $ref: '#/components/responses/CsrfMismatch'
 
+  /conferences/bulk:
+    post:
+      tags: [Conferences]
+      operationId: bulkImportConferences
+      summary: カンファレンスを一括インポート
+      description: |
+        複数件のカンファレンスを一括登録する。初期データ投入や
+        一斉移行時の利便性のため。1 リクエストあたり最大 100 件。
+
+        部分失敗時の挙動は all-or-nothing (1 件でも失敗すれば全件
+        ロールバック)。失敗時は 422 と各件のエラー詳細を返す。
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items:
+                    $ref: '#/components/schemas/ConferenceCreate'
+      responses:
+        '201':
+          description: 全件登録成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Conference'
+                  meta:
+                    type: object
+                    properties:
+                      created:
+                        type: integer
+                        description: 登録された件数
+        '422':
+          description: |
+            バリデーション失敗。詳細にどの行 (index) のどのフィールドが
+            違反したかを含める。1 件でも失敗すれば全件ロールバック。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                example:
+                  value:
+                    error:
+                      code: VALIDATION_FAILED
+                      message: "Bulk import failed at one or more items"
+                      details:
+                        - field: "data[2].cfpEndDate"
+                          rule: required
+                        - field: "data[5].officialUrl"
+                          rule: url_https
+        '403':
+          $ref: '#/components/responses/CsrfMismatch'
+
   # ============================================================
   # Categories
   # ============================================================
@@ -657,6 +726,44 @@ paths:
           $ref: '#/components/responses/CsrfMismatch'
         '503':
           description: ビルドサービス未設定 (Amplify Webhook URL が未構成)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /build/status:
+    get:
+      tags: [Build]
+      operationId: getBuildStatus
+      summary: 直近のビルド状態を取得
+      description: |
+        最新の Amplify ビルド状態を取得する。管理画面で「ビルド中…」「失敗」
+        などのステータスを表示する用途。
+
+        Amplify の API を Lambda PHP 側で叩き、結果を整形して返す。
+        ビルド履歴は最大 10 件まで返却。
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BuildStatus'
+                  meta:
+                    type: object
+                    properties:
+                      latestStatus:
+                        type: string
+                        enum: [PENDING, PROVISIONING, RUNNING, FAILED, SUCCEED, CANCELLING, CANCELLED]
+                        description: 最も新しいビルドのステータス
+        '503':
+          description: ビルドサービス未設定 (Amplify アプリ ID が未構成)
           content:
             application/json:
               schema:
@@ -1150,3 +1257,39 @@ components:
           $ref: '#/components/schemas/Donation/properties/donorName'
         note:
           $ref: '#/components/schemas/Donation/properties/note'
+
+    # ── BuildStatus (Amplify ビルド状態) ──
+    BuildStatus:
+      type: object
+      required: [jobId, status, startedAt]
+      properties:
+        jobId:
+          type: string
+          description: Amplify ビルドジョブ ID
+        status:
+          type: string
+          enum: [PENDING, PROVISIONING, RUNNING, FAILED, SUCCEED, CANCELLING, CANCELLED]
+          description: ビルドステータス (Amplify SDK の値をそのまま転記)
+        commitId:
+          type: string
+          description: ビルド対象の Git コミット SHA (リポジトリ連携時のみ)
+        commitMessage:
+          type: string
+          description: コミットメッセージ (リポジトリ連携時のみ)
+        startedAt:
+          type: string
+          format: date-time
+          description: ビルド開始日時
+        endedAt:
+          type: string
+          format: date-time
+          description: ビルド終了日時 (完了済みのみ)
+        triggerSource:
+          type: string
+          enum: [admin-manual, admin-save, scheduled, repository-push]
+          description: |
+            ビルド起因の経路:
+            - admin-manual: 管理画面の「再ビルド」ボタン
+            - admin-save: カンファレンス・カテゴリ等の保存アクション
+            - scheduled: EventBridge 日次保険ビルド
+            - repository-push: Git リポジトリへの push (本構成では基本未使用)
