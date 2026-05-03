@@ -156,7 +156,7 @@ paths:
       summary: カンファレンス新規登録
       security:
         - sessionCookie: []
-        - csrfToken: []
+          csrfToken: []
       requestBody:
         required: true
         content:
@@ -204,7 +204,7 @@ paths:
       summary: カンファレンス更新
       security:
         - sessionCookie: []
-        - csrfToken: []
+          csrfToken: []
       requestBody:
         required: true
         content:
@@ -234,7 +234,7 @@ paths:
       summary: カンファレンス削除
       security:
         - sessionCookie: []
-        - csrfToken: []
+          csrfToken: []
       responses:
         '204':
           description: 削除成功
@@ -275,7 +275,7 @@ paths:
       summary: カテゴリ新規登録
       security:
         - sessionCookie: []
-        - csrfToken: []
+          csrfToken: []
       requestBody:
         required: true
         content:
@@ -325,7 +325,7 @@ paths:
       summary: カテゴリ更新
       security:
         - sessionCookie: []
-        - csrfToken: []
+          csrfToken: []
       requestBody:
         required: true
         content:
@@ -360,7 +360,7 @@ paths:
         運営者は事前にカンファレンス側のタグ付けを外す必要がある。
       security:
         - sessionCookie: []
-        - csrfToken: []
+          csrfToken: []
       responses:
         '204':
           description: 削除成功
@@ -428,7 +428,7 @@ paths:
       summary: カンパ新規登録
       security:
         - sessionCookie: []
-        - csrfToken: []
+          csrfToken: []
       requestBody:
         required: true
         content:
@@ -476,7 +476,7 @@ paths:
       summary: カンパ更新
       security:
         - sessionCookie: []
-        - csrfToken: []
+          csrfToken: []
       requestBody:
         required: true
         content:
@@ -506,7 +506,7 @@ paths:
       summary: カンパ削除
       security:
         - sessionCookie: []
-        - csrfToken: []
+          csrfToken: []
       responses:
         '204':
           description: 削除成功
@@ -587,7 +587,7 @@ paths:
         実行は Amplify Webhook の呼び出しで行う。
       security:
         - sessionCookie: []
-        - csrfToken: []
+          csrfToken: []
       responses:
         '202':
           description: ビルド要求受付完了 (非同期実行)
