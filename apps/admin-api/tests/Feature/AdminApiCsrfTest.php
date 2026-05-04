@@ -22,42 +22,47 @@ use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Route;
 
 it('TokenMismatchException が /admin/api 配下で 403 + CSRF_TOKEN_MISMATCH に整形される', function () {
+    // Given: /admin/api 配下に TokenMismatchException を投げる POST ルートを動的に登録する
+    // (本番では PreventRequestForgery がトークン不一致時に投げるが、
+    //  テスト環境ではミドルウェアがバイパスするため明示的に投げる)
     Route::middleware('web')->post('/admin/api/_test_csrf_throw', function () {
-        // 本番では PreventRequestForgery がトークン不一致時にこの例外を投げる。
-        // テスト環境ではミドルウェアがバイパスするため、ルート内で明示的に投げる。
         throw new TokenMismatchException('CSRF token mismatch.');
     });
 
+    // When: 当該 POST にリクエストする
     $response = $this->postJson('/admin/api/_test_csrf_throw', []);
 
+    // Then: 例外整形ハンドラが 403 + CSRF_TOKEN_MISMATCH に変換する
     $response->assertStatus(403);
     $response->assertJsonPath('error.code', 'CSRF_TOKEN_MISMATCH');
 });
 
 it('TokenMismatchException が /admin/api 配下でない場合は整形対象外', function () {
+    // Given: /admin/api プレフィックスの外で例外を投げる POST ルートを登録する
     Route::middleware('web')->post('/_test_csrf_throw_outside', function () {
         throw new TokenMismatchException('CSRF token mismatch.');
     });
 
+    // When: 当該 POST にリクエストする
     $response = $this->postJson('/_test_csrf_throw_outside', []);
 
-    // /admin/api 配下でないため AdminApiExceptionRenderer は null を返し、
-    // Laravel デフォルトのハンドラに委譲される。我々の独自形式 (error.code) は付かない。
+    // Then: AdminApiExceptionRenderer は null を返し、Laravel デフォルトの
+    // ハンドラに委譲される (我々の独自形式 error.code は付かない)
     expect($response->json('error.code'))->toBeNull();
 });
 
 it('/admin/api 配下のルートは web ミドルウェアグループに属し CSRF 保護対象である', function () {
-    // 本番環境で CSRF が効くための前提条件を 2 ステップで確認する:
-    //   1. /admin/api 配下のルートが web グループに属している
-    //   2. web グループに PreventRequestForgery (= CSRF) が含まれている
-    // この 2 つの組合せで「/admin/api 配下に CSRF が適用される」ことが担保される。
+    // Given: 本番環境で CSRF が効く前提条件を 2 ステップで確認する
+    // (1. ルートが web グループ / 2. web グループに PreventRequestForgery)
+
+    // When: /admin/api/health のルート定義と web ミドルウェアグループの構成を取得する
     $route = collect(Route::getRoutes())
         ->first(fn ($r) => $r->uri() === 'admin/api/health');
+    $webMiddleware = app('router')->getMiddlewareGroups()['web'] ?? [];
 
+    // Then: 2 条件いずれも満たし、本番では CSRF が適用される
     expect($route)->not->toBeNull();
     expect($route->middleware())->toContain('web');
-
-    $webMiddleware = app('router')->getMiddlewareGroups()['web'] ?? [];
     expect($webMiddleware)
         ->toContain(\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class);
 });

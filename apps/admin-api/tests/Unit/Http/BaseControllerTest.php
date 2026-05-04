@@ -11,19 +11,26 @@ use Illuminate\Http\JsonResponse;
  * レスポンスを返却する。OpenAPI 仕様 (data/openapi.yaml) と整合する。
  */
 
-beforeEach(function () {
-    // BaseController は abstract なので無名サブクラスでインスタンス化する
-    $this->controller = new class extends BaseController {};
-});
+/**
+ * BaseController は abstract のため無名サブクラスでインスタンス化するファクトリ。
+ * Pest の $this->* パターンは IDE 静的解析と相性が悪いため利用しない。
+ */
+function makeBaseController(): BaseController
+{
+    return new class extends BaseController {};
+}
 
 it('ok() は 200 と {"data": ..., "meta": {}} を返す', function () {
-    $response = $this->controller->ok(['foo' => 'bar']);
+    // Given: BaseController サブクラスのインスタンス
+    $controller = makeBaseController();
 
+    // When: ok() に data のみ渡す
+    $response = $controller->ok(['foo' => 'bar']);
+
+    // Then: 200 で {data: ..., meta: {}} が返る
+    // (meta は空でも JSON 上は {} (object) で OpenAPI の meta: object 型と整合)
     expect($response)->toBeInstanceOf(JsonResponse::class);
     expect($response->status())->toBe(200);
-
-    // meta は空配列でも JSON 上は {} (object) となる必要がある
-    // (OpenAPI の meta: object 型と整合させるため)
     $payload = json_decode($response->getContent(), associative: true);
     expect($payload)->toHaveKey('data');
     expect($payload['data'])->toBe(['foo' => 'bar']);
@@ -31,19 +38,29 @@ it('ok() は 200 と {"data": ..., "meta": {}} を返す', function () {
 });
 
 it('ok() に meta を渡すとそれが含まれる', function () {
-    $response = $this->controller->ok(
+    // Given: BaseController サブクラスのインスタンス
+    $controller = makeBaseController();
+
+    // When: ok() に data と meta を渡す
+    $response = $controller->ok(
         data: [['id' => 'a'], ['id' => 'b']],
         meta: ['count' => 2],
     );
 
+    // Then: data 配列と meta.count がそのまま反映される
     $payload = json_decode($response->getContent(), associative: true);
     expect($payload['data'])->toHaveCount(2);
     expect($payload['meta'])->toBe(['count' => 2]);
 });
 
 it('created() は 201 と {"data": ...} を返す', function () {
-    $response = $this->controller->created(['id' => 'abc-123', 'name' => 'PHPカンファレンス']);
+    // Given: BaseController サブクラスのインスタンス
+    $controller = makeBaseController();
 
+    // When: created() で新規リソース表現を渡す
+    $response = $controller->created(['id' => 'abc-123', 'name' => 'PHPカンファレンス']);
+
+    // Then: 201 で {data: ...} が返る
     expect($response->status())->toBe(201);
     $payload = json_decode($response->getContent(), associative: true);
     expect($payload)->toHaveKey('data');
@@ -51,19 +68,30 @@ it('created() は 201 と {"data": ...} を返す', function () {
 });
 
 it('noContent() は 204 と空ボディを返す', function () {
-    $response = $this->controller->noContent();
+    // Given: BaseController サブクラスのインスタンス
+    $controller = makeBaseController();
 
+    // When: noContent() を呼ぶ
+    $response = $controller->noContent();
+
+    // Then: 204 でボディが空
+    // (RFC 7231 準拠。JsonResponse(null) の "null" 文字列出力を回避)
     expect($response->status())->toBe(204);
     expect($response->getContent())->toBe('');
 });
 
 it('error() は status と {"error": {code, message}} を返す', function () {
-    $response = $this->controller->error(
+    // Given: BaseController サブクラスのインスタンス
+    $controller = makeBaseController();
+
+    // When: error() に code/message/status を渡す (details なし)
+    $response = $controller->error(
         code: 'NOT_FOUND',
         message: 'Resource not found',
         status: 404,
     );
 
+    // Then: 指定 status で {error: {code, message}} が返る (details キーなし)
     expect($response->status())->toBe(404);
     $payload = json_decode($response->getContent(), associative: true);
     expect($payload)->toBe([
@@ -75,7 +103,11 @@ it('error() は status と {"error": {code, message}} を返す', function () {
 });
 
 it('error() に details を渡すと details が含まれる', function () {
-    $response = $this->controller->error(
+    // Given: BaseController サブクラスのインスタンス
+    $controller = makeBaseController();
+
+    // When: error() に details (フィールドレベルエラー) を渡す
+    $response = $controller->error(
         code: 'VALIDATION_FAILED',
         message: 'Validation failed for one or more fields',
         status: 422,
@@ -85,6 +117,7 @@ it('error() に details を渡すと details が含まれる', function () {
         ],
     );
 
+    // Then: 422 で details 配列が含まれる
     expect($response->status())->toBe(422);
     $payload = json_decode($response->getContent(), associative: true);
     expect($payload['error']['details'])->toHaveCount(2);
@@ -92,13 +125,18 @@ it('error() に details を渡すと details が含まれる', function () {
 });
 
 it('error() に空の details を渡すと details キーは含めない', function () {
-    $response = $this->controller->error(
+    // Given: BaseController サブクラスのインスタンス
+    $controller = makeBaseController();
+
+    // When: error() に空配列の details を渡す
+    $response = $controller->error(
         code: 'NOT_FOUND',
         message: 'Resource not found',
         status: 404,
         details: [],
     );
 
+    // Then: error オブジェクトに details キー自体が含まれない
     $payload = json_decode($response->getContent(), associative: true);
     expect($payload['error'])->not->toHaveKey('details');
 });

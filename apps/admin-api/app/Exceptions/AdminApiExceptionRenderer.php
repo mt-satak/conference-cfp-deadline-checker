@@ -2,6 +2,7 @@
 
 namespace App\Exceptions;
 
+use App\Domain\Conferences\ConferenceNotFoundException;
 use App\Exceptions\InvalidOriginException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
@@ -35,6 +36,10 @@ class AdminApiExceptionRenderer
         return match (true) {
             $e instanceof ValidationException => $this->renderValidation($e),
             $e instanceof InvalidOriginException => $this->renderInvalidOrigin(),
+            // Domain 層の Not Found 系例外は 404 + NOT_FOUND に整形する。
+            // 将来リソース別 NotFoundException が増えたら共通の親クラス /
+            // インタフェースに抽出することを検討する。
+            $e instanceof ConferenceNotFoundException => $this->renderNotFound(),
             $e instanceof ModelNotFoundException => $this->renderNotFound(),
             $e instanceof NotFoundHttpException => $this->renderNotFound(),
             // Laravel の prepareException() が TokenMismatchException を
