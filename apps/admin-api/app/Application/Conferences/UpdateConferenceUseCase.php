@@ -3,6 +3,7 @@
 namespace App\Application\Conferences;
 
 use App\Domain\Conferences\Conference;
+use App\Domain\Conferences\ConferenceFormat;
 use App\Domain\Conferences\ConferenceNotFoundException;
 use App\Domain\Conferences\ConferenceRepository;
 use Illuminate\Support\Carbon;
@@ -28,7 +29,24 @@ class UpdateConferenceUseCase
     ) {}
 
     /**
-     * @param  array<string, mixed>  $fields  更新するフィールドのみのキーバリュー
+     * 部分更新の入力 shape は UpdateConferenceRequest::validated() と同じ
+     * (Controller で format のみ enum 化済み)。型 narrowing のため明示。
+     *
+     * @param  array{
+     *     name?: string,
+     *     trackName?: string|null,
+     *     officialUrl?: string,
+     *     cfpUrl?: string,
+     *     eventStartDate?: string,
+     *     eventEndDate?: string,
+     *     venue?: string,
+     *     format?: ConferenceFormat,
+     *     cfpStartDate?: string|null,
+     *     cfpEndDate?: string,
+     *     categories?: array<int, string>,
+     *     description?: string|null,
+     *     themeColor?: string|null,
+     * }  $fields
      *
      * @throws ConferenceNotFoundException
      */
@@ -41,21 +59,24 @@ class UpdateConferenceUseCase
 
         $now = Carbon::now('Asia/Tokyo')->toIso8601String();
 
+        // ?? は「キー不在 + 値 null」の両方で default にフォールバックするが、
+        // 部分更新ではキー不在 = 既存値維持、値 null = "明示的に null をセット" を
+        // 区別する必要があるため array_key_exists で分岐する。
         $updated = new Conference(
             conferenceId: $existing->conferenceId,
-            name: $this->pick($fields, 'name', $existing->name),
-            trackName: $this->pick($fields, 'trackName', $existing->trackName),
-            officialUrl: $this->pick($fields, 'officialUrl', $existing->officialUrl),
-            cfpUrl: $this->pick($fields, 'cfpUrl', $existing->cfpUrl),
-            eventStartDate: $this->pick($fields, 'eventStartDate', $existing->eventStartDate),
-            eventEndDate: $this->pick($fields, 'eventEndDate', $existing->eventEndDate),
-            venue: $this->pick($fields, 'venue', $existing->venue),
-            format: $this->pick($fields, 'format', $existing->format),
-            cfpStartDate: $this->pick($fields, 'cfpStartDate', $existing->cfpStartDate),
-            cfpEndDate: $this->pick($fields, 'cfpEndDate', $existing->cfpEndDate),
-            categories: $this->pick($fields, 'categories', $existing->categories),
-            description: $this->pick($fields, 'description', $existing->description),
-            themeColor: $this->pick($fields, 'themeColor', $existing->themeColor),
+            name: array_key_exists('name', $fields) ? $fields['name'] : $existing->name,
+            trackName: array_key_exists('trackName', $fields) ? $fields['trackName'] : $existing->trackName,
+            officialUrl: array_key_exists('officialUrl', $fields) ? $fields['officialUrl'] : $existing->officialUrl,
+            cfpUrl: array_key_exists('cfpUrl', $fields) ? $fields['cfpUrl'] : $existing->cfpUrl,
+            eventStartDate: array_key_exists('eventStartDate', $fields) ? $fields['eventStartDate'] : $existing->eventStartDate,
+            eventEndDate: array_key_exists('eventEndDate', $fields) ? $fields['eventEndDate'] : $existing->eventEndDate,
+            venue: array_key_exists('venue', $fields) ? $fields['venue'] : $existing->venue,
+            format: array_key_exists('format', $fields) ? $fields['format'] : $existing->format,
+            cfpStartDate: array_key_exists('cfpStartDate', $fields) ? $fields['cfpStartDate'] : $existing->cfpStartDate,
+            cfpEndDate: array_key_exists('cfpEndDate', $fields) ? $fields['cfpEndDate'] : $existing->cfpEndDate,
+            categories: array_key_exists('categories', $fields) ? $fields['categories'] : $existing->categories,
+            description: array_key_exists('description', $fields) ? $fields['description'] : $existing->description,
+            themeColor: array_key_exists('themeColor', $fields) ? $fields['themeColor'] : $existing->themeColor,
             createdAt: $existing->createdAt,
             updatedAt: $now,
         );
@@ -63,15 +84,5 @@ class UpdateConferenceUseCase
         $this->repository->save($updated);
 
         return $updated;
-    }
-
-    /**
-     * 入力 array にキーがあれば該当値、無ければデフォルト値を返す。
-     *
-     * @param  array<string, mixed>  $fields
-     */
-    private function pick(array $fields, string $key, mixed $default): mixed
-    {
-        return array_key_exists($key, $fields) ? $fields[$key] : $default;
     }
 }

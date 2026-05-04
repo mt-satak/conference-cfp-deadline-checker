@@ -50,4 +50,47 @@ class UpdateConferenceRequest extends FormRequest
             'themeColor' => ['sometimes', 'nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
         ];
     }
+
+    /**
+     * 部分更新セマンティクス: すべてのキーが optional。
+     * StoreConferenceRequest::validated() の解説参照。
+     *
+     * @return array{
+     *     name?: string,
+     *     trackName?: string|null,
+     *     officialUrl?: string,
+     *     cfpUrl?: string,
+     *     eventStartDate?: string,
+     *     eventEndDate?: string,
+     *     venue?: string,
+     *     format?: string,
+     *     cfpStartDate?: string|null,
+     *     cfpEndDate?: string,
+     *     categories?: array<int, string>,
+     *     description?: string|null,
+     *     themeColor?: string|null,
+     * }
+     */
+    public function validated($key = null, $default = null): array
+    {
+        /** @var array{
+         *     name?: string,
+         *     trackName?: string|null,
+         *     officialUrl?: string,
+         *     cfpUrl?: string,
+         *     eventStartDate?: string,
+         *     eventEndDate?: string,
+         *     venue?: string,
+         *     format?: string,
+         *     cfpStartDate?: string|null,
+         *     cfpEndDate?: string,
+         *     categories?: array<int, string>,
+         *     description?: string|null,
+         *     themeColor?: string|null,
+         * } $validated
+         */
+        $validated = parent::validated($key, $default);
+
+        return $validated;
+    }
 }

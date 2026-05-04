@@ -14,9 +14,14 @@ use Tests\TestCase;
 |
 */
 
+// Feature/Integration: Laravel TestCase に bind して $this->postJson() 等を有効化
 pest()->extend(TestCase::class)
- // ->use(RefreshDatabase::class)
-    ->in('Feature');
+    ->in('Feature', 'Integration');
+
+// Unit: PHPUnit デフォルト TestCase のままだと PHPStan が $this を見失うため
+// 同様に Tests\TestCase に bind する (Laravel コンテナ初期化はないが型認識のため)
+pest()->extend(TestCase::class)
+    ->in('Unit');
 
 /*
 |--------------------------------------------------------------------------

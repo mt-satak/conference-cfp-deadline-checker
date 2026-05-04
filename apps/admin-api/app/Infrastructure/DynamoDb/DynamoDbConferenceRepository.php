@@ -38,12 +38,17 @@ class DynamoDbConferenceRepository implements ConferenceRepository
             'TableName' => $this->tableName,
         ]);
 
+        // AWS SDK の Result は ArrayAccess (mixed value) なので明示的にナローイング。
+        // Items は AttributeValue 配列の配列 (= array<int, array<string, mixed>>)。
+        /** @var array<int, array<string, mixed>> $items */
         $items = $result['Items'] ?? [];
 
-        return array_values(array_map(
-            fn (array $item) => $this->toConference($this->marshaler->unmarshalItem($item)),
-            $items,
-        ));
+        $conferences = [];
+        foreach ($items as $item) {
+            $conferences[] = $this->toConference($this->unmarshalAsArray($item));
+        }
+
+        return $conferences;
     }
 
     public function findById(string $conferenceId): ?Conference
@@ -57,7 +62,32 @@ class DynamoDbConferenceRepository implements ConferenceRepository
             return null;
         }
 
-        return $this->toConference($this->marshaler->unmarshalItem($result['Item']));
+        /** @var array<string, mixed> $rawItem */
+        $rawItem = $result['Item'];
+
+        return $this->toConference($this->unmarshalAsArray($rawItem));
+    }
+
+    /**
+     * Marshaler::unmarshalItem の戻り型は array|stdClass union だが、第 2 引数
+     * (mapAsObject) を省略 = false の運用なので必ず array<string, mixed> で返ることを
+     * 型レベルで担保するヘルパ。
+     *
+     * @param  array<string, mixed>  $item
+     * @return array<string, mixed>
+     */
+    private function unmarshalAsArray(array $item): array
+    {
+        $result = $this->marshaler->unmarshalItem($item);
+        // mapAsObject = false なので必ず array が返る (ランタイム保証)。
+        // PHPStan が array<string, mixed> に narrow できないため明示変換する。
+        $array = is_array($result) ? $result : (array) $result;
+        $normalized = [];
+        foreach ($array as $key => $value) {
+            $normalized[(string) $key] = $value;
+        }
+
+        return $normalized;
     }
 
     public function save(Conference $conference): void
@@ -132,24 +162,56 @@ class DynamoDbConferenceRepository implements ConferenceRepository
      */
     private function toConference(array $item): Conference
     {
+        $categories = $item['categories'] ?? [];
+        // DynamoDB の List 型は配列、Set 型もアプリ側では配列扱い。
+        // categories は array<string> 想定だが防御的に文字列化する。
+        $categoriesArray = is_array($categories) ? $categories : [];
+        $stringCategories = array_values(array_map(
+            static fn ($v): string => is_scalar($v) ? (string) $v : '',
+            $categoriesArray,
+        ));
+
         return new Conference(
-            conferenceId: (string) $item['conferenceId'],
-            name: (string) $item['name'],
-            trackName: isset($item['trackName']) ? (string) $item['trackName'] : null,
-            officialUrl: (string) $item['officialUrl'],
-            cfpUrl: (string) $item['cfpUrl'],
-            eventStartDate: (string) $item['eventStartDate'],
-            eventEndDate: (string) $item['eventEndDate'],
-            venue: (string) $item['venue'],
-            format: ConferenceFormat::from((string) $item['format']),
-            cfpStartDate: isset($item['cfpStartDate']) ? (string) $item['cfpStartDate'] : null,
-            cfpEndDate: (string) $item['cfpEndDate'],
-            categories: array_values(array_map('strval', (array) ($item['categories'] ?? []))),
-            description: isset($item['description']) ? (string) $item['description'] : null,
-            themeColor: isset($item['themeColor']) ? (string) $item['themeColor'] : null,
-            createdAt: (string) $item['createdAt'],
-            updatedAt: (string) $item['updatedAt'],
+            conferenceId: $this->stringify($item, 'conferenceId'),
+            name: $this->stringify($item, 'name'),
+            trackName: $this->nullableString($item, 'trackName'),
+            officialUrl: $this->stringify($item, 'officialUrl'),
+            cfpUrl: $this->stringify($item, 'cfpUrl'),
+            eventStartDate: $this->stringify($item, 'eventStartDate'),
+            eventEndDate: $this->stringify($item, 'eventEndDate'),
+            venue: $this->stringify($item, 'venue'),
+            format: ConferenceFormat::from($this->stringify($item, 'format')),
+            cfpStartDate: $this->nullableString($item, 'cfpStartDate'),
+            cfpEndDate: $this->stringify($item, 'cfpEndDate'),
+            categories: $stringCategories,
+            description: $this->nullableString($item, 'description'),
+            themeColor: $this->nullableString($item, 'themeColor'),
+            createdAt: $this->stringify($item, 'createdAt'),
+            updatedAt: $this->stringify($item, 'updatedAt'),
         );
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     */
+    private function stringify(array $item, string $key): string
+    {
+        $value = $item[$key] ?? '';
+
+        return is_scalar($value) ? (string) $value : '';
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     */
+    private function nullableString(array $item, string $key): ?string
+    {
+        if (! array_key_exists($key, $item) || $item[$key] === null) {
+            return null;
+        }
+        $value = $item[$key];
+
+        return is_scalar($value) ? (string) $value : null;
     }
 
     /**

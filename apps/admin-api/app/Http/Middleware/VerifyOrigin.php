@@ -26,6 +26,9 @@ class VerifyOrigin
     /** 状態変更系の HTTP メソッド (この一覧外は検証対象外) */
     private const STATE_CHANGING_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
 
+    /**
+     * @param  Closure(Request): Response  $next
+     */
     public function handle(Request $request, Closure $next): Response
     {
         if (! in_array($request->method(), self::STATE_CHANGING_METHODS, true)) {
@@ -48,7 +51,9 @@ class VerifyOrigin
      */
     private function getAllowedOrigin(): string
     {
-        $url = (string) config('app.url');
+        $raw = config('app.url');
+        // config('app.url') は string|null|... を返しうるため明示変換
+        $url = is_string($raw) ? $raw : '';
 
         return $this->normalizeUrlToOrigin($url) ?? rtrim($url, '/');
     }
