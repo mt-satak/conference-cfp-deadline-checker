@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ConferenceController;
 use App\Http\Controllers\Api\HealthController;
 use Illuminate\Support\Facades\Route;
@@ -29,3 +30,11 @@ Route::post('/conferences', [ConferenceController::class, 'store']);
 Route::get('/conferences/{id}', [ConferenceController::class, 'show']);
 Route::put('/conferences/{id}', [ConferenceController::class, 'update']);
 Route::delete('/conferences/{id}', [ConferenceController::class, 'destroy']);
+
+// ── Categories ──
+// OpenAPI 仕様の Categories タグ参照。
+Route::get('/categories', [CategoryController::class, 'index']);
+Route::post('/categories', [CategoryController::class, 'store']);
+Route::get('/categories/{id}', [CategoryController::class, 'show']);
+Route::put('/categories/{id}', [CategoryController::class, 'update']);
+Route::delete('/categories/{id}', [CategoryController::class, 'destroy']);

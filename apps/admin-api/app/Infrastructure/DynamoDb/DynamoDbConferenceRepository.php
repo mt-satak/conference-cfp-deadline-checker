@@ -112,6 +112,24 @@ class DynamoDbConferenceRepository implements ConferenceRepository
         return isset($result['Attributes']);
     }
 
+    public function countByCategoryId(string $categoryId): int
+    {
+        // categories は List<String> 属性。DynamoDB の `contains` 関数で部分一致検索。
+        // Categories 削除時の参照整合性チェック用 (HTTP 409 判定)。
+        // 想定件数が小さい (50〜200) ため Scan 全件 + FilterExpression で十分。
+        // Select=COUNT で結果項目を取得せず件数だけ返す (転送量とパース節約)。
+        $result = $this->client->scan([
+            'TableName' => $this->tableName,
+            'FilterExpression' => 'contains(categories, :categoryId)',
+            'ExpressionAttributeValues' => $this->marshaler->marshalItem([':categoryId' => $categoryId]),
+            'Select' => 'COUNT',
+        ]);
+
+        $count = $result['Count'] ?? 0;
+
+        return is_int($count) ? $count : 0;
+    }
+
     /**
      * Conference Entity → DynamoDB に書き込む配列 (Marshaler に渡す前の plain PHP 形式)。
      *

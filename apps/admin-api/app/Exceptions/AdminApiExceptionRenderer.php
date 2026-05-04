@@ -2,6 +2,8 @@
 
 namespace App\Exceptions;
 
+use App\Domain\Categories\CategoryConflictException;
+use App\Domain\Categories\CategoryNotFoundException;
 use App\Domain\Conferences\ConferenceNotFoundException;
 use App\Exceptions\InvalidOriginException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -40,8 +42,11 @@ class AdminApiExceptionRenderer
             // 将来リソース別 NotFoundException が増えたら共通の親クラス /
             // インタフェースに抽出することを検討する。
             $e instanceof ConferenceNotFoundException => $this->renderNotFound(),
+            $e instanceof CategoryNotFoundException => $this->renderNotFound(),
             $e instanceof ModelNotFoundException => $this->renderNotFound(),
             $e instanceof NotFoundHttpException => $this->renderNotFound(),
+            // Domain 層の Conflict 例外 (重複・参照整合性違反) は 409 + CONFLICT
+            $e instanceof CategoryConflictException => $this->renderConflict($e),
             // CSRF (Laravel が TokenMismatchException → HttpException(419) に
             // 事前変換するパス) は判定の compound 条件を helper に切り出して
             // match arm 1 行あたりの分岐数を減らす。
@@ -98,6 +103,19 @@ class AdminApiExceptionRenderer
                 'message' => 'Resource not found',
             ],
         ], Response::HTTP_NOT_FOUND);
+    }
+
+    private function renderConflict(CategoryConflictException $e): JsonResponse
+    {
+        // 409 Conflict は OpenAPI 仕様の Conflict レスポンス形式
+        // (Categories の name/slug 重複や、Conference 参照中の削除拒否)。
+        // 個別事由は example の message でフロントへ伝える。
+        return new JsonResponse([
+            'error' => [
+                'code' => 'CONFLICT',
+                'message' => $e->getMessage(),
+            ],
+        ], Response::HTTP_CONFLICT);
     }
 
     private function renderCsrfMismatch(): JsonResponse

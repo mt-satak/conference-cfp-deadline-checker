@@ -36,4 +36,10 @@ interface ConferenceRepository
      * UUID 指定で削除する。削除実行された場合は true、対象が無かった場合は false。
      */
     public function deleteById(string $conferenceId): bool;
+
+    /**
+     * 指定 categoryId を categories 配列に含むカンファレンスの件数を返す。
+     * Categories 削除時の参照整合性チェック (HTTP 409) で使用する。
+     */
+    public function countByCategoryId(string $categoryId): int;
 }

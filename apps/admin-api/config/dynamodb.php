@@ -35,5 +35,6 @@ return [
      */
     'tables' => [
         'conferences' => env('DYNAMODB_CONFERENCES_TABLE', 'cfp-conferences'),
+        'categories' => env('DYNAMODB_CATEGORIES_TABLE', 'cfp-categories'),
     ],
 ];

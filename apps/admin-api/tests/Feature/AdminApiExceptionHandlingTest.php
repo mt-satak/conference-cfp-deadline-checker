@@ -11,6 +11,7 @@
  * デフォルトの挙動 (HTML / フレームワークデフォルト JSON) を維持する。
  */
 
+use App\Domain\Categories\CategoryConflictException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Route;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -88,6 +89,21 @@ it('admin/api 配下で MethodNotAllowed (Laravel が投げる 405) が 405 + HT
     // Then: 405 + HTTP_ERROR (codeForHttpStatus の default arm に到達)
     $response->assertStatus(405);
     $response->assertJsonPath('error.code', 'HTTP_ERROR');
+});
+
+it('admin/api 配下で CategoryConflictException が 409 + CONFLICT を返す', function () {
+    // Given: CategoryConflictException を投げるルートを動的に登録する
+    Route::get('/admin/api/_test_conflict', function () {
+        throw CategoryConflictException::nameAlreadyExists('PHP');
+    });
+
+    // When: 当該ルートに GET する
+    $response = $this->getJson('/admin/api/_test_conflict');
+
+    // Then: 409 + CONFLICT に整形され、message に元の例外メッセージが入る
+    $response->assertStatus(409);
+    $response->assertJsonPath('error.code', 'CONFLICT');
+    expect($response->json('error.message'))->toContain('PHP');
 });
 
 it('admin/api 配下で予期しない例外が 500 + INTERNAL_ERROR を返す', function () {

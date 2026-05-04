@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Domain\Categories\CategoryRepository;
 use App\Domain\Conferences\ConferenceRepository;
+use App\Infrastructure\DynamoDb\DynamoDbCategoryRepository;
 use App\Infrastructure\DynamoDb\DynamoDbConferenceRepository;
 use Aws\DynamoDb\DynamoDbClient;
 use Illuminate\Contracts\Foundation\Application;
@@ -77,6 +79,15 @@ class AppServiceProvider extends ServiceProvider
             return new DynamoDbConferenceRepository(
                 $app->make(DynamoDbClient::class),
                 is_string($tableName) ? $tableName : 'cfp-conferences',
+            );
+        });
+
+        $this->app->bind(CategoryRepository::class, function (Application $app): DynamoDbCategoryRepository {
+            $tableName = config('dynamodb.tables.categories');
+
+            return new DynamoDbCategoryRepository(
+                $app->make(DynamoDbClient::class),
+                is_string($tableName) ? $tableName : 'cfp-categories',
             );
         });
     }

@@ -288,3 +288,31 @@ it('deleteById は対象が存在しない (Attributes 無し) なら false を�
     // Then: false が返る
     expect($result)->toBeFalse();
 });
+
+it('countByCategoryId は contains FilterExpression + Select=COUNT で件数を返す', function () {
+    // Given: Scan が Count=3 を返すモック (3 件のカンファレンスが該当 categoryId を参照)
+    [$client, $repository] = makeMockedRepo();
+    $client->shouldReceive('scan')
+        ->once()
+        ->with(Mockery::on(function (array $args): bool {
+            return $args['TableName'] === TABLE_NAME
+                && $args['FilterExpression'] === 'contains(categories, :categoryId)'
+                && $args['Select'] === 'COUNT';
+        }))
+        ->andReturn(new Result(['Count' => 3]));
+
+    // When
+    $count = $repository->countByCategoryId('cat-1');
+
+    // Then
+    expect($count)->toBe(3);
+});
+
+it('countByCategoryId は Count 属性が無ければ 0 を返す', function () {
+    // Given
+    [$client, $repository] = makeMockedRepo();
+    $client->shouldReceive('scan')->once()->andReturn(new Result([]));
+
+    // When/Then
+    expect($repository->countByCategoryId('cat-x'))->toBe(0);
+});
