@@ -44,11 +44,26 @@ pecl install xdebug
 
 カバレッジレポート: `apps/admin-api/storage/coverage/html/index.html`
 
-## コードカバレッジルール (C1 90%)
+## コードカバレッジルール (層別 C1)
 
-- すべての admin-api コードは **C1 (Branch Coverage) 90% 以上** を必須とする。
-- `git push` 時に `.githooks/pre-push` が `make api-test-coverage` →
-  `make api-coverage-check` を自動実行し、90% 未満を遮断する。
+全コード一律 90% ではなく、**層 (namespace) ごとに C1 (Branch Coverage) 閾値を分ける**。
+詳細な根拠は `docs/test-strategy.md` (別 Issue で起票予定) を参照。
+
+| 層 | 閾値 | 理由 |
+|---|---|---|
+| `App\Domain\*` | **100%** | Entity/VO/Domain Exception。ロジックの中核、untested 分岐を許さない |
+| `App\Application\*` | **100%** | UseCase。ロジック層 |
+| `App\Http\Presenters\*` | **100%** | データ整形のみ、防御コード不要 |
+| `App\Http\Requests\*` | **100%** | バリデーション定義 |
+| `App\Http\Controllers\*` | **85%** | 薄いオーケストレーション、Feature テスト主体 |
+| `App\Http\Middleware\*` | **85%** | 同上 + フレームワーク hook 分岐 |
+| `App\Exceptions\*` | **75%** | match (true) + compound instanceof で xdebug が micro-branch 細分割するため一律 80%+ は padding テストでしか到達不能。実測上限を踏まえた現実値 |
+| `App\Infrastructure\*` | **75%** | AWS SDK の例外パスのモック網羅コストが高い |
+| `App\Providers\*` | (計測対象外) | DI 配線、Lambda コンテナ起動時のみ走る |
+
+判定スクリプト: `scripts/check-coverage.php`
+ゲート: `git push` 時に `.githooks/pre-push` が自動実行。
+
 - フックの自動セットアップは `pnpm install` の `postinstall` で行われる
   (`git config core.hooksPath .githooks` が設定される)。
 - 緊急時のみ `SKIP_COVERAGE_CHECK=1 git push` でバイパス可能 (推奨しない)。
