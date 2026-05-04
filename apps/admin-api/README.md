@@ -37,12 +37,31 @@ pecl install xdebug
 |---|---|
 | `make test` | テスト実行 (xdebug 不要、高速) |
 | `make test-coverage` | テスト + C1 (Branch Coverage) 計測、HTML/Clover/Text 出力 |
-| `make coverage-check` | C1 が 90% 以上か判定 (未満なら exit 1) |
+| `make coverage-check` | 層別 C1 閾値判定 (未達なら exit 1) |
 
 プロジェクトルートからは `make api-test` / `make api-test-coverage` /
 `make api-coverage-check` で同等。
 
 カバレッジレポート: `apps/admin-api/storage/coverage/html/index.html`
+
+## 静的解析 (PHPStan level max)
+
+| コマンド | 内容 |
+|---|---|
+| `make phpstan` | PHPStan level max を実行 (新規違反のみ報告) |
+| `make phpstan-baseline` | ベースライン再生成 (緊急時のみ、原則不要) |
+| `make phpstan-clear-cache` | 解析キャッシュをクリア |
+
+プロジェクトルートからは `make api-phpstan` / `make api-phpstan-baseline`、
+pnpm からは `pnpm api:phpstan` で同等。
+
+ルール:
+- `app/` 配下は **level max で 0 エラー必須**。`git push` 時の pre-push フックで
+  自動チェックし、新規違反は遮断する
+- `tests/` 配下は Pest/Mockery の構造的視野不足 (Pest クロージャの `$this`
+  推論不足、Mockery fluent API の union 型解決困難) に由来する identifier
+  限定で ignore (詳細は `phpstan.neon` の `ignoreErrors:` セクション参照)
+- 経緯: Issue #13 のコメント参照
 
 ## コードカバレッジルール (層別 C1)
 
