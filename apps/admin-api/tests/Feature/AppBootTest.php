@@ -11,7 +11,7 @@
  * 後続 Issue で実装・テストする。本テストはあくまで雛形としての健全性検証。
  */
 
-it('serves the default route at "/"', function () {
+it('ルートパス "/" で 200 を返す', function () {
     $response = $this->get('/');
 
     // Laravel 13 のデフォルトでは welcome.blade.php (HTML) を返す。
@@ -19,7 +19,7 @@ it('serves the default route at "/"', function () {
     $response->assertStatus(200);
 });
 
-it('responds 200 on the built-in Laravel health route "/up"', function () {
+it('Laravel 標準ヘルスチェックルート "/up" が 200 を返す', function () {
     // bootstrap/app.php の withRouting(health: '/up') で有効化されている
     // Laravel 標準のヘルスチェックルート。フレームワーク自体の起動状況を確認する。
     $response = $this->get('/up');
@@ -27,7 +27,7 @@ it('responds 200 on the built-in Laravel health route "/up"', function () {
     $response->assertStatus(200);
 });
 
-it('boots the application and resolves the container', function () {
+it('アプリケーション起動とサービスコンテナ解決が成功する', function () {
     // サービスコンテナが正常に組み上がっていることを Application インスタンスの取得で確認。
     // 設定ファイルが読み込めていない / プロバイダが落ちている等があればここで例外になる。
     $app = $this->app;
