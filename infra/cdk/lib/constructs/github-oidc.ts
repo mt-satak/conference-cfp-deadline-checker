@@ -125,8 +125,11 @@ export class GitHubOidc extends Construct {
           'token.actions.githubusercontent.com:sub': [...subjectClaims],
         },
       }),
-      description:
-        'GitHub Actions から CDK 経由で admin-api 等をデプロイするためのアサンプ用 Role',
+      // IAM Role の description は AWS 仕様で
+      // [\u0009\u000A\u000D\u0020-\u007E\u00A1-\u00FF]* に制限されるため
+      // 日本語は使えない (IAM サービス側で 400 エラー)。CloudFormation Output の
+      // Description は Unicode 可なのと混同しないこと。
+      description: 'Assume role for GitHub Actions to deploy admin-api etc. via CDK',
       maxSessionDuration: Duration.hours(1),
     });
 
