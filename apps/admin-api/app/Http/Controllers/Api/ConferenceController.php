@@ -105,8 +105,8 @@ class ConferenceController extends BaseController
         $fields = $request->validated();
 
         // format は string で来るので enum に変換する (UseCase が ConferenceFormat
-        // 期待のため)。空キーや不正値は FormRequest 側で弾かれている前提。
-        if (isset($fields['format']) && is_string($fields['format'])) {
+        // 期待のため)。FormRequest の Rule::in が enum 値の string 以外を弾く。
+        if (isset($fields['format'])) {
             $fields['format'] = ConferenceFormat::from($fields['format']);
         }
 

@@ -3,7 +3,6 @@
 namespace App\Application\Conferences;
 
 use App\Domain\Conferences\Conference;
-use App\Domain\Conferences\ConferenceFormat;
 use App\Domain\Conferences\ConferenceNotFoundException;
 use App\Domain\Conferences\ConferenceRepository;
 use Illuminate\Support\Carbon;
@@ -51,7 +50,7 @@ class UpdateConferenceUseCase
             eventStartDate: $this->pick($fields, 'eventStartDate', $existing->eventStartDate),
             eventEndDate: $this->pick($fields, 'eventEndDate', $existing->eventEndDate),
             venue: $this->pick($fields, 'venue', $existing->venue),
-            format: $this->pickFormat($fields, $existing->format),
+            format: $this->pick($fields, 'format', $existing->format),
             cfpStartDate: $this->pick($fields, 'cfpStartDate', $existing->cfpStartDate),
             cfpEndDate: $this->pick($fields, 'cfpEndDate', $existing->cfpEndDate),
             categories: $this->pick($fields, 'categories', $existing->categories),
@@ -74,20 +73,5 @@ class UpdateConferenceUseCase
     private function pick(array $fields, string $key, mixed $default): mixed
     {
         return array_key_exists($key, $fields) ? $fields[$key] : $default;
-    }
-
-    /**
-     * format は型を厳密にしたいので専用ヘルパで取り出す。
-     *
-     * @param  array<string, mixed>  $fields
-     */
-    private function pickFormat(array $fields, ConferenceFormat $default): ConferenceFormat
-    {
-        if (! array_key_exists('format', $fields)) {
-            return $default;
-        }
-        $value = $fields['format'];
-
-        return $value instanceof ConferenceFormat ? $value : $default;
     }
 }
