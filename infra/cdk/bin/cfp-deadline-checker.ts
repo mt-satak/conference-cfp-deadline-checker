@@ -18,6 +18,14 @@ const githubOrg = (app.node.tryGetContext('githubOrg') as string | undefined) ??
 const githubRepo =
   (app.node.tryGetContext('githubRepo') as string | undefined) ?? 'conference-cfp-deadline-checker';
 
+// 既存 GitHub OIDC Provider がアカウントに既にある場合、その ARN を渡すと
+// 新規作成せず import する。AWS アカウント全体で 1 つしか持てない制約への対応。
+//   pnpm cdk deploy CfpDeadlineCheckerCiStack \
+//     --context existingOidcProviderArn=arn:aws:iam::<ACCOUNT>:oidc-provider/token.actions.githubusercontent.com
+const existingOidcProviderArn = app.node.tryGetContext('existingOidcProviderArn') as
+  | string
+  | undefined;
+
 // ── ドメイン設定 (任意) ──
 // ドメイン取得後、以下のように指定して有効化する:
 //   pnpm cdk deploy --context domainName=cfp.example.com --context rootDomain=example.com
@@ -78,6 +86,7 @@ new CfpCiStack(app, 'CfpDeadlineCheckerCiStack', {
   },
   githubOrg,
   githubRepo,
+  existingOidcProviderArn,
   description:
     'CI/CD resources (GitHub Actions OIDC + Deploy Role) for CFP Deadline Checker',
 });

@@ -40,22 +40,40 @@ GitHub Actions が AWS にデプロイできるようにする初回セットア
 
 ### 手順
 
-1. **diff で内容確認**
+1. **既存 OIDC Provider の有無を確認**
    ```sh
-   cd infra/cdk
+   aws iam list-open-id-connect-providers \
+     --query "OpenIDConnectProviderList[?contains(Arn, 'token.actions.githubusercontent.com')].Arn" \
+     --output text
+   ```
+   AWS アカウントは `token.actions.githubusercontent.com` の OIDC Provider を
+   1 つしか持てないため、別ツール / 別リポジトリで作成済の場合は次手順で
+   `--context existingOidcProviderArn=...` を渡して既存を import する。
+   何も表示されなければ新規作成 (context 未指定) で OK。
+
+2. **diff で内容確認**
+   ```sh
+   # ケース A: 既存 Provider 無し (新規作成)
    pnpm cdk diff CfpDeadlineCheckerCiStack
-   ```
-   - 新規作成される: IAM OIDC Provider 1 個、IAM Role 1 個 + そのポリシー
-   - **既に他用途で `token.actions.githubusercontent.com` の OIDC Provider が
-     アカウントにある場合** はエラーになる (重複作成不可)。その場合は
-     既存 Provider を import する形に Construct を切替えて再 PR する
 
-2. **デプロイ**
+   # ケース B: 既存 Provider あり (import)
+   pnpm cdk diff CfpDeadlineCheckerCiStack \
+     --context existingOidcProviderArn=arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com
+   ```
+   - ケース A: IAM OIDC Provider 1 個 + IAM Role 1 個 + ポリシー
+   - ケース B: IAM Role 1 個 + ポリシー (Provider はリソースとして作られない)
+
+3. **デプロイ**
    ```sh
+   # ケース A: 新規作成
    pnpm cdk deploy CfpDeadlineCheckerCiStack
+
+   # ケース B: 既存 import (本番アカウントで他リポジトリが OIDC を使用中の例)
+   pnpm cdk deploy CfpDeadlineCheckerCiStack \
+     --context existingOidcProviderArn=arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com
    ```
 
-3. **出力された Role ARN を控える**
+4. **出力された Role ARN を控える**
    ```sh
    aws cloudformation describe-stacks \
      --stack-name CfpDeadlineCheckerCiStack \
@@ -64,9 +82,13 @@ GitHub Actions が AWS にデプロイできるようにする初回セットア
    ```
    出力例: `arn:aws:iam::123456789012:role/GitHubActionsAdminApiDeployRole`
 
-4. **GitHub リポジトリ Variables に登録**
+   ⚠ **OIDC Provider ARN と混同しないこと**:
+   - OIDC Provider ARN (`arn:...:oidc-provider/...`) は `--context` で渡す側、GitHub には登録しない
+   - Role ARN (`arn:...:role/GitHubActionsAdminApiDeployRole`) を GitHub Variables に登録する
+
+5. **GitHub リポジトリ Variables に登録**
    - `https://github.com/mt-satak/conference-cfp-deadline-checker/settings/variables/actions`
-   - 新規 Variable: `AWS_DEPLOY_ROLE_ARN` = 手順 3 の ARN
+   - 新規 Variable: `AWS_DEPLOY_ROLE_ARN` = 手順 4 の Role ARN
    - Issue #19 Phase 3 のワークフローがこの値を `role-to-assume` で参照する
 
 ### 信頼関係の絞り込み

@@ -20,6 +20,21 @@ export interface CfpCiStackProps extends cdk.StackProps {
    * 独自値を使っている場合のみ指定。
    */
   readonly cdkQualifier?: string;
+  /**
+   * 既存 GitHub OIDC Identity Provider の ARN。AWS アカウントは同 URL の
+   * Provider を 1 つしか持てないため、別ツール / 別リポジトリが既に作成済の
+   * 場合は本オプションで既存をそのまま import する。
+   *
+   * 形式: `arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com`
+   *
+   * 取得方法:
+   * ```sh
+   * aws iam list-open-id-connect-providers \
+   *   --query "OpenIDConnectProviderList[?contains(Arn, 'token.actions.githubusercontent.com')].Arn" \
+   *   --output text
+   * ```
+   */
+  readonly existingOidcProviderArn?: string;
 }
 
 export class CfpCiStack extends cdk.Stack {
@@ -30,6 +45,7 @@ export class CfpCiStack extends cdk.Stack {
       githubOrg: props.githubOrg,
       githubRepo: props.githubRepo,
       cdkQualifier: props.cdkQualifier,
+      existingProviderArn: props.existingOidcProviderArn,
     });
 
     new cdk.CfnOutput(this, 'GitHubActionsDeployRoleArn', {
