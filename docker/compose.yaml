@@ -1,6 +1,10 @@
 name: cfp-deadline-checker
 
 services:
+  # ── ローカル開発用 DynamoDB Local ──
+  # 本番 DynamoDB と同等の API を localhost:8000 で提供する。
+  # データは名前付きボリュームに永続化する (compose down のみではデータ保持、
+  # compose down -v またはルートの `pnpm db:nuke` で完全削除)。
   dynamodb-local:
     image: amazon/dynamodb-local:latest
     container_name: cfp-dynamodb-local
@@ -11,6 +15,8 @@ services:
     volumes:
       - dynamodb-data:/home/dynamodblocal/data
 
+  # ── DynamoDB Local 用の GUI ──
+  # ブラウザから http://localhost:8001 で DynamoDB の中身を確認できる。
   dynamodb-admin:
     image: aaronshaf/dynamodb-admin:latest
     container_name: cfp-dynamodb-admin
@@ -23,6 +29,13 @@ services:
       AWS_SECRET_ACCESS_KEY: dummy
     depends_on:
       - dynamodb-local
+
+  # NOTE: admin-api (Laravel) は ホストで `php artisan serve` 経由で起動する。
+  #       Rancher Desktop の PHP 公式 arm64 イメージで exec format error が
+  #       出る問題を回避し、開発フローを単純化するための判断
+  #       (詳細はリポジトリの Issue 参照)。
+  #       ホスト前提: PHP 8.5 + Composer 2.x。
+  #       起動: `pnpm api:serve` (内部で php artisan serve を実行)。
 
 volumes:
   dynamodb-data:

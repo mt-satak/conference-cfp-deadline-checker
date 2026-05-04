@@ -22,6 +22,10 @@
     "db:logs": "docker compose -f docker/compose.yaml logs -f",
     "db:init": "pnpm --filter @cfp/db-tools run init",
     "db:reset": "pnpm --filter @cfp/db-tools run reset",
-    "db:nuke": "docker compose -f docker/compose.yaml down -v"
+    "db:nuke": "docker compose -f docker/compose.yaml down -v",
+    "api:install": "cd apps/admin-api && composer install",
+    "api:test": "cd apps/admin-api && ./vendor/bin/pest",
+    "api:serve": "cd apps/admin-api && php artisan serve --host=127.0.0.1 --port=8080",
+    "api:routes": "cd apps/admin-api && php artisan route:list"
   }
 }

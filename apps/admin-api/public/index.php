@@ -1,12 +1,20 @@
 <?php
-/**
- * 暫定プレースホルダー
- *
- * 本実装（Laravel + Bref）は後続のコミットで apps/admin-api 配下に
- * 構築する。このファイルは CDK の Lambda 関数定義 (Code.fromAsset) が
- * 参照するための最低限のエントリポイントとして配置している。
- */
 
-header('Content-Type: text/plain; charset=utf-8');
-http_response_code(503);
-echo "admin-api not yet implemented\n";
+use Illuminate\Foundation\Application;
+use Illuminate\Http\Request;
+
+define('LARAVEL_START', microtime(true));
+
+// Determine if the application is in maintenance mode...
+if (file_exists($maintenance = __DIR__.'/../storage/framework/maintenance.php')) {
+    require $maintenance;
+}
+
+// Register the Composer autoloader...
+require __DIR__.'/../vendor/autoload.php';
+
+// Bootstrap Laravel and handle the request...
+/** @var Application $app */
+$app = require_once __DIR__.'/../bootstrap/app.php';
+
+$app->handleRequest(Request::capture());
