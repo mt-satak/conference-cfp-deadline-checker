@@ -89,7 +89,7 @@ it('POST に Origin / Referer ともに無い場合は 403 INVALID_ORIGIN', func
 it('routes/admin-api.php のルートには VerifyOrigin ミドルウェアが適用されている', function () {
     // bootstrap/app.php の then で /admin/api/* 全体に適用されることを確認。
     $route = collect(Route::getRoutes())
-        ->first(fn ($r) => $r->uri() === 'admin/api/_ping');
+        ->first(fn ($r) => $r->uri() === 'admin/api/health');
 
     expect($route)->not->toBeNull();
     expect($route->middleware())->toContain(VerifyOrigin::class);
