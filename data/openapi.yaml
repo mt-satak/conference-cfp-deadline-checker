@@ -27,8 +27,6 @@ servers:
 tags:
   - name: Health
     description: サーバー稼働確認
-  - name: CSRF
-    description: CSRF トークン取得 (SPA フロント想定時)
   - name: Conferences
     description: カンファレンス情報の CRUD
   - name: Categories
@@ -70,39 +68,6 @@ paths:
                   timestamp:
                     type: string
                     format: date-time
-
-  # ============================================================
-  # CSRF Token
-  # ============================================================
-  /csrf-token:
-    get:
-      tags: [CSRF]
-      operationId: getCsrfToken
-      summary: CSRF トークン取得
-      description: |
-        SPA フロントから状態変更系リクエストを行う前に呼び出して、
-        XSRF-TOKEN Cookie をセットする。以後のリクエストは
-        `X-XSRF-TOKEN` ヘッダにこの値を含める必要がある。
-        SSR Blade / Inertia 利用時は通常不要 (HTML 側で meta タグから取得)。
-      responses:
-        '200':
-          description: トークン発行成功
-          headers:
-            Set-Cookie:
-              schema:
-                type: string
-                example: XSRF-TOKEN=...; Path=/; Secure; SameSite=Strict
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: object
-                    properties:
-                      csrfToken:
-                        type: string
-                        description: 同値が XSRF-TOKEN Cookie にもセットされる
 
   # ============================================================
   # Conferences
@@ -784,8 +749,10 @@ components:
       in: header
       name: X-XSRF-TOKEN
       description: |
-        CSRF トークン。`GET /csrf-token` で取得した値、または
-        XSRF-TOKEN Cookie の値をヘッダにコピーして送信する。
+        CSRF トークン。本プロジェクトでは管理画面 UI を Blade SSR で実装する
+        方針 (Issue #9) のため、Blade テンプレート側で `@csrf` ディレクティブや
+        `csrf_token()` ヘルパで HTML 内に直接トークンを埋込み、
+        AJAX 送信時に X-XSRF-TOKEN ヘッダ経由で送る。
         Origin / Referer ヘッダ検証も併用する (S3 セキュリティ要件)。
 
   # ──────────────────────────────────────────────────────────

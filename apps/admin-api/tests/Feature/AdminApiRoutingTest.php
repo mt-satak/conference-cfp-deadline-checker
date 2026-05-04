@@ -10,6 +10,9 @@
  * - 登録ルートが web ミドルウェア (session / cookie 等) を踏むこと
  *   (web ミドルウェアの存在は Step 2-(d) CSRF / Step 2-(e) Origin 検証の
  *    前提条件となるため、本テストでも確認する)
+ *
+ * 各エンドポイント自体の振る舞い (例: /health のレスポンス内容) は
+ * 個別の Feature テスト (HealthEndpointTest 等) で検証する。
  */
 
 use Illuminate\Support\Facades\Route;
@@ -23,13 +26,13 @@ it('/admin/api プレフィックスに登録したルートが応答する', fu
     $response->assertExactJson(['ok' => true]);
 });
 
-it('routes/admin-api.php のスモーク用 _ping ルートが応答する', function () {
-    // routes/admin-api.php に常設するスモーク用ルートが応答することを確認。
-    // Step 3 で正式な /admin/api/health に置き換えたら本テストは消える想定。
-    $response = $this->get('/admin/api/_ping');
+it('routes/admin-api.php に登録された /health ルートが応答する', function () {
+    // routes/admin-api.php 経由で登録された実エンドポイントが応答することを確認。
+    // ここではルーティングが疎通していること自体を検証し、
+    // レスポンス本体の構造詳細は HealthEndpointTest で検証する。
+    $response = $this->get('/admin/api/health');
 
     $response->assertStatus(200);
-    $response->assertJsonPath('data.message', 'admin-api alive');
 });
 
 it('/admin/api 配下のルートが web ミドルウェアグループに属している', function () {
@@ -37,7 +40,7 @@ it('/admin/api 配下のルートが web ミドルウェアグループに属し
     // (テスト環境では SESSION_DRIVER=array に上書きされて Cookie が出ないため、
     //  実応答ではなくルート定義レベルで検証する)
     $route = collect(Route::getRoutes())
-        ->first(fn ($r) => $r->uri() === 'admin/api/_ping');
+        ->first(fn ($r) => $r->uri() === 'admin/api/health');
 
     expect($route)->not->toBeNull();
     expect($route->middleware())->toContain('web');

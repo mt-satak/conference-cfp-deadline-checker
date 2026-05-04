@@ -52,7 +52,7 @@ it('/admin/api 配下のルートは web ミドルウェアグループに属し
     //   2. web グループに PreventRequestForgery (= CSRF) が含まれている
     // この 2 つの組合せで「/admin/api 配下に CSRF が適用される」ことが担保される。
     $route = collect(Route::getRoutes())
-        ->first(fn ($r) => $r->uri() === 'admin/api/_ping');
+        ->first(fn ($r) => $r->uri() === 'admin/api/health');
 
     expect($route)->not->toBeNull();
     expect($route->middleware())->toContain('web');
