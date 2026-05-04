@@ -19,12 +19,12 @@ use Ramsey\Uuid\Uuid;
  * - 構築した Conference を返す
  *
  * テスト容易性のため Carbon::setTestNow() と Str::createUuidsUsing() で
- * 時間と UUID を固定する。
+ * 時間と UUID を固定する (beforeEach で Given として共通セットアップ)。
  */
 
 beforeEach(function () {
+    // Given (共通): 時刻と UUID を固定して決定的にする
     Carbon::setTestNow('2026-05-04T10:00:00+09:00');
-    // Str::createUuidsUsing は UuidInterface を返すクロージャを期待する。
     Str::createUuidsUsing(fn () => Uuid::fromString('aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'));
 });
 
@@ -53,12 +53,15 @@ function makeCreateInput(): CreateConferenceInput
 }
 
 it('入力 DTO から UUID と現在時刻を補完して Conference を返す', function () {
+    // Given: Repository は save 呼出を 1 回受ける
     $repository = Mockery::mock(ConferenceRepository::class);
     $repository->shouldReceive('save')->once()->with(Mockery::type(Conference::class));
 
+    // When: UseCase を実行する
     $useCase = new CreateConferenceUseCase($repository);
     $created = $useCase->execute(makeCreateInput());
 
+    // Then: 補完された Conference が返り、UUID と createdAt/updatedAt が固定値
     expect($created->conferenceId)->toBe('aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee');
     expect($created->name)->toBe('PHPカンファレンス2026');
     expect($created->createdAt)->toBe('2026-05-04T10:00:00+09:00');
@@ -66,8 +69,8 @@ it('入力 DTO から UUID と現在時刻を補完して Conference を返す',
 });
 
 it('Repository->save() に組み立てた Conference を渡す', function () {
+    // Given: save 呼出時に渡された Conference を補足するモック
     $captured = null;
-
     $repository = Mockery::mock(ConferenceRepository::class);
     $repository->shouldReceive('save')
         ->once()
@@ -76,18 +79,21 @@ it('Repository->save() に組み立てた Conference を渡す', function () {
             return true;
         }));
 
+    // When: UseCase を実行する
     $useCase = new CreateConferenceUseCase($repository);
     $useCase->execute(makeCreateInput());
 
+    // Then: save に渡された Conference が UseCase が組み立てたもの
+    /** @var Conference $captured 静的解析向けの型 narrow (mock の closure 内で代入される) */
     expect($captured)->toBeInstanceOf(Conference::class);
     expect($captured->conferenceId)->toBe('aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee');
     expect($captured->categories)->toBe(['1d4f2a83-6b48-4f1c-9c8a-7e2b3d4f5a02']);
 });
 
 it('optional 入力 (trackName / cfpStartDate / description / themeColor) は null のまま Conference に渡る', function () {
+    // Given: optional フィールドを null で構築した入力 DTO
     $repository = Mockery::mock(ConferenceRepository::class);
     $repository->shouldReceive('save')->once();
-
     $input = new CreateConferenceInput(
         name: '小規模カンファレンス',
         trackName: null,
@@ -104,9 +110,11 @@ it('optional 入力 (trackName / cfpStartDate / description / themeColor) は nu
         themeColor: null,
     );
 
+    // When: UseCase を実行する
     $useCase = new CreateConferenceUseCase($repository);
     $created = $useCase->execute($input);
 
+    // Then: optional フィールドは null のまま Conference に反映される
     expect($created->trackName)->toBeNull();
     expect($created->cfpStartDate)->toBeNull();
     expect($created->description)->toBeNull();

@@ -16,24 +16,24 @@ use App\Domain\Conferences\ConferenceRepository;
  */
 
 it('Repository->deleteById() が true を返したら例外なく完了する', function () {
+    // Given: Repository->deleteById() が true (削除済み) を返すモック
     $id = '550e8400-e29b-41d4-a716-446655440000';
-
     $repository = Mockery::mock(ConferenceRepository::class);
     $repository->shouldReceive('deleteById')->once()->with($id)->andReturn(true);
 
+    // When / Then: UseCase 実行で例外は投げられない
     $useCase = new DeleteConferenceUseCase($repository);
-
     expect(fn () => $useCase->execute($id))->not->toThrow(\Throwable::class);
 });
 
 it('Repository->deleteById() が false を返したら ConferenceNotFoundException を投げる', function () {
+    // Given: Repository->deleteById() が false (該当無し) を返すモック
     $id = '550e8400-e29b-41d4-a716-446655440000';
-
     $repository = Mockery::mock(ConferenceRepository::class);
     $repository->shouldReceive('deleteById')->once()->with($id)->andReturn(false);
 
+    // When / Then: UseCase 実行で ConferenceNotFoundException が投げられる
     $useCase = new DeleteConferenceUseCase($repository);
-
     expect(fn () => $useCase->execute($id))
         ->toThrow(ConferenceNotFoundException::class);
 });

@@ -9,8 +9,7 @@ use App\Domain\Conferences\ConferenceRepository;
  * ListConferencesUseCase の単体テスト。
  *
  * UseCase の責務は「Repository から全件取得して呼び出し元に返す」のみ。
- * フィルタ・ソート・ページネーション等は呼び出し側 (HTTP コントローラ等) で行う方針なので
- * UseCase 自身では何もしない。
+ * フィルタ・ソート・ページネーション等は呼び出し側 (HTTP コントローラ等) で行う。
  */
 
 function listUseCaseSampleConference(string $id, string $name): Conference
@@ -36,24 +35,31 @@ function listUseCaseSampleConference(string $id, string $name): Conference
 }
 
 it('Repository->findAll() の結果をそのまま返す', function () {
+    // Given: Repository が 2 件の Conference を返すようモックする
     $expected = [
         listUseCaseSampleConference('550e8400-e29b-41d4-a716-446655440000', 'A'),
         listUseCaseSampleConference('660e8400-e29b-41d4-a716-446655440001', 'B'),
     ];
-
     $repository = Mockery::mock(ConferenceRepository::class);
     $repository->shouldReceive('findAll')->once()->andReturn($expected);
 
+    // When: UseCase を実行する
     $useCase = new ListConferencesUseCase($repository);
+    $result = $useCase->execute();
 
-    expect($useCase->execute())->toBe($expected);
+    // Then: Repository の戻りがそのまま返される
+    expect($result)->toBe($expected);
 });
 
 it('Repository が空配列を返した場合は空配列をそのまま返す', function () {
+    // Given: Repository が空配列を返すようモックする
     $repository = Mockery::mock(ConferenceRepository::class);
     $repository->shouldReceive('findAll')->once()->andReturn([]);
 
+    // When: UseCase を実行する
     $useCase = new ListConferencesUseCase($repository);
+    $result = $useCase->execute();
 
-    expect($useCase->execute())->toBe([]);
+    // Then: 空配列が返る
+    expect($result)->toBe([]);
 });
