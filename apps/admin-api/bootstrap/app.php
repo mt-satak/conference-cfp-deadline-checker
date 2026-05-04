@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\AdminApiExceptionRenderer;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -25,5 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // /admin/api 配下では OpenAPI 仕様の {"error": {...}} 形式で例外を整形して返す。
+        // それ以外のパスでは null を返してデフォルトハンドラに委譲する。
+        $exceptions->render(new AdminApiExceptionRenderer());
     })->create();
