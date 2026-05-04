@@ -25,4 +25,5 @@ Route::get('/health', [HealthController::class, 'check']);
 // ── Conferences ──
 // 個別エンドポイントを順次追加していく。OpenAPI 仕様の Conferences タグ参照。
 Route::get('/conferences', [ConferenceController::class, 'index']);
+Route::post('/conferences', [ConferenceController::class, 'store']);
 Route::get('/conferences/{id}', [ConferenceController::class, 'show']);

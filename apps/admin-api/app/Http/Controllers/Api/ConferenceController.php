@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Application\Conferences\CreateConferenceInput;
+use App\Application\Conferences\CreateConferenceUseCase;
 use App\Application\Conferences\GetConferenceUseCase;
 use App\Application\Conferences\ListConferencesUseCase;
 use App\Domain\Conferences\Conference;
+use App\Domain\Conferences\ConferenceFormat;
 use App\Http\Presenters\ConferencePresenter;
+use App\Http\Requests\Conferences\StoreConferenceRequest;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -51,5 +55,37 @@ class ConferenceController extends BaseController
         $conference = $useCase->execute($id);
 
         return $this->ok(ConferencePresenter::toArray($conference));
+    }
+
+    /**
+     * POST /admin/api/conferences (operationId: createConference)
+     *
+     * StoreConferenceRequest が OpenAPI 整合のバリデーションを担う。
+     * 違反時は ValidationException → AdminApiExceptionRenderer 経由で
+     * 422 + VALIDATION_FAILED に整形される。
+     */
+    public function store(StoreConferenceRequest $request, CreateConferenceUseCase $useCase): JsonResponse
+    {
+        $validated = $request->validated();
+
+        $input = new CreateConferenceInput(
+            name: $validated['name'],
+            trackName: $validated['trackName'] ?? null,
+            officialUrl: $validated['officialUrl'],
+            cfpUrl: $validated['cfpUrl'],
+            eventStartDate: $validated['eventStartDate'],
+            eventEndDate: $validated['eventEndDate'],
+            venue: $validated['venue'],
+            format: ConferenceFormat::from($validated['format']),
+            cfpStartDate: $validated['cfpStartDate'] ?? null,
+            cfpEndDate: $validated['cfpEndDate'],
+            categories: $validated['categories'],
+            description: $validated['description'] ?? null,
+            themeColor: $validated['themeColor'] ?? null,
+        );
+
+        $conference = $useCase->execute($input);
+
+        return $this->created(ConferencePresenter::toArray($conference));
     }
 }
