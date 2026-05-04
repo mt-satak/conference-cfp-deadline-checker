@@ -57,29 +57,51 @@ class UpdateConferenceUseCase
             throw ConferenceNotFoundException::withId($conferenceId);
         }
 
-        $now = Carbon::now('Asia/Tokyo')->toIso8601String();
+        // 既存値で全フィールドを埋め、入力 array に含まれるキーだけ上書きする。
+        // array_merge で「キー不在 = 既存値維持、値 null = 明示的に null セット」を
+        // 自然に表現でき、フィールド毎の if 分岐 (= branch coverage 数 × 13) を
+        // 1 箇所のマージに集約できる。
+        $args = [
+            'conferenceId' => $existing->conferenceId,
+            'name' => $existing->name,
+            'trackName' => $existing->trackName,
+            'officialUrl' => $existing->officialUrl,
+            'cfpUrl' => $existing->cfpUrl,
+            'eventStartDate' => $existing->eventStartDate,
+            'eventEndDate' => $existing->eventEndDate,
+            'venue' => $existing->venue,
+            'format' => $existing->format,
+            'cfpStartDate' => $existing->cfpStartDate,
+            'cfpEndDate' => $existing->cfpEndDate,
+            'categories' => $existing->categories,
+            'description' => $existing->description,
+            'themeColor' => $existing->themeColor,
+            'createdAt' => $existing->createdAt,
+            'updatedAt' => Carbon::now('Asia/Tokyo')->toIso8601String(),
+        ];
+        $args = array_merge($args, $fields);
 
-        // ?? は「キー不在 + 値 null」の両方で default にフォールバックするが、
-        // 部分更新ではキー不在 = 既存値維持、値 null = "明示的に null をセット" を
-        // 区別する必要があるため array_key_exists で分岐する。
-        $updated = new Conference(
-            conferenceId: $existing->conferenceId,
-            name: array_key_exists('name', $fields) ? $fields['name'] : $existing->name,
-            trackName: array_key_exists('trackName', $fields) ? $fields['trackName'] : $existing->trackName,
-            officialUrl: array_key_exists('officialUrl', $fields) ? $fields['officialUrl'] : $existing->officialUrl,
-            cfpUrl: array_key_exists('cfpUrl', $fields) ? $fields['cfpUrl'] : $existing->cfpUrl,
-            eventStartDate: array_key_exists('eventStartDate', $fields) ? $fields['eventStartDate'] : $existing->eventStartDate,
-            eventEndDate: array_key_exists('eventEndDate', $fields) ? $fields['eventEndDate'] : $existing->eventEndDate,
-            venue: array_key_exists('venue', $fields) ? $fields['venue'] : $existing->venue,
-            format: array_key_exists('format', $fields) ? $fields['format'] : $existing->format,
-            cfpStartDate: array_key_exists('cfpStartDate', $fields) ? $fields['cfpStartDate'] : $existing->cfpStartDate,
-            cfpEndDate: array_key_exists('cfpEndDate', $fields) ? $fields['cfpEndDate'] : $existing->cfpEndDate,
-            categories: array_key_exists('categories', $fields) ? $fields['categories'] : $existing->categories,
-            description: array_key_exists('description', $fields) ? $fields['description'] : $existing->description,
-            themeColor: array_key_exists('themeColor', $fields) ? $fields['themeColor'] : $existing->themeColor,
-            createdAt: $existing->createdAt,
-            updatedAt: $now,
-        );
+        // 名前付き引数の spread (PHP 8+): キー名 → コンストラクタ引数名にマップされる
+        /** @var array{
+         *     conferenceId: string,
+         *     name: string,
+         *     trackName: string|null,
+         *     officialUrl: string,
+         *     cfpUrl: string,
+         *     eventStartDate: string,
+         *     eventEndDate: string,
+         *     venue: string,
+         *     format: \App\Domain\Conferences\ConferenceFormat,
+         *     cfpStartDate: string|null,
+         *     cfpEndDate: string,
+         *     categories: array<int, string>,
+         *     description: string|null,
+         *     themeColor: string|null,
+         *     createdAt: string,
+         *     updatedAt: string,
+         * } $args
+         */
+        $updated = new Conference(...$args);
 
         $this->repository->save($updated);
 
