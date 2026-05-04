@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\ConferenceController;
 use App\Http\Controllers\Api\HealthController;
 use Illuminate\Support\Facades\Route;
 
@@ -20,3 +21,7 @@ use Illuminate\Support\Facades\Route;
 // GET /admin/api/health — 認証不要のサーバー稼働確認エンドポイント。
 // OpenAPI 仕様 (operationId: healthCheck) 準拠。
 Route::get('/health', [HealthController::class, 'check']);
+
+// ── Conferences ──
+// 個別エンドポイントを順次追加していく。OpenAPI 仕様の Conferences タグ参照。
+Route::get('/conferences', [ConferenceController::class, 'index']);
