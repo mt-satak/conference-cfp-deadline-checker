@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
+import { CfpCiStack } from '../lib/ci-stack';
 import { CfpDeadlineCheckerStack } from '../lib/cfp-deadline-checker-stack';
 import { EdgeStack } from '../lib/edge-stack';
 
@@ -9,6 +10,13 @@ const app = new cdk.App();
 // AWS アカウントは IAM ユーザーの環境変数 (CDK_DEFAULT_ACCOUNT) から取得する。
 // 未設定の場合は環境非依存の合成（synth）になり、deploy 時に解決される。
 const account = process.env.CDK_DEFAULT_ACCOUNT;
+
+// ── GitHub OIDC / CI 用設定 ──
+// 既定値は本リポジトリのオーナー / リポジトリ名。fork 等で変える場合は
+// `pnpm cdk deploy --context githubOrg=foo --context githubRepo=bar` で上書き。
+const githubOrg = (app.node.tryGetContext('githubOrg') as string | undefined) ?? 'mt-satak';
+const githubRepo =
+  (app.node.tryGetContext('githubRepo') as string | undefined) ?? 'conference-cfp-deadline-checker';
 
 // ── ドメイン設定 (任意) ──
 // ドメイン取得後、以下のように指定して有効化する:
@@ -58,3 +66,18 @@ const mainStack = new CfpDeadlineCheckerStack(app, 'CfpDeadlineCheckerStack', {
 
 // EdgeStack の出力に依存するためデプロイ順を明示する
 mainStack.addDependency(edgeStack);
+
+// ── CiStack: 独立したライフサイクル ──
+// GitHub Actions OIDC Provider と Deploy Role を持つ。アプリスタック (Edge / Main)
+// から独立しており、メインスタックの destroy / rebuild に影響されない。
+// IAM はグローバルだが配置リージョンは指定が必要なため ap-northeast-1 にする。
+new CfpCiStack(app, 'CfpDeadlineCheckerCiStack', {
+  env: {
+    account,
+    region: process.env.CDK_DEFAULT_REGION ?? 'ap-northeast-1',
+  },
+  githubOrg,
+  githubRepo,
+  description:
+    'CI/CD resources (GitHub Actions OIDC + Deploy Role) for CFP Deadline Checker',
+});
