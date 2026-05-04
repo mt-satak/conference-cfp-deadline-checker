@@ -47,7 +47,7 @@ pecl install xdebug
 ## コードカバレッジルール (層別 C1)
 
 全コード一律 90% ではなく、**層 (namespace) ごとに C1 (Branch Coverage) 閾値を分ける**。
-詳細な根拠は `docs/test-strategy.md` (別 Issue で起票予定) を参照。
+詳細な根拠・運用手順は [docs/test-strategy.md](../../docs/test-strategy.md) 参照。
 
 | 層 | 閾値 | 理由 |
 |---|---|---|
@@ -87,4 +87,5 @@ app/
 ## 関連
 - API 仕様: `data/openapi.yaml`
 - DB スキーマ: `data/schema.md`
+- テスト戦略・カバレッジルール: [docs/test-strategy.md](../../docs/test-strategy.md)
 - 全体アーキテクチャ: `architecture.md` (gitignore 対象、ローカル参照のみ)
