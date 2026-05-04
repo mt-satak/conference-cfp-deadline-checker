@@ -9,14 +9,14 @@ use Aws\DynamoDb\DynamoDbClient;
  * 雛形段階で SDK が依存解決できているかを早期に確認しておく。
  */
 
-it('has the AWS DynamoDB client class available', function () {
+it('AWS DynamoDB クライアントクラスが解決できる', function () {
     expect(class_exists(DynamoDbClient::class))->toBeTrue();
 });
 
-it('can instantiate a DynamoDB client with explicit credentials and endpoint', function () {
+it('DynamoDB クライアントを認証情報・エンドポイント指定で生成できる', function () {
     // ローカル開発で利用する DynamoDB Local 向けの接続例。
     // 本コミットでは「コンストラクタが例外を投げないこと」だけを確認する。
-    // 実際の通信検証は Docker 統合後の結合テストで行う。
+    // 実際の通信検証は Repository 実装時の結合テストで行う。
     $client = new DynamoDbClient([
         'version' => 'latest',
         'region' => 'ap-northeast-1',
