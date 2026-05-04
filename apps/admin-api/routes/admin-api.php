@@ -28,3 +28,4 @@ Route::get('/conferences', [ConferenceController::class, 'index']);
 Route::post('/conferences', [ConferenceController::class, 'store']);
 Route::get('/conferences/{id}', [ConferenceController::class, 'show']);
 Route::put('/conferences/{id}', [ConferenceController::class, 'update']);
+Route::delete('/conferences/{id}', [ConferenceController::class, 'destroy']);

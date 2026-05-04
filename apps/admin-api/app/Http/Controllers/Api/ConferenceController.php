@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Application\Conferences\CreateConferenceInput;
 use App\Application\Conferences\CreateConferenceUseCase;
+use App\Application\Conferences\DeleteConferenceUseCase;
 use App\Application\Conferences\GetConferenceUseCase;
 use App\Application\Conferences\ListConferencesUseCase;
 use App\Application\Conferences\UpdateConferenceUseCase;
@@ -112,5 +113,18 @@ class ConferenceController extends BaseController
         $conference = $useCase->execute($id, $fields);
 
         return $this->ok(ConferencePresenter::toArray($conference));
+    }
+
+    /**
+     * DELETE /admin/api/conferences/{id} (operationId: deleteConference)
+     *
+     * 該当無し時は UseCase が ConferenceNotFoundException を投げ、
+     * グローバル例外ハンドラが 404 + NOT_FOUND に整形する。
+     */
+    public function destroy(string $id, DeleteConferenceUseCase $useCase): JsonResponse
+    {
+        $useCase->execute($id);
+
+        return $this->noContent();
     }
 }
