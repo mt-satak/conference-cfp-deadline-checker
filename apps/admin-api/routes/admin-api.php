@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\BuildController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ConferenceController;
 use App\Http\Controllers\Api\HealthController;
@@ -38,3 +39,8 @@ Route::post('/categories', [CategoryController::class, 'store']);
 Route::get('/categories/{id}', [CategoryController::class, 'show']);
 Route::put('/categories/{id}', [CategoryController::class, 'update']);
 Route::delete('/categories/{id}', [CategoryController::class, 'destroy']);
+
+// ── Build ──
+// OpenAPI 仕様の Build タグ参照。Amplify アプリ未構成時は 503 を返す。
+Route::post('/build/trigger', [BuildController::class, 'trigger']);
+Route::get('/build/status', [BuildController::class, 'status']);
