@@ -205,5 +205,10 @@ jobs:
       # を経由する設計)。ドメイン未設定の現時点では HTTP 経由のスモークが組めない。
       # Phase 4 で smoke test を別 Issue として整理。
       # ここでは "deploy が exit 0 で終わる" ことをもって成功とする。
+      # YAML の `run:` スカラー内に `#` を裸で書くと unquoted YAML 文字列の
+      # コメント開始と解釈され、shell に渡る前に切り捨てられる。block scalar (|)
+      # を使ってコマンド全文を保護する。本ステップは placeholder のため
+      # メッセージから問題のシャープも避けて素のテキストにする。
       - name: Note about smoke test
-        run: echo "ℹ Smoke test deferred (Issue #19 Phase 4) — Function URL is IAM-auth only."
+        run: |
+          echo "Smoke test deferred (Issue 19 Phase 4) -- Function URL is IAM-auth only."
