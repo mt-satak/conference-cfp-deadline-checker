@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\Api\CsrfTokenController;
 use App\Http\Controllers\Api\HealthController;
 use Illuminate\Support\Facades\Route;
 
@@ -11,16 +10,13 @@ use Illuminate\Support\Facades\Route;
  *   と VerifyOrigin ミドルウェア、"/admin/api" プレフィックスが自動付与される。
  * - 個別エンドポイント (Conferences / Categories / Donations / Build) は
  *   後続 Issue で順次追加する。
+ *
+ * NOTE: /csrf-token エンドポイントは管理画面 UI を Blade SSR で実装する方針
+ * (Issue #9) のため不要となり削除。Blade 側で @csrf ディレクティブや
+ * csrf_token() ヘルパで HTML 内に直接トークンを埋め込む形を取る。
  */
 
 // ── Health ──
 // GET /admin/api/health — 認証不要のサーバー稼働確認エンドポイント。
 // OpenAPI 仕様 (operationId: healthCheck) 準拠。
 Route::get('/health', [HealthController::class, 'check']);
-
-// ── CSRF Token ──
-// GET /admin/api/csrf-token — SPA フロント向けの CSRF トークン発行。
-// 取得した csrfToken を後続の状態変更系リクエストの X-XSRF-TOKEN
-// ヘッダにセットすることで CSRF 検証を通過できる。
-// OpenAPI 仕様 (operationId: getCsrfToken) 準拠。
-Route::get('/csrf-token', [CsrfTokenController::class, 'token']);
