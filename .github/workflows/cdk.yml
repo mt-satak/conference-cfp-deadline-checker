@@ -1,0 +1,58 @@
+# CDK インフラコード CI ワークフロー
+#
+# infra/cdk 配下の TypeScript 変更を pull request / push で検査する。
+# admin-api workflow (admin-api.yml) と分離する理由:
+#   - admin-api 側は PHP 環境を要するが CDK 側は Node のみで完結する
+#   - admin-api.yml の deploy ジョブは「PHP test PASS + cdk deploy」を 1 連で
+#     実行するが、CDK 単独の typecheck/test もそれとは独立に走らせて pure に
+#     保ちたい
+
+name: cdk
+
+on:
+  pull_request:
+    paths:
+      - 'infra/cdk/**'
+      - '.github/workflows/cdk.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/cdk/**'
+      - '.github/workflows/cdk.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cdk-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  check:
+    name: typecheck + vitest
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      - name: typecheck
+        working-directory: infra/cdk
+        run: pnpm typecheck
+
+      - name: vitest run
+        working-directory: infra/cdk
+        run: pnpm test
