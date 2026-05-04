@@ -35,6 +35,11 @@ class AdminApiExceptionRenderer
             $e instanceof ValidationException => $this->renderValidation($e),
             $e instanceof ModelNotFoundException => $this->renderNotFound(),
             $e instanceof NotFoundHttpException => $this->renderNotFound(),
+            // Laravel の prepareException() が TokenMismatchException を
+            // HttpException(419) に事前変換するため、ここでは status code で判定する。
+            // 419 (Page Expired) は Symfony 標準にも Laravel Response 定数にも
+            // 存在しない Laravel 拡張ステータスのため、リテラルで指定する。
+            ($e instanceof HttpException && $e->getStatusCode() === 419) => $this->renderCsrfMismatch(),
             $e instanceof HttpException => $this->renderHttp($e),
             default => $this->renderInternal(),
         };
@@ -72,6 +77,19 @@ class AdminApiExceptionRenderer
                 'message' => 'Resource not found',
             ],
         ], Response::HTTP_NOT_FOUND);
+    }
+
+    private function renderCsrfMismatch(): JsonResponse
+    {
+        // Laravel デフォルトの 419 (Page Expired) ではなく、
+        // OpenAPI 仕様 (data/openapi.yaml) の CsrfMismatch レスポンス例に揃え
+        // 403 + CSRF_TOKEN_MISMATCH を返す。
+        return new JsonResponse([
+            'error' => [
+                'code' => 'CSRF_TOKEN_MISMATCH',
+                'message' => 'Invalid or missing CSRF token',
+            ],
+        ], Response::HTTP_FORBIDDEN);
     }
 
     private function renderHttp(HttpException $e): JsonResponse
