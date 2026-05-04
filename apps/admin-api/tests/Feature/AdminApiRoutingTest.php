@@ -18,30 +18,36 @@
 use Illuminate\Support\Facades\Route;
 
 it('/admin/api プレフィックスに登録したルートが応答する', function () {
+    // Given: /admin/api 配下にテスト用ルートを動的に登録する
     Route::get('/admin/api/_test_ping', fn () => response()->json(['ok' => true]));
 
+    // When: 登録ルートに GET する
     $response = $this->get('/admin/api/_test_ping');
 
+    // Then: 200 と期待した JSON が返り、プレフィックス + ルート登録が機能している
     $response->assertStatus(200);
     $response->assertExactJson(['ok' => true]);
 });
 
 it('routes/admin-api.php に登録された /health ルートが応答する', function () {
-    // routes/admin-api.php 経由で登録された実エンドポイントが応答することを確認。
-    // ここではルーティングが疎通していること自体を検証し、
-    // レスポンス本体の構造詳細は HealthEndpointTest で検証する。
+    // When: routes/admin-api.php 経由で登録された実エンドポイントに GET する
     $response = $this->get('/admin/api/health');
 
+    // Then: 200 が返り、ルーティング疎通が確認できる
+    // (レスポンス本体の構造は HealthEndpointTest で個別検証)
     $response->assertStatus(200);
 });
 
 it('/admin/api 配下のルートが web ミドルウェアグループに属している', function () {
-    // 「ルートが web ミドルウェアグループ配下に登録されている」ことを直接確認する。
-    // (テスト環境では SESSION_DRIVER=array に上書きされて Cookie が出ないため、
+    // Given: routes/admin-api.php に常設の /health ルートを取得する
+    // (テスト環境では SESSION_DRIVER=array に上書きされ Cookie が出ないため、
     //  実応答ではなくルート定義レベルで検証する)
+
+    // When: ルート定義から /admin/api/health を引き当てる
     $route = collect(Route::getRoutes())
         ->first(fn ($r) => $r->uri() === 'admin/api/health');
 
+    // Then: ルートが存在し、web ミドルウェアグループに属している
     expect($route)->not->toBeNull();
     expect($route->middleware())->toContain('web');
 });
