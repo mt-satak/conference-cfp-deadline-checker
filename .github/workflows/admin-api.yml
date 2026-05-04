@@ -82,6 +82,15 @@ jobs:
       - name: composer install
         run: composer install --no-progress --no-interaction --prefer-dist
 
+      # ── Laravel テスト前提の .env / APP_KEY 生成 ──
+      # Laravel 11+ は APP_KEY 未設定だと起動時に MissingAppKeyException で失敗する。
+      # CI では .env をコミットしないので .env.example をコピーして key:generate する。
+      # phpunit.xml の <php> ブロックの env は .env 読込より優先される (テスト中限定)。
+      - name: Prepare .env (Laravel boot 用)
+        run: |
+          cp .env.example .env
+          php artisan key:generate --no-interaction --force
+
       # ── Lint (Laravel Pint) ──
       # `--test` で書き換えなしの dry-run。違反検出で exit 1。
       - name: Lint (Pint --test)
