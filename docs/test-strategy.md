@@ -222,6 +222,16 @@ make api-coverage-check  # 層別閾値判定
 `pre-push` ゲートは PHPStan → カバレッジ の順で実行。PHPStan が通らなければ
 カバレッジ計測まで進まない (型不整合は静的に弾く方が高速のため)。
 
+### CI でのゲート (二重防御)
+
+GitHub Actions (`.github/workflows/admin-api.yml`) でも同じ Pint / PHPStan /
+Pest + 層別 C1 を実行する。PR では check のみ、main マージで check 後に CDK
+deploy が走る。pre-push をスキップ (`SKIP_*=1` バイパス) しても CI で再検証
+されるため運用上の漏れは検出可能。
+
+CDK 側 (TypeScript) は `.github/workflows/cdk.yml` で typecheck + vitest を
+別ワークフローとして実行 (admin-api 側と独立)。
+
 ### push 時の自動ゲート (`.githooks/pre-push`)
 
 1. `git push` で発火
