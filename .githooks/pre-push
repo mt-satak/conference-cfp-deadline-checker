@@ -30,9 +30,13 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     if [[ -z "$local_ref" ]]; then
         continue
     fi
-    # 新規ブランチ push (remote_sha が全 0) は HEAD 全部を対象に判定
+    # 新規ブランチ push (remote_sha が全 0) は origin/main をベースに判定
     if [[ "$remote_sha" =~ ^0+$ ]]; then
-        if git diff --name-only "$local_sha" -- apps/admin-api packages docker | grep -q .; then
+        base=$(git merge-base "$local_sha" origin/main 2>/dev/null || git merge-base "$local_sha" origin/master 2>/dev/null || echo "")
+        if [[ -z "$base" ]]; then
+            # ベースが取れない (初回 push 等) は安全側に倒してカバレッジを実行
+            needs_check=1
+        elif git diff --name-only "$base" "$local_sha" -- apps/admin-api packages docker | grep -q .; then
             needs_check=1
         fi
     else
