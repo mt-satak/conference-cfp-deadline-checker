@@ -2,6 +2,7 @@
 
 namespace App\Exceptions;
 
+use App\Exceptions\InvalidOriginException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -33,6 +34,7 @@ class AdminApiExceptionRenderer
 
         return match (true) {
             $e instanceof ValidationException => $this->renderValidation($e),
+            $e instanceof InvalidOriginException => $this->renderInvalidOrigin(),
             $e instanceof ModelNotFoundException => $this->renderNotFound(),
             $e instanceof NotFoundHttpException => $this->renderNotFound(),
             // Laravel の prepareException() が TokenMismatchException を
@@ -88,6 +90,18 @@ class AdminApiExceptionRenderer
             'error' => [
                 'code' => 'CSRF_TOKEN_MISMATCH',
                 'message' => 'Invalid or missing CSRF token',
+            ],
+        ], Response::HTTP_FORBIDDEN);
+    }
+
+    private function renderInvalidOrigin(): JsonResponse
+    {
+        // OpenAPI 仕様 (data/openapi.yaml) の CsrfMismatch レスポンス
+        // (invalidOrigin example) に整合: 403 + INVALID_ORIGIN。
+        return new JsonResponse([
+            'error' => [
+                'code' => 'INVALID_ORIGIN',
+                'message' => 'Request origin does not match the admin domain',
             ],
         ], Response::HTTP_FORBIDDEN);
     }
