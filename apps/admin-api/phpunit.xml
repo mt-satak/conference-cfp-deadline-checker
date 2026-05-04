@@ -20,6 +20,16 @@
             <directory>app</directory>
         </include>
     </source>
+    <coverage pathCoverage="true">
+        <!-- pathCoverage="true" で C1 (Branch / Path Coverage) を計測する。
+             xdebug が必要 (pcov は line coverage のみ対応のため非採用)。
+             テスト実行時は XDEBUG_MODE=coverage を環境変数で渡す。 -->
+        <report>
+            <html outputDirectory="storage/coverage/html"/>
+            <text outputFile="storage/coverage/coverage.txt" showOnlySummary="false"/>
+            <clover outputFile="storage/coverage/clover.xml"/>
+        </report>
+    </coverage>
     <php>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>

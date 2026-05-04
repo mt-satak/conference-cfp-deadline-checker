@@ -1,58 +1,90 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# admin-api
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+`Conference CfP Deadline Checker` の管理 API (Laravel 13 + Bref + DynamoDB)。
 
-## About Laravel
+## 前提
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- PHP 8.5 (Bref Layer の php-85 と同バージョン)
+- Composer 2.x
+- xdebug 3.5+ (テストカバレッジ計測時のみ必須)
+- Docker (DynamoDB Local 起動用)
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## セットアップ
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+ホスト前提でのローカル開発手順:
 
-## Learning Laravel
+```sh
+# 依存インストール
+make install
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+# DynamoDB Local 起動 + テーブル作成 + シード投入 (プロジェクトルートから)
+cd ../.. && make db-up && make db-init && cd apps/admin-api
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+# Laravel ビルトインサーバ起動 (port 8080)
+make serve
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+xdebug が未インストールでカバレッジ機能を使う場合:
 
-## Contributing
+```sh
+pecl install xdebug
+# php.ini 自動編集される。インストール後 `php -m | grep xdebug` で確認
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## テスト
 
-## Code of Conduct
+| コマンド | 内容 |
+|---|---|
+| `make test` | テスト実行 (xdebug 不要、高速) |
+| `make test-coverage` | テスト + C1 (Branch Coverage) 計測、HTML/Clover/Text 出力 |
+| `make coverage-check` | C1 が 90% 以上か判定 (未満なら exit 1) |
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+プロジェクトルートからは `make api-test` / `make api-test-coverage` /
+`make api-coverage-check` で同等。
 
-## Security Vulnerabilities
+カバレッジレポート: `apps/admin-api/storage/coverage/html/index.html`
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## コードカバレッジルール (層別 C1)
 
-## License
+全コード一律 90% ではなく、**層 (namespace) ごとに C1 (Branch Coverage) 閾値を分ける**。
+詳細な根拠は `docs/test-strategy.md` (別 Issue で起票予定) を参照。
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+| 層 | 閾値 | 理由 |
+|---|---|---|
+| `App\Domain\*` | **100%** | Entity/VO/Domain Exception。ロジックの中核、untested 分岐を許さない |
+| `App\Application\*` | **100%** | UseCase。ロジック層 |
+| `App\Http\Presenters\*` | **100%** | データ整形のみ、防御コード不要 |
+| `App\Http\Requests\*` | **100%** | バリデーション定義 |
+| `App\Http\Controllers\*` | **85%** | 薄いオーケストレーション、Feature テスト主体 |
+| `App\Http\Middleware\*` | **85%** | 同上 + フレームワーク hook 分岐 |
+| `App\Exceptions\*` | **75%** | match (true) + compound instanceof で xdebug が micro-branch 細分割するため一律 80%+ は padding テストでしか到達不能。実測上限を踏まえた現実値 |
+| `App\Infrastructure\*` | **75%** | AWS SDK の例外パスのモック網羅コストが高い |
+| `App\Providers\*` | (計測対象外) | DI 配線、Lambda コンテナ起動時のみ走る |
+
+判定スクリプト: `scripts/check-coverage.php`
+ゲート: `git push` 時に `.githooks/pre-push` が自動実行。
+
+- フックの自動セットアップは `pnpm install` の `postinstall` で行われる
+  (`git config core.hooksPath .githooks` が設定される)。
+- 緊急時のみ `SKIP_COVERAGE_CHECK=1 git push` でバイパス可能 (推奨しない)。
+- admin-api / packages / docker のいずれにも変更が無い push は自動でゲートを
+  スキップ (=フロントエンドのみの変更等は素通し)。
+
+## ディレクトリ構成 (Standard DDD)
+
+```
+app/
+├── Domain/<Aggregate>/        # Entity / VO / Repository interface (フレームワーク非依存)
+├── Application/<Aggregate>/   # UseCase (Application Service) と入力 DTO
+├── Infrastructure/<Adapter>/  # AWS SDK 等の Repository 実装
+└── Http/                      # Controllers / FormRequests / Presenters / Middleware
+```
+
+呼び出しフロー: `HTTP → Controller → UseCase → Repository (interface) → 実装 → DynamoDB`
+
+詳細は MEMORY: `project_ddd_standard.md` 参照。
+
+## 関連
+- API 仕様: `data/openapi.yaml`
+- DB スキーマ: `data/schema.md`
+- 全体アーキテクチャ: `architecture.md` (gitignore 対象、ローカル参照のみ)

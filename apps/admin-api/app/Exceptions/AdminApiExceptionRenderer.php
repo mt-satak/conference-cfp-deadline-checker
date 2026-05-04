@@ -42,14 +42,23 @@ class AdminApiExceptionRenderer
             $e instanceof ConferenceNotFoundException => $this->renderNotFound(),
             $e instanceof ModelNotFoundException => $this->renderNotFound(),
             $e instanceof NotFoundHttpException => $this->renderNotFound(),
-            // Laravel の prepareException() が TokenMismatchException を
-            // HttpException(419) に事前変換するため、ここでは status code で判定する。
-            // 419 (Page Expired) は Symfony 標準にも Laravel Response 定数にも
-            // 存在しない Laravel 拡張ステータスのため、リテラルで指定する。
-            ($e instanceof HttpException && $e->getStatusCode() === 419) => $this->renderCsrfMismatch(),
+            // CSRF (Laravel が TokenMismatchException → HttpException(419) に
+            // 事前変換するパス) は判定の compound 条件を helper に切り出して
+            // match arm 1 行あたりの分岐数を減らす。
+            $this->isCsrfMismatch($e) => $this->renderCsrfMismatch(),
             $e instanceof HttpException => $this->renderHttp($e),
             default => $this->renderInternal(),
         };
+    }
+
+    /**
+     * Laravel の prepareException() が TokenMismatchException を HttpException(419)
+     * に変換した状態を判定する。419 (Page Expired) は Symfony / Laravel Response 定数
+     * に存在しない Laravel 拡張ステータスのためリテラルで持つ。
+     */
+    private function isCsrfMismatch(Throwable $e): bool
+    {
+        return $e instanceof HttpException && $e->getStatusCode() === 419;
     }
 
     private function renderValidation(ValidationException $e): JsonResponse
@@ -118,7 +127,7 @@ class AdminApiExceptionRenderer
         return new JsonResponse([
             'error' => [
                 'code' => $this->codeForHttpStatus($status),
-                'message' => $e->getMessage() !== '' ? $e->getMessage() : $this->defaultMessageForStatus($status),
+                'message' => $e->getMessage() !== '' ? $e->getMessage() : "HTTP {$status}",
             ],
         ], $status);
     }
@@ -147,28 +156,15 @@ class AdminApiExceptionRenderer
 
     /**
      * HTTP ステータスから OpenAPI Error.code 列挙値を導出する。
-     * 仕様にマップが無いステータスは汎用 'HTTP_ERROR' を返す。
+     * 現状実コードベースで上位 match 分岐を抜けて renderHttp に到達するのは
+     * 主に 403 (AccessDenied 等) と Laravel が投げるその他の HttpException のみ。
+     * 必要になった時点でマッピングを追加する。
      */
     private function codeForHttpStatus(int $status): string
     {
         return match ($status) {
-            Response::HTTP_NOT_FOUND => 'NOT_FOUND',
             Response::HTTP_FORBIDDEN => 'FORBIDDEN',
-            Response::HTTP_CONFLICT => 'CONFLICT',
-            Response::HTTP_UNPROCESSABLE_ENTITY => 'VALIDATION_FAILED',
-            Response::HTTP_TOO_MANY_REQUESTS => 'RATE_LIMITED',
-            Response::HTTP_SERVICE_UNAVAILABLE => 'SERVICE_UNAVAILABLE',
             default => 'HTTP_ERROR',
-        };
-    }
-
-    private function defaultMessageForStatus(int $status): string
-    {
-        return match ($status) {
-            Response::HTTP_NOT_FOUND => 'Not found',
-            Response::HTTP_FORBIDDEN => 'Forbidden',
-            Response::HTTP_INTERNAL_SERVER_ERROR => 'Internal server error',
-            default => "HTTP {$status}",
         };
     }
 }

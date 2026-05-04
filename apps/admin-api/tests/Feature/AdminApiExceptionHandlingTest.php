@@ -61,8 +61,9 @@ it('admin/api 配下で ModelNotFoundException が 404 + NOT_FOUND を返す', f
     $response->assertJsonPath('error.code', 'NOT_FOUND');
 });
 
-it('admin/api 配下で HttpException がステータスを保ったまま整形される', function () {
+it('admin/api 配下で HttpException(403) が 403 + FORBIDDEN を返す', function () {
     // Given: HttpException(403) を投げるルートを動的に登録する
+    // (codeForHttpStatus の 403 → FORBIDDEN マップ arm の到達確認)
     Route::get('/admin/api/_test_http_403', function () {
         throw new HttpException(403, 'forbidden by route');
     });
@@ -70,9 +71,23 @@ it('admin/api 配下で HttpException がステータスを保ったまま整形
     // When: 当該ルートに GET する
     $response = $this->getJson('/admin/api/_test_http_403');
 
-    // Then: 例外の status code が維持され、code が文字列で返る
+    // Then: 403 + FORBIDDEN + 元のメッセージが維持される
     $response->assertStatus(403);
-    expect($response->json('error.code'))->toBeString();
+    $response->assertJsonPath('error.code', 'FORBIDDEN');
+    $response->assertJsonPath('error.message', 'forbidden by route');
+});
+
+it('admin/api 配下で MethodNotAllowed (Laravel が投げる 405) が 405 + HTTP_ERROR を返す', function () {
+    // Given: GET のみ受け付けるルートを動的に登録する
+    // (POST されると Laravel ルータが MethodNotAllowedHttpException(405) を投げる)
+    Route::get('/admin/api/_test_method_not_allowed', fn () => response()->json([]));
+
+    // When: 同じパスに POST する
+    $response = $this->postJson('/admin/api/_test_method_not_allowed', []);
+
+    // Then: 405 + HTTP_ERROR (codeForHttpStatus の default arm に到達)
+    $response->assertStatus(405);
+    $response->assertJsonPath('error.code', 'HTTP_ERROR');
 });
 
 it('admin/api 配下で予期しない例外が 500 + INTERNAL_ERROR を返す', function () {

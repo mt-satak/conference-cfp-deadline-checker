@@ -12,6 +12,7 @@
     "onlyBuiltDependencies": ["esbuild"]
   },
   "scripts": {
+    "postinstall": "git config core.hooksPath .githooks 2>/dev/null || true",
     "build": "pnpm -r build",
     "dev": "pnpm -r --parallel dev",
     "test": "pnpm -r test",
@@ -25,6 +26,8 @@
     "db:nuke": "docker compose -f docker/compose.yaml down -v",
     "api:install": "cd apps/admin-api && composer install",
     "api:test": "cd apps/admin-api && ./vendor/bin/pest",
+    "api:test:coverage": "cd apps/admin-api && make test-coverage",
+    "api:coverage:check": "cd apps/admin-api && make coverage-check",
     "api:serve": "cd apps/admin-api && php artisan serve --host=127.0.0.1 --port=8080",
     "api:routes": "cd apps/admin-api && php artisan route:list"
   }
