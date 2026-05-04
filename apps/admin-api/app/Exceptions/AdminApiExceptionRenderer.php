@@ -2,6 +2,7 @@
 
 namespace App\Exceptions;
 
+use App\Domain\Build\BuildServiceNotConfiguredException;
 use App\Domain\Categories\CategoryConflictException;
 use App\Domain\Categories\CategoryNotFoundException;
 use App\Domain\Conferences\ConferenceNotFoundException;
@@ -46,6 +47,8 @@ class AdminApiExceptionRenderer
             $e instanceof NotFoundHttpException => $this->renderNotFound(),
             // Domain 層の Conflict 例外 (重複・参照整合性違反) は 409 + CONFLICT
             $e instanceof CategoryConflictException => $this->renderConflict($e),
+            // Build サービス未構成 (Amplify Webhook URL / App ID が未設定) は 503
+            $e instanceof BuildServiceNotConfiguredException => $this->renderServiceUnavailable(),
             // CSRF (Laravel が TokenMismatchException → HttpException(419) に
             // 事前変換するパス) は判定の compound 条件を helper に切り出して
             // match arm 1 行あたりの分岐数を減らす。
@@ -115,6 +118,18 @@ class AdminApiExceptionRenderer
                 'message' => $e->getMessage(),
             ],
         ], Response::HTTP_CONFLICT);
+    }
+
+    private function renderServiceUnavailable(): JsonResponse
+    {
+        // 503 SERVICE_UNAVAILABLE は OpenAPI 仕様の Build endpoint 503 ケースで使う。
+        // 主に Amplify アプリ未構成 (Webhook URL / App ID 未設定) を表現する。
+        return new JsonResponse([
+            'error' => [
+                'code' => 'SERVICE_UNAVAILABLE',
+                'message' => 'Build service is not configured',
+            ],
+        ], Response::HTTP_SERVICE_UNAVAILABLE);
     }
 
     private function renderCsrfMismatch(): JsonResponse

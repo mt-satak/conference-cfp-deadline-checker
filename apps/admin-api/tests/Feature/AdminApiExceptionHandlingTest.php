@@ -11,6 +11,7 @@
  * デフォルトの挙動 (HTML / フレームワークデフォルト JSON) を維持する。
  */
 
+use App\Domain\Build\BuildServiceNotConfiguredException;
 use App\Domain\Categories\CategoryConflictException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
@@ -105,6 +106,20 @@ it('admin/api 配下で CategoryConflictException が 409 + CONFLICT を返す',
     $response->assertStatus(409);
     $response->assertJsonPath('error.code', 'CONFLICT');
     expect($response->json('error.message'))->toContain('PHP');
+});
+
+it('admin/api 配下で BuildServiceNotConfiguredException が 503 + SERVICE_UNAVAILABLE を返す', function () {
+    // Given: BuildServiceNotConfiguredException を投げるルートを動的に登録
+    Route::get('/admin/api/_test_unavailable', function () {
+        throw BuildServiceNotConfiguredException::webhookUrlMissing();
+    });
+
+    // When
+    $response = $this->getJson('/admin/api/_test_unavailable');
+
+    // Then: 503 + SERVICE_UNAVAILABLE に整形される
+    $response->assertStatus(503);
+    $response->assertJsonPath('error.code', 'SERVICE_UNAVAILABLE');
 });
 
 it('admin/api 配下で予期しない例外が 500 + INTERNAL_ERROR を返す', function () {

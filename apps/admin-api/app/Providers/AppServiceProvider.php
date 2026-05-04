@@ -2,11 +2,18 @@
 
 namespace App\Providers;
 
+use App\Domain\Build\BuildStatusReader;
+use App\Domain\Build\BuildTriggerer;
 use App\Domain\Categories\CategoryRepository;
 use App\Domain\Conferences\ConferenceRepository;
+use App\Infrastructure\Amplify\AmplifyBuildStatusReader;
+use App\Infrastructure\Amplify\AmplifyBuildTriggerer;
 use App\Infrastructure\DynamoDb\DynamoDbCategoryRepository;
 use App\Infrastructure\DynamoDb\DynamoDbConferenceRepository;
+use Aws\Amplify\AmplifyClient;
 use Aws\DynamoDb\DynamoDbClient;
+use GuzzleHttp\Client as GuzzleClient;
+use GuzzleHttp\ClientInterface;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 
@@ -19,6 +26,8 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->registerDynamoDbClient();
         $this->registerRepositories();
+        $this->registerAmplifyClient();
+        $this->registerBuildServices();
     }
 
     /**
@@ -90,5 +99,55 @@ class AppServiceProvider extends ServiceProvider
                 is_string($tableName) ? $tableName : 'cfp-categories',
             );
         });
+    }
+
+    /**
+     * AWS Amplify クライアントをシングルトンで登録する。
+     * env() は config/amplify.php 内のみで使用する (Larastan 推奨)。
+     */
+    private function registerAmplifyClient(): void
+    {
+        $this->app->singleton(AmplifyClient::class, function (): AmplifyClient {
+            $region = config('amplify.region');
+
+            return new AmplifyClient([
+                'version' => 'latest',
+                'region' => is_string($region) ? $region : 'ap-northeast-1',
+            ]);
+        });
+    }
+
+    /**
+     * Build (静的サイト再ビルド) 系の Domain interface を Amplify 実装に紐付ける。
+     *
+     * Amplify Webhook URL / App ID が未設定でも DI 自体は成功させ、
+     * 実呼出時 (TriggerBuildUseCase / ListBuildStatusesUseCase) に
+     * BuildServiceNotConfiguredException を投げる設計 (HTTP 層で 503 整形)。
+     */
+    private function registerBuildServices(): void
+    {
+        $this->app->bind(BuildTriggerer::class, function (Application $app): AmplifyBuildTriggerer {
+            $webhookUrl = config('amplify.webhook_url');
+
+            return new AmplifyBuildTriggerer(
+                $app->make(ClientInterface::class),
+                is_string($webhookUrl) && $webhookUrl !== '' ? $webhookUrl : null,
+            );
+        });
+
+        $this->app->bind(BuildStatusReader::class, function (Application $app): AmplifyBuildStatusReader {
+            $appId = config('amplify.app_id');
+            $branchName = config('amplify.branch_name');
+
+            return new AmplifyBuildStatusReader(
+                $app->make(AmplifyClient::class),
+                is_string($appId) && $appId !== '' ? $appId : null,
+                is_string($branchName) ? $branchName : 'main',
+            );
+        });
+
+        // Guzzle HTTP Client を ClientInterface 経由で解決可能にする
+        // (Build 以外でも将来 HTTP 連携が増えた場合に共有できる)
+        $this->app->singleton(ClientInterface::class, fn (): GuzzleClient => new GuzzleClient);
     }
 }

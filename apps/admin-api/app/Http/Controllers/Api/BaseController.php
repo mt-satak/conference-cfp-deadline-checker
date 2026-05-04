@@ -48,6 +48,16 @@ abstract class BaseController extends Controller
     }
 
     /**
+     * 202 Accepted レスポンス。非同期処理を起動する系エンドポイント (例: ビルドトリガー) で使う。
+     */
+    public function accepted(mixed $data): JsonResponse
+    {
+        return new JsonResponse([
+            'data' => $data,
+        ], Response::HTTP_ACCEPTED);
+    }
+
+    /**
      * 204 No Content レスポンス。削除系エンドポイント (DELETE) で使う。
      */
     public function noContent(): JsonResponse
