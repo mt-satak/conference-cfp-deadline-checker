@@ -1,0 +1,47 @@
+includes:
+    # larastan: Laravel 固有の facade / Eloquent / DI コンテナ等の型認識を有効化
+    - vendor/larastan/larastan/extension.neon
+    # Pest: テスト関数 it()/test() 内の $this->postJson() 等の型認識
+    - vendor/pestphp/pest/extension.neon
+    - vendor/pestphp/pest/phpstan-pest-extension.neon
+
+parameters:
+    # level max は 2.x で 10 相当。コードベースが小さいうちに最大水準で固める。
+    level: max
+
+    paths:
+        - app
+        - tests
+
+    # storage は .gitignore 配下なのでキャッシュ置き場として活用
+    tmpDir: storage/framework/cache/phpstan
+
+    # Laravel 13 系 / PHP 8.5 想定
+    parallel:
+        maximumNumberOfProcesses: 4
+
+    # tests/ 配下の「Pest / Mockery の構造的視野不足」由来の既知ノイズを除外する。
+    # 経緯: Issue #13 のコメント参照
+    # (https://github.com/mt-satak/conference-cfp-deadline-checker/issues/13)
+    # 方針: blanket baseline ではなく「既知のツール制約を限定列挙」する形で
+    # ignore する。tests/ 配下のみに scope し、app/ は level max ゼロエラーを維持。
+    ignoreErrors:
+        # tests/ 配下では以下のエラーカテゴリは「Pest クロージャの $this 推論不足」
+        # 「Mockery fluent API の構造的視野不足」「TestResponse::json() の mixed 戻り」
+        # 等のツール都合に由来する。app/ ではこれらは検出 (= 真のバグ)、tests/ では
+        # 構造ノイズ扱いで identifier 単位に blanket ignore する。
+        #
+        # 経緯と根拠: Issue #13 のコメント参照
+        # https://github.com/mt-satak/satak-conference-cfp-deadline-checker/issues/13
+        #
+        # Pest が PHPStan 完全対応 / Mockery が型ヒント対応した暁には削除する。
+        - { identifier: method.notFound, paths: [tests] }
+        - { identifier: method.nonObject, paths: [tests] }
+        - { identifier: argument.type, paths: [tests] }
+        - { identifier: argument.templateType, paths: [tests] }
+        - { identifier: cast.int, paths: [tests] }
+        - { identifier: offsetAccess.nonOffsetAccessible, paths: [tests] }
+        - { identifier: property.nonObject, paths: [tests] }
+        - { identifier: property.notFound, paths: [tests] }
+        - { identifier: missingType.iterableValue, paths: [tests] }
+        - { identifier: missingType.return, paths: [tests] }

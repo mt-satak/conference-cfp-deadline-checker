@@ -3,6 +3,7 @@
 namespace App\Application\Conferences;
 
 use App\Domain\Conferences\Conference;
+use App\Domain\Conferences\ConferenceFormat;
 use App\Domain\Conferences\ConferenceNotFoundException;
 use App\Domain\Conferences\ConferenceRepository;
 use Illuminate\Support\Carbon;
@@ -28,7 +29,24 @@ class UpdateConferenceUseCase
     ) {}
 
     /**
-     * @param  array<string, mixed>  $fields  更新するフィールドのみのキーバリュー
+     * 部分更新の入力 shape は UpdateConferenceRequest::validated() と同じ
+     * (Controller で format のみ enum 化済み)。型 narrowing のため明示。
+     *
+     * @param  array{
+     *     name?: string,
+     *     trackName?: string|null,
+     *     officialUrl?: string,
+     *     cfpUrl?: string,
+     *     eventStartDate?: string,
+     *     eventEndDate?: string,
+     *     venue?: string,
+     *     format?: ConferenceFormat,
+     *     cfpStartDate?: string|null,
+     *     cfpEndDate?: string,
+     *     categories?: array<int, string>,
+     *     description?: string|null,
+     *     themeColor?: string|null,
+     * }  $fields
      *
      * @throws ConferenceNotFoundException
      */
@@ -39,39 +57,54 @@ class UpdateConferenceUseCase
             throw ConferenceNotFoundException::withId($conferenceId);
         }
 
-        $now = Carbon::now('Asia/Tokyo')->toIso8601String();
+        // 既存値で全フィールドを埋め、入力 array に含まれるキーだけ上書きする。
+        // array_merge で「キー不在 = 既存値維持、値 null = 明示的に null セット」を
+        // 自然に表現でき、フィールド毎の if 分岐 (= branch coverage 数 × 13) を
+        // 1 箇所のマージに集約できる。
+        $args = [
+            'conferenceId' => $existing->conferenceId,
+            'name' => $existing->name,
+            'trackName' => $existing->trackName,
+            'officialUrl' => $existing->officialUrl,
+            'cfpUrl' => $existing->cfpUrl,
+            'eventStartDate' => $existing->eventStartDate,
+            'eventEndDate' => $existing->eventEndDate,
+            'venue' => $existing->venue,
+            'format' => $existing->format,
+            'cfpStartDate' => $existing->cfpStartDate,
+            'cfpEndDate' => $existing->cfpEndDate,
+            'categories' => $existing->categories,
+            'description' => $existing->description,
+            'themeColor' => $existing->themeColor,
+            'createdAt' => $existing->createdAt,
+            'updatedAt' => Carbon::now('Asia/Tokyo')->toIso8601String(),
+        ];
+        $args = array_merge($args, $fields);
 
-        $updated = new Conference(
-            conferenceId: $existing->conferenceId,
-            name: $this->pick($fields, 'name', $existing->name),
-            trackName: $this->pick($fields, 'trackName', $existing->trackName),
-            officialUrl: $this->pick($fields, 'officialUrl', $existing->officialUrl),
-            cfpUrl: $this->pick($fields, 'cfpUrl', $existing->cfpUrl),
-            eventStartDate: $this->pick($fields, 'eventStartDate', $existing->eventStartDate),
-            eventEndDate: $this->pick($fields, 'eventEndDate', $existing->eventEndDate),
-            venue: $this->pick($fields, 'venue', $existing->venue),
-            format: $this->pick($fields, 'format', $existing->format),
-            cfpStartDate: $this->pick($fields, 'cfpStartDate', $existing->cfpStartDate),
-            cfpEndDate: $this->pick($fields, 'cfpEndDate', $existing->cfpEndDate),
-            categories: $this->pick($fields, 'categories', $existing->categories),
-            description: $this->pick($fields, 'description', $existing->description),
-            themeColor: $this->pick($fields, 'themeColor', $existing->themeColor),
-            createdAt: $existing->createdAt,
-            updatedAt: $now,
-        );
+        // 名前付き引数の spread (PHP 8+): キー名 → コンストラクタ引数名にマップされる
+        /** @var array{
+         *     conferenceId: string,
+         *     name: string,
+         *     trackName: string|null,
+         *     officialUrl: string,
+         *     cfpUrl: string,
+         *     eventStartDate: string,
+         *     eventEndDate: string,
+         *     venue: string,
+         *     format: \App\Domain\Conferences\ConferenceFormat,
+         *     cfpStartDate: string|null,
+         *     cfpEndDate: string,
+         *     categories: array<int, string>,
+         *     description: string|null,
+         *     themeColor: string|null,
+         *     createdAt: string,
+         *     updatedAt: string,
+         * } $args
+         */
+        $updated = new Conference(...$args);
 
         $this->repository->save($updated);
 
         return $updated;
-    }
-
-    /**
-     * 入力 array にキーがあれば該当値、無ければデフォルト値を返す。
-     *
-     * @param  array<string, mixed>  $fields
-     */
-    private function pick(array $fields, string $key, mixed $default): mixed
-    {
-        return array_key_exists($key, $fields) ? $fields[$key] : $default;
     }
 }

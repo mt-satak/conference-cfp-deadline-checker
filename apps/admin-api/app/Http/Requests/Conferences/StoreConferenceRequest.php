@@ -48,4 +48,53 @@ class StoreConferenceRequest extends FormRequest
             'themeColor' => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
         ];
     }
+
+    /**
+     * バリデーション通過後の入力を Controller / UseCase が型安全にアクセスできる形で返す。
+     *
+     * Laravel の親 validated() は array<string, mixed> を返すので、PHPDoc の
+     * 配列 shape (PHPStan extension の概念) で実際の型を宣言する。これにより
+     * Controller 側の `$validated['name']` 等が string と推論される。
+     *
+     * 任意項目 (trackName 等) は欠落しうるため `?:` 付与。null 許容項目はキー存在
+     * 時 string|null。
+     *
+     * @return array{
+     *     name: string,
+     *     trackName?: string|null,
+     *     officialUrl: string,
+     *     cfpUrl: string,
+     *     eventStartDate: string,
+     *     eventEndDate: string,
+     *     venue: string,
+     *     format: string,
+     *     cfpStartDate?: string|null,
+     *     cfpEndDate: string,
+     *     categories: array<int, string>,
+     *     description?: string|null,
+     *     themeColor?: string|null,
+     * }
+     */
+    public function validated($key = null, $default = null): array
+    {
+        /** @var array{
+         *     name: string,
+         *     trackName?: string|null,
+         *     officialUrl: string,
+         *     cfpUrl: string,
+         *     eventStartDate: string,
+         *     eventEndDate: string,
+         *     venue: string,
+         *     format: string,
+         *     cfpStartDate?: string|null,
+         *     cfpEndDate: string,
+         *     categories: array<int, string>,
+         *     description?: string|null,
+         *     themeColor?: string|null,
+         * } $validated
+         */
+        $validated = parent::validated($key, $default);
+
+        return $validated;
+    }
 }

@@ -102,12 +102,31 @@ class ConferenceController extends BaseController
      */
     public function update(string $id, UpdateConferenceRequest $request, UpdateConferenceUseCase $useCase): JsonResponse
     {
-        $fields = $request->validated();
+        $validated = $request->validated();
 
         // format は string で来るので enum に変換する (UseCase が ConferenceFormat
         // 期待のため)。FormRequest の Rule::in が enum 値の string 以外を弾く。
-        if (isset($fields['format'])) {
-            $fields['format'] = ConferenceFormat::from($fields['format']);
+        // 元の $validated を変更すると PHPStan の array shape が string|enum union に
+        // なるので、UseCase に渡す配列を新規構築して型を確定させる。
+        /** @var array{
+         *     name?: string,
+         *     trackName?: string|null,
+         *     officialUrl?: string,
+         *     cfpUrl?: string,
+         *     eventStartDate?: string,
+         *     eventEndDate?: string,
+         *     venue?: string,
+         *     format?: ConferenceFormat,
+         *     cfpStartDate?: string|null,
+         *     cfpEndDate?: string,
+         *     categories?: array<int, string>,
+         *     description?: string|null,
+         *     themeColor?: string|null,
+         * } $fields
+         */
+        $fields = $validated;
+        if (isset($validated['format'])) {
+            $fields['format'] = ConferenceFormat::from($validated['format']);
         }
 
         $conference = $useCase->execute($id, $fields);

@@ -66,12 +66,17 @@ class AdminApiExceptionRenderer
         // Laravel の Validator->failed() は ['field' => ['RuleClass' => [...args]]] を返す。
         // OpenAPI 仕様の details では {field, rule} の配列が期待されるため、
         // ルールクラス名を snake_case に正規化して詰め直す。
+        /** @var array<string, array<string, array<int, mixed>>> $failed */
+        $failed = $e->validator->failed();
+
         $details = [];
-        foreach ($e->validator->failed() as $field => $rules) {
+        foreach ($failed as $field => $rules) {
             foreach (array_keys($rules) as $ruleClass) {
+                // foreach の key は string|int になるが、failed() の内側 array key は
+                // ルールクラス名 (string) なので string に決め打って良い
                 $details[] = [
                     'field' => $field,
-                    'rule' => $this->normalizeRuleName($ruleClass),
+                    'rule' => $this->normalizeRuleName((string) $ruleClass),
                 ];
             }
         }
@@ -150,8 +155,9 @@ class AdminApiExceptionRenderer
     {
         // クラス名が含まれていれば basename を取る
         $basename = basename(str_replace('\\', '/', $ruleIdentifier));
-        // PascalCase → snake_case
-        return strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $basename));
+        // PascalCase → snake_case (preg_replace は実用上 null を返さない入力で
+        // 呼ぶが、PHPStan は null 可能性を見るため ?? で fallback)
+        return strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $basename) ?? $basename);
     }
 
     /**
