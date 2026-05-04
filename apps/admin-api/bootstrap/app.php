@@ -20,9 +20,16 @@ return Application::configure(basePath: dirname(__DIR__))
         // web グループを指定する。VerifyOrigin は CSRF の二重防御として状態変更系
         // メソッドにのみ適用される (Origin / Referer ヘッダ検証)。
         then: function (): void {
+            // /admin/api: バックエンド API (JSON 応答)
             Route::middleware(['web', VerifyOrigin::class])
                 ->prefix('admin/api')
                 ->group(__DIR__.'/../routes/admin-api.php');
+
+            // /admin: 管理画面 UI (Blade SSR)。Issue #9 で Blade SSR 採用が確定済。
+            // CSRF / Origin 検証は VerifyOrigin で行う (form 送信用)。
+            Route::middleware(['web', VerifyOrigin::class])
+                ->prefix('admin')
+                ->group(__DIR__.'/../routes/admin-ui.php');
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
