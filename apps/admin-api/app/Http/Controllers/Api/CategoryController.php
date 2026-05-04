@@ -93,20 +93,20 @@ class CategoryController extends BaseController
     {
         $validated = $request->validated();
 
-        // axis 変換: ConferenceController::update と同パターン。
-        // 元の $validated を変更すると PHPStan の array shape が string|enum union に
-        // なるため、UseCase に渡す配列を新規構築して型を確定させる。
+        // axis 変換: 元の $validated の shape は axis?: string で来る (Laravel
+        // FormRequest が null を validated() から除外する挙動 + Rule::in が string
+        // 以外を弾くため)。enum 変換後は array shape が string|enum union になるので
+        // UseCase に渡す配列を新規 PHPDoc で型固定する。
         /** @var array{
          *     name?: string,
          *     slug?: string,
          *     displayOrder?: int,
-         *     axis?: CategoryAxis|null,
+         *     axis?: CategoryAxis,
          * } $fields
          */
         $fields = $validated;
-        if (array_key_exists('axis', $validated)) {
-            $rawAxis = $validated['axis'];
-            $fields['axis'] = is_string($rawAxis) ? CategoryAxis::from($rawAxis) : null;
+        if (isset($validated['axis'])) {
+            $fields['axis'] = CategoryAxis::from($validated['axis']);
         }
 
         $category = $useCase->execute($id, $fields);

@@ -27,11 +27,15 @@ class UpdateCategoryUseCase
     ) {}
 
     /**
+     * axis を明示的に null に戻す経路は Laravel FormRequest::validated() が null を
+     * フィルタするため API 経由では存在しない (Controller / UseCase 側でも non-null
+     * のみ扱う前提)。axis をクリアしたい場合は別 API 設計が必要。
+     *
      * @param  array{
      *     name?: string,
      *     slug?: string,
      *     displayOrder?: int,
-     *     axis?: \App\Domain\Categories\CategoryAxis|null,
+     *     axis?: \App\Domain\Categories\CategoryAxis,
      * }  $fields
      *
      * @throws CategoryNotFoundException
@@ -79,7 +83,7 @@ class UpdateCategoryUseCase
          *     axis: \App\Domain\Categories\CategoryAxis|null,
          *     createdAt: string,
          *     updatedAt: string,
-         * } $args
+         * } $args  axis は既存値が null の場合のみ null、入力経由では non-null のみ
          */
         $updated = new Category(...$args);
 

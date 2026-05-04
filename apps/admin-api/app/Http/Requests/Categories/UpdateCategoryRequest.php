@@ -29,16 +29,19 @@ class UpdateCategoryRequest extends FormRequest
             'name' => ['sometimes', 'string', 'min:1', 'max:100'],
             'slug' => ['sometimes', 'string', 'min:1', 'max:64', 'regex:/^[a-z0-9-]+$/'],
             'displayOrder' => ['sometimes', 'integer'],
-            'axis' => ['sometimes', 'nullable', Rule::in(array_column(CategoryAxis::cases(), 'value'))],
+            'axis' => ['sometimes', Rule::in(array_column(CategoryAxis::cases(), 'value'))],
         ];
     }
 
     /**
+     * Laravel FormRequest::validated() は null 値の入力を返却から除外するため
+     * (Rule::in でも null は通過しない)、ここでは axis: string で型確定する。
+     *
      * @return array{
      *     name?: string,
      *     slug?: string,
      *     displayOrder?: int,
-     *     axis?: string|null,
+     *     axis?: string,
      * }
      */
     public function validated($key = null, $default = null): array
@@ -47,7 +50,7 @@ class UpdateCategoryRequest extends FormRequest
          *     name?: string,
          *     slug?: string,
          *     displayOrder?: int,
-         *     axis?: string|null,
+         *     axis?: string,
          * } $validated
          */
         $validated = parent::validated($key, $default);

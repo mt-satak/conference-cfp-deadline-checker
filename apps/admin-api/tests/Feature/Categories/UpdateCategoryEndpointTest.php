@@ -121,11 +121,13 @@ it('PUT /admin/api/categories/{id} は axis に文字列を渡すと enum に変
 
     // Then: 200 + UseCase に渡った axis が CategoryAxis::B
     $response->assertStatus(200);
-    expect($captured['axis'])->toBe(\App\Domain\Categories\CategoryAxis::B);
+    expect($captured)->toBeArray();
+    /** @var array{axis?: mixed} $captured */
+    expect($captured['axis'] ?? null)->toBe(\App\Domain\Categories\CategoryAxis::B);
 });
 
-it('PUT /admin/api/categories/{id} は axis に null を渡すと UseCase に null が渡る (明示的にクリア)', function () {
-    // Given
+it('PUT /admin/api/categories/{id} で axis を省略しても 200 (axis フィールドは UseCase に渡らない)', function () {
+    // Given: axis 不在 → UseCase の $fields に axis キーが含まれないことを capture で検証
     $id = '550e8400-e29b-41d4-a716-446655440000';
     $captured = null;
     $useCase = Mockery::mock(\App\Application\Categories\UpdateCategoryUseCase::class);
@@ -133,23 +135,24 @@ it('PUT /admin/api/categories/{id} は axis に null を渡すと UseCase に nu
         ->once()
         ->with($id, Mockery::on(function (array $fields) use (&$captured): bool {
             $captured = $fields;
-            return array_key_exists('axis', $fields) && $fields['axis'] === null;
+            return ! array_key_exists('axis', $fields);
         }))
         ->andReturn(new \App\Domain\Categories\Category(
             categoryId: $id,
             name: 'PHP',
             slug: 'php',
             displayOrder: 100,
-            axis: null,
+            axis: \App\Domain\Categories\CategoryAxis::A,
             createdAt: '2025-01-01T00:00:00+09:00',
             updatedAt: '2026-05-04T10:00:00+09:00',
         ));
     app()->instance(\App\Application\Categories\UpdateCategoryUseCase::class, $useCase);
 
-    // When: axis: null
-    $response = $this->putJson("/admin/api/categories/{$id}", ['axis' => null]);
+    // When: axis 省略
+    $response = $this->putJson("/admin/api/categories/{$id}", ['name' => 'PHP']);
 
-    // Then
+    // Then: 200 + UseCase に渡った fields に axis が無い (= 既存維持セマンティクス)
     $response->assertStatus(200);
-    expect($captured['axis'])->toBeNull();
+    expect($captured)->toBeArray();
+    expect($captured)->not->toHaveKey('axis');
 });

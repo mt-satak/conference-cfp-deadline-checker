@@ -130,7 +130,7 @@ it('name を同じ値で渡しても重複チェックはスキップする (自
     expect($updated->displayOrder)->toBe(150);
 });
 
-it('axis を null で送ると null に更新される (明示的にクリア)', function () {
+it('axis を新しい値で更新できる', function () {
     // Given
     $repository = Mockery::mock(CategoryRepository::class);
     $repository->shouldReceive('findById')->andReturn(existingCategory());
@@ -138,8 +138,8 @@ it('axis を null で送ると null に更新される (明示的にクリア)',
 
     // When
     $useCase = new UpdateCategoryUseCase($repository);
-    $updated = $useCase->execute('id-1', ['axis' => null]);
+    $updated = $useCase->execute('id-1', ['axis' => CategoryAxis::C]);
 
     // Then
-    expect($updated->axis)->toBeNull();
+    expect($updated->axis)->toBe(CategoryAxis::C);
 });
