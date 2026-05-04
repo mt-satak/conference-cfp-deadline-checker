@@ -173,4 +173,48 @@ describe('GitHubOidc', () => {
       }),
     );
   });
+
+  describe('既存 OIDC Provider の import', () => {
+    it('existingProviderArn 未指定時は新規 Provider を作成する', () => {
+      // Given/When: デフォルト
+      const template = synthTemplate();
+
+      // Then: Custom リソースとして OIDC Provider が 1 つ作られる
+      template.resourceCountIs('Custom::AWSCDKOpenIdConnectProvider', 1);
+    });
+
+    it('existingProviderArn 指定時は import するため新規 Provider を作成しない', () => {
+      // Given: 既存 ARN を渡す
+      const existingArn =
+        'arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com';
+      const template = synthTemplate({ existingProviderArn: existingArn });
+
+      // Then: Provider リソースは作られない
+      template.resourceCountIs('Custom::AWSCDKOpenIdConnectProvider', 0);
+    });
+
+    it('existingProviderArn 指定時も Role の trust policy で同 ARN を Federated Principal として参照する', () => {
+      // Given
+      const existingArn =
+        'arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com';
+      const template = synthTemplate({ existingProviderArn: existingArn });
+
+      // Then: trust policy の Federated に渡された ARN が直接埋め込まれる
+      // (新規作成時は Ref で intrinsic 参照するが、import 時は文字列直書き)
+      template.hasResourceProperties(
+        'AWS::IAM::Role',
+        Match.objectLike({
+          AssumeRolePolicyDocument: {
+            Statement: Match.arrayWith([
+              Match.objectLike({
+                Principal: {
+                  Federated: existingArn,
+                },
+              }),
+            ]),
+          },
+        }),
+      );
+    });
+  });
 });

@@ -1,6 +1,7 @@
 import { Duration } from 'aws-cdk-lib';
 import {
   Effect,
+  type IOpenIdConnectProvider,
   OpenIdConnectProvider,
   PolicyStatement,
   Role,
@@ -29,6 +30,17 @@ import { Construct } from 'constructs';
  *   作成する IAM Role の物理名。デフォルトは "GitHubActionsAdminApiDeployRole"。
  *   GitHub Actions 側 (workflow の `role-to-assume`) で参照するため、命名後の
  *   変更は注意。
+ *
+ * existingProviderArn (任意):
+ *   既存の GitHub OIDC Identity Provider の ARN を渡すと、新規作成せず import
+ *   する。AWS アカウントは `token.actions.githubusercontent.com` の OIDC
+ *   Provider を **1 つしか持てない** ため、別ツール / 別リポジトリが既に作って
+ *   いる場合は本オプションで既存をそのまま使う。
+ *
+ *   形式: `arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com`
+ *
+ *   未指定時は OpenIdConnectProvider を新規作成する (既存があれば
+ *   EntityAlreadyExistsException でデプロイ失敗)。
  */
 export interface GitHubOidcProps {
   readonly githubOrg: string;
@@ -36,6 +48,7 @@ export interface GitHubOidcProps {
   readonly subjectClaims?: readonly string[];
   readonly cdkQualifier?: string;
   readonly roleName?: string;
+  readonly existingProviderArn?: string;
 }
 
 /**
@@ -44,6 +57,7 @@ export interface GitHubOidcProps {
  * 構成:
  *   1. OpenID Connect Provider (`token.actions.githubusercontent.com`)
  *      - AWS アカウントごとに 1 つだけ作成可能 (重複作成は CloudFormation エラー)
+ *      - 既存 Provider がある場合は `existingProviderArn` で import する
  *   2. IAM Role
  *      - trust ポリシーで GitHub Actions のみ assume 可
  *      - subject claim で対象リポジトリ + ブランチを限定
@@ -69,11 +83,10 @@ export interface GitHubOidcProps {
  */
 export class GitHubOidc extends Construct {
   /**
-   * AWS アカウントに登録される GitHub OIDC Identity Provider。
-   * 同一アカウント内で他用途に再利用したい場合は本プロパティ経由で参照する
-   * (新規 OpenIdConnectProvider を別途作成すると CloudFormation で衝突する)。
+   * AWS アカウントに登録される / されている GitHub OIDC Identity Provider。
+   * 新規作成・既存 import どちらの場合も IOpenIdConnectProvider 型で参照する。
    */
-  public readonly provider: OpenIdConnectProvider;
+  public readonly provider: IOpenIdConnectProvider;
 
   /**
    * GitHub Actions が assume する IAM Role。
@@ -84,10 +97,19 @@ export class GitHubOidc extends Construct {
   constructor(scope: Construct, id: string, props: GitHubOidcProps) {
     super(scope, id);
 
-    this.provider = new OpenIdConnectProvider(this, 'Provider', {
-      url: 'https://token.actions.githubusercontent.com',
-      clientIds: ['sts.amazonaws.com'],
-    });
+    // 既存 Provider がある場合 import、なければ新規作成。
+    // import の場合は CloudFormation の AWS::IAM::OIDCProvider リソースは作られず
+    // (= 既存の Provider 設定を CDK が変更することはない) 安全。
+    this.provider = props.existingProviderArn
+      ? OpenIdConnectProvider.fromOpenIdConnectProviderArn(
+        this,
+        'Provider',
+        props.existingProviderArn,
+      )
+      : new OpenIdConnectProvider(this, 'Provider', {
+        url: 'https://token.actions.githubusercontent.com',
+        clientIds: ['sts.amazonaws.com'],
+      });
 
     const subjectClaims = props.subjectClaims ?? [
       `repo:${props.githubOrg}/${props.githubRepo}:ref:refs/heads/main`,
