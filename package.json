@@ -28,6 +28,8 @@
     "api:test": "cd apps/admin-api && ./vendor/bin/pest",
     "api:test:coverage": "cd apps/admin-api && make test-coverage",
     "api:coverage:check": "cd apps/admin-api && make coverage-check",
+    "api:phpstan": "cd apps/admin-api && make phpstan",
+    "api:phpstan:baseline": "cd apps/admin-api && make phpstan-baseline",
     "api:serve": "cd apps/admin-api && php artisan serve --host=127.0.0.1 --port=8080",
     "api:routes": "cd apps/admin-api && php artisan route:list"
   }

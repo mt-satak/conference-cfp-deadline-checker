@@ -10,7 +10,8 @@
 #   make api-coverage-check C1 (Branch Coverage) 90% 判定
 
 .PHONY: help db-up db-down db-init db-reset \
-        api-install api-test api-test-coverage api-coverage-check api-serve
+        api-install api-test api-test-coverage api-coverage-check api-serve \
+        api-phpstan api-phpstan-baseline
 
 .DEFAULT_GOAL := help
 
@@ -40,8 +41,14 @@ api-test: ## テスト実行 (xdebug 不要、高速)
 api-test-coverage: ## テスト + カバレッジ計測 (xdebug 必須)
 	$(MAKE) -C apps/admin-api test-coverage
 
-api-coverage-check: ## C1 (Branch Coverage) 90% 判定
+api-coverage-check: ## 層別 C1 (Branch Coverage) 閾値判定
 	$(MAKE) -C apps/admin-api coverage-check
+
+api-phpstan: ## PHPStan level max を実行 (ベースライン外の新規違反のみ報告)
+	$(MAKE) -C apps/admin-api phpstan
+
+api-phpstan-baseline: ## PHPStan ベースライン再生成 (実行は意図的に)
+	$(MAKE) -C apps/admin-api phpstan-baseline
 
 api-serve: ## php artisan serve でローカル起動 (port 8080)
 	$(MAKE) -C apps/admin-api serve

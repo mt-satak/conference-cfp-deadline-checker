@@ -11,13 +11,16 @@
 #   make install         composer install
 #   make serve           php artisan serve
 
-.PHONY: help install test test-coverage coverage-check serve clean-coverage
+.PHONY: help install test test-coverage coverage-check serve clean-coverage phpstan phpstan-baseline phpstan-clear-cache
 
 # デフォルトは help
 .DEFAULT_GOAL := help
 
 # テストカバレッジに必要なメモリ (xdebug coverage は重いため拡大)
 COVERAGE_MEMORY := 512M
+
+# PHPStan は parallel + larastan で 128M 既定では足りないため拡大
+PHPSTAN_MEMORY := 1G
 
 help: ## 利用可能なターゲット一覧を表示
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -44,3 +47,12 @@ serve: ## php artisan serve でローカル起動 (port 8080)
 
 clean-coverage: ## カバレッジレポート出力ディレクトリを削除
 	rm -rf storage/coverage
+
+phpstan: ## PHPStan level max を実行 (ベースライン外の新規違反のみ報告)
+	./vendor/bin/phpstan analyse --memory-limit=$(PHPSTAN_MEMORY) --no-progress
+
+phpstan-baseline: ## ベースラインを再生成 (= 既存違反を一括無視。実行は意図的に)
+	./vendor/bin/phpstan analyse --memory-limit=$(PHPSTAN_MEMORY) --generate-baseline
+
+phpstan-clear-cache: ## PHPStan の解析キャッシュをクリア
+	./vendor/bin/phpstan clear-result-cache

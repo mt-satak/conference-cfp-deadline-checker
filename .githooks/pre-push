@@ -1,20 +1,21 @@
 #!/usr/bin/env bash
 # プロジェクト pre-push フック
 #
-# push 前にバックエンド (admin-api) のテスト + カバレッジ計測を実行し、
-# C1 (Branch Coverage) が 90% を下回る push を遮断する。
+# push 前にバックエンド (admin-api) の以下 2 ゲートを実行する:
+#   1. PHPStan (level max, ベースライン外の新規違反のみ報告)
+#   2. テスト + カバレッジ計測 (層別 C1 閾値判定)
+#
+# 静的解析を先に走らせ、型不整合があれば即 fail する (テストより速いため)。
 #
 # 有効化: ルートの `pnpm install` (postinstall で自動設定) または
 #         手動で `git config core.hooksPath .githooks`
 #
-# 緊急時バイパス: SKIP_COVERAGE_CHECK=1 git push (推奨しない、CI でも弾かれる想定)
+# 緊急時バイパス:
+#   SKIP_PHPSTAN=1 git push        PHPStan のみスキップ
+#   SKIP_COVERAGE_CHECK=1 git push  カバレッジゲートのみスキップ
+#   いずれも非推奨、CI でも弾かれる想定
 
 set -euo pipefail
-
-if [[ "${SKIP_COVERAGE_CHECK:-0}" == "1" ]]; then
-    echo "⚠️  SKIP_COVERAGE_CHECK=1 によりカバレッジゲートをスキップしました"
-    exit 0
-fi
 
 # プロジェクトルートに移動 (フック実行時は repo root が cwd だが念のため)
 cd "$(git rev-parse --show-toplevel)"
@@ -47,14 +48,29 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 done
 
 if [[ "$needs_check" == "0" ]]; then
-    echo "✅ admin-api / packages / docker に変更が無いためカバレッジゲートをスキップ"
+    echo "✅ admin-api / packages / docker に変更が無いため admin-api ゲートをスキップ"
+    exit 0
+fi
+
+# ── ゲート 1/2: PHPStan (level max) ──
+if [[ "${SKIP_PHPSTAN:-0}" == "1" ]]; then
+    echo "⚠️  SKIP_PHPSTAN=1 により PHPStan ゲートをスキップしました"
+else
+    echo "▶ admin-api PHPStan level max を実行します"
+    make api-phpstan
+    echo "✅ PHPStan ゲート通過"
+fi
+
+# ── ゲート 2/2: テスト + カバレッジ ──
+if [[ "${SKIP_COVERAGE_CHECK:-0}" == "1" ]]; then
+    echo "⚠️  SKIP_COVERAGE_CHECK=1 によりカバレッジゲートをスキップしました"
     exit 0
 fi
 
 echo "▶ admin-api テスト + カバレッジ計測を実行します (xdebug 必須)"
 make api-test-coverage
 
-echo "▶ C1 (Branch Coverage) 90% 判定"
+echo "▶ 層別 C1 閾値判定"
 make api-coverage-check
 
 echo "✅ カバレッジゲート通過、push を続行します"
