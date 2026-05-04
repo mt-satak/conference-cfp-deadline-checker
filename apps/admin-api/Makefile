@@ -11,7 +11,7 @@
 #   make install         composer install
 #   make serve           php artisan serve
 
-.PHONY: help install test test-coverage coverage-check serve clean-coverage phpstan phpstan-baseline phpstan-clear-cache
+.PHONY: help install test test-coverage coverage-check serve clean-coverage phpstan phpstan-baseline phpstan-clear-cache lint lint-fix
 
 # デフォルトは help
 .DEFAULT_GOAL := help
@@ -47,6 +47,12 @@ serve: ## php artisan serve でローカル起動 (port 8080)
 
 clean-coverage: ## カバレッジレポート出力ディレクトリを削除
 	rm -rf storage/coverage
+
+lint: ## Pint --test で style 違反を検出 (CI と同じ dry-run モード)
+	./vendor/bin/pint --test
+
+lint-fix: ## Pint で style 違反を一括自動修正
+	./vendor/bin/pint
 
 phpstan: ## PHPStan level max を実行 (ベースライン外の新規違反のみ報告)
 	./vendor/bin/phpstan analyse --memory-limit=$(PHPSTAN_MEMORY) --no-progress

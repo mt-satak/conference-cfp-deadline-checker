@@ -11,7 +11,7 @@
 
 .PHONY: help db-up db-down db-init db-reset \
         api-install api-test api-test-coverage api-coverage-check api-serve \
-        api-phpstan api-phpstan-baseline
+        api-phpstan api-phpstan-baseline api-lint api-lint-fix
 
 .DEFAULT_GOAL := help
 
@@ -43,6 +43,12 @@ api-test-coverage: ## テスト + カバレッジ計測 (xdebug 必須)
 
 api-coverage-check: ## 層別 C1 (Branch Coverage) 閾値判定
 	$(MAKE) -C apps/admin-api coverage-check
+
+api-lint: ## Pint --test で style 違反を検出
+	$(MAKE) -C apps/admin-api lint
+
+api-lint-fix: ## Pint で style 違反を一括自動修正
+	$(MAKE) -C apps/admin-api lint-fix
 
 api-phpstan: ## PHPStan level max を実行 (ベースライン外の新規違反のみ報告)
 	$(MAKE) -C apps/admin-api phpstan
