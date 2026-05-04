@@ -25,9 +25,14 @@ npm-debug.log*
 
 # Build outputs
 dist/
-build/
 .astro/
 .turbo/
+# NOTE: 旧 `build/` パターンは削除。理由:
+# - core.ignoreCase=true の環境で DDD aggregate `App\Domain\Build` の Build/
+#   ディレクトリまで除外してしまうため (Linux 等は影響なし、macOS は影響あり)
+# - 実害のある build/ 出力は各サブプロジェクトの .gitignore で個別管理 (例:
+#   apps/admin-api/.gitignore の /public/build, frontend 着手時の dist 系)
+# - Astro の場合は .astro/, dist/ で十分カバー
 
 # CDK
 cdk.out/
