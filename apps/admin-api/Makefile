@@ -36,8 +36,8 @@ test-coverage: ## テスト + カバレッジ計測 (xdebug 必須、HTML/Clover
 		--coverage-text=storage/coverage/coverage.txt \
 		--coverage-clover=storage/coverage/clover.xml
 
-coverage-check: ## C1 (Branch Coverage) が 90% 以上か判定 (未満なら exit 1)
-	@php scripts/check-coverage.php storage/coverage/coverage.txt 90
+coverage-check: ## C1 (Branch Coverage) が層別閾値を満たすか判定 (詳細は scripts/check-coverage.php)
+	@php scripts/check-coverage.php storage/coverage/clover.xml
 
 serve: ## php artisan serve でローカル起動 (port 8080)
 	php artisan serve --host=127.0.0.1 --port=8080
