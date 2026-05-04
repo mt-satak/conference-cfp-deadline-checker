@@ -12,7 +12,6 @@ use App\Domain\Conferences\ConferenceNotFoundException;
  *   - 200 OK: {"data": <Conference>}
  *   - 404 NOT_FOUND: {"error": {"code": "NOT_FOUND", ...}}
  */
-
 function getEndpointSampleConference(string $id, string $name): Conference
 {
     return new Conference(

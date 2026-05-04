@@ -3,6 +3,7 @@
 namespace App\Application\Categories;
 
 use App\Domain\Categories\Category;
+use App\Domain\Categories\CategoryAxis;
 use App\Domain\Categories\CategoryConflictException;
 use App\Domain\Categories\CategoryNotFoundException;
 use App\Domain\Categories\CategoryRepository;
@@ -35,7 +36,7 @@ class UpdateCategoryUseCase
      *     name?: string,
      *     slug?: string,
      *     displayOrder?: int,
-     *     axis?: \App\Domain\Categories\CategoryAxis,
+     *     axis?: CategoryAxis,
      * }  $fields
      *
      * @throws CategoryNotFoundException
@@ -80,7 +81,7 @@ class UpdateCategoryUseCase
          *     name: string,
          *     slug: string,
          *     displayOrder: int,
-         *     axis: \App\Domain\Categories\CategoryAxis|null,
+         *     axis: CategoryAxis|null,
          *     createdAt: string,
          *     updatedAt: string,
          * } $args  axis は既存値が null の場合のみ null、入力経由では non-null のみ

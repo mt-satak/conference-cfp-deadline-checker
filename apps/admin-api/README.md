@@ -63,6 +63,22 @@ pnpm からは `pnpm api:phpstan` で同等。
   限定で ignore (詳細は `phpstan.neon` の `ignoreErrors:` セクション参照)
 - 経緯: Issue #13 のコメント参照
 
+## CI / CD (GitHub Actions)
+
+- `.github/workflows/admin-api.yml`:
+  - **PR / push 時**: Pint lint / PHPStan level max / Pest + 層別 C1 ゲート
+  - **main マージ時**: 上記再実行 → OIDC で AssumeRole → `cdk deploy CfpDeadlineCheckerStack`
+  - パスフィルタ: `apps/admin-api/**` / `packages/**` / `docker/**` /
+    `infra/cdk/**` のいずれかに変更がない PR ではワークフロー自体が起動しない
+- `.github/workflows/cdk.yml`: `infra/cdk` の typecheck + vitest (TypeScript ゲート)
+
+OIDC + Deploy Role のセットアップは [`infra/cdk/README.md`](../../infra/cdk/README.md)
+参照。Phase 1 (CDK で OIDC 信頼関係構築) は完了済みで、本ワークフローはその
+Role を `vars.AWS_DEPLOY_ROLE_ARN` から参照する。
+
+ローカル開発時の同等チェックは pre-push フックで実行される (詳細は下記
+「コードカバレッジルール」「静的解析」セクション参照)。
+
 ## コードカバレッジルール (層別 C1)
 
 全コード一律 90% ではなく、**層 (namespace) ごとに C1 (Branch Coverage) 閾値を分ける**。

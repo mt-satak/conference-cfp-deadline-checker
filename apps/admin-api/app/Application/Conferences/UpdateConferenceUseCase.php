@@ -91,7 +91,7 @@ class UpdateConferenceUseCase
          *     eventStartDate: string,
          *     eventEndDate: string,
          *     venue: string,
-         *     format: \App\Domain\Conferences\ConferenceFormat,
+         *     format: ConferenceFormat,
          *     cfpStartDate: string|null,
          *     cfpEndDate: string,
          *     categories: array<int, string>,

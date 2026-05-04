@@ -18,7 +18,6 @@ use App\Domain\Conferences\ConferenceRepository;
  *
  * 優先度: 不在 (404) > 参照あり (409) — 不在を 404 で返したい意図 (UseCase 内コメント参照)。
  */
-
 function existingCategoryForDelete(): Category
 {
     return new Category(

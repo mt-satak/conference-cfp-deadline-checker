@@ -19,7 +19,6 @@ beforeEach(function () {
  *   - 409 CONFLICT: name / slug 重複
  *   - 422 VALIDATION_FAILED: バリデーション違反
  */
-
 function validCreateCategoryPayload(): array
 {
     return [

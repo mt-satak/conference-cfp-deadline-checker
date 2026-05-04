@@ -10,7 +10,6 @@ use App\Domain\Categories\CategoryRepository;
  *
  * 責務: Repository から取得したカテゴリ一覧を displayOrder 昇順で返す。
  */
-
 function makeCategory(string $id, string $name, int $displayOrder): Category
 {
     return new Category(

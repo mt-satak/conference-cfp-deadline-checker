@@ -63,9 +63,9 @@ abstract class BaseController extends Controller
     /**
      * エラーレスポンス。
      *
-     * @param  string  $code     OpenAPI Error.code 列挙値 (例: VALIDATION_FAILED)
+     * @param  string  $code  OpenAPI Error.code 列挙値 (例: VALIDATION_FAILED)
      * @param  string  $message  人間可読なエラーメッセージ
-     * @param  int     $status   HTTP ステータスコード
+     * @param  int  $status  HTTP ステータスコード
      * @param  array<int, array{field: string, rule: string}>  $details  フィールドレベル詳細 (任意)
      */
     public function error(string $code, string $message, int $status, array $details = []): JsonResponse

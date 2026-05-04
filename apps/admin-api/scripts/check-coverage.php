@@ -20,7 +20,6 @@
  *   1  = いずれかのファイルが層閾値未満
  *   2  = ファイル読込失敗 / フォーマット解析失敗 / 引数不正
  */
-
 if ($argc !== 2) {
     fwrite(STDERR, "Usage: php scripts/check-coverage.php <clover-xml-file>\n");
     exit(2);
@@ -44,15 +43,15 @@ if (! is_readable($file)) {
  * より具体的なプレフィクスを上に置くこと。
  */
 $thresholds = [
-    'App\\Providers\\'           => null,   // DI wiring。Lambdaコンテナ起動時しか走らない
-    'App\\Domain\\'              => 100.0,  // Entity / VO / Domain Exception
-    'App\\Application\\'         => 100.0,  // UseCase
-    'App\\Http\\Presenters\\'    => 100.0,  // データ整形のみ
-    'App\\Http\\Requests\\'      => 100.0,  // バリデーションルール定義
-    'App\\Http\\Controllers\\'   => 85.0,   // 薄いオーケストレーション
-    'App\\Http\\Middleware\\'    => 85.0,   // フレームワーク hook 分岐含む
-    'App\\Exceptions\\'          => 75.0,   // match true + compound instanceof で xdebug が micro-branch を細かく分割するため一律 80%+ は padding テストでしか到達不能。実測上限 79.59% に余裕を取って 75。詳細 docs/test-strategy.md 参照
-    'App\\Infrastructure\\'      => 75.0,   // AWS SDK 例外パスのモック網羅コストが高い
+    'App\\Providers\\' => null,   // DI wiring。Lambdaコンテナ起動時しか走らない
+    'App\\Domain\\' => 100.0,  // Entity / VO / Domain Exception
+    'App\\Application\\' => 100.0,  // UseCase
+    'App\\Http\\Presenters\\' => 100.0,  // データ整形のみ
+    'App\\Http\\Requests\\' => 100.0,  // バリデーションルール定義
+    'App\\Http\\Controllers\\' => 85.0,   // 薄いオーケストレーション
+    'App\\Http\\Middleware\\' => 85.0,   // フレームワーク hook 分岐含む
+    'App\\Exceptions\\' => 75.0,   // match true + compound instanceof で xdebug が micro-branch を細かく分割するため一律 80%+ は padding テストでしか到達不能。実測上限 79.59% に余裕を取って 75。詳細 docs/test-strategy.md 参照
+    'App\\Infrastructure\\' => 75.0,   // AWS SDK 例外パスのモック網羅コストが高い
 ];
 
 $xml = @simplexml_load_file($file);
@@ -94,6 +93,7 @@ foreach ($xml->project->package as $package) {
             if ($threshold === null) {
                 $rows[] = [$fqn, $layer, $pct, $covered, $total, 'SKIP', '⚪'];
                 $skipped++;
+
                 continue;
             }
 

@@ -26,7 +26,7 @@ class CreateCategoryUseCase
     ) {}
 
     /**
-     * @throws CategoryConflictException  name / slug 重複時
+     * @throws CategoryConflictException name / slug 重複時
      */
     public function execute(CreateCategoryInput $input): Category
     {

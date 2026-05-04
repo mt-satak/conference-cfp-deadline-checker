@@ -1,5 +1,7 @@
 <?php
 
+use Carbon\Carbon;
+
 /**
  * GET /admin/api/health の Feature テスト。
  *
@@ -11,7 +13,6 @@
  * 注意: BaseController の {"data": ..., "meta": {...}} ラップ形式とは
  * 異なり、Health は直接プロパティ (status / timestamp) を返す仕様。
  */
-
 it('GET /admin/api/health は 200 と status=ok を返す', function () {
     // When: ヘルスチェックエンドポイントに GET する
     $response = $this->getJson('/admin/api/health');
@@ -28,8 +29,8 @@ it('GET /admin/api/health のレスポンスに ISO 8601 形式の timestamp が
     // Then: timestamp が文字列で、ISO 8601 (RFC 3339 互換) としてパースできる
     $timestamp = $response->json('timestamp');
     expect($timestamp)->toBeString();
-    $parsed = \Carbon\Carbon::parse($timestamp);
-    expect($parsed)->toBeInstanceOf(\Carbon\Carbon::class);
+    $parsed = Carbon::parse($timestamp);
+    expect($parsed)->toBeInstanceOf(Carbon::class);
 });
 
 it('GET /admin/api/health は OpenAPI 仕様外のキーを含めない', function () {

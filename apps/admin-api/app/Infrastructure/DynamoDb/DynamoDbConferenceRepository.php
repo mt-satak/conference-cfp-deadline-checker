@@ -29,7 +29,7 @@ class DynamoDbConferenceRepository implements ConferenceRepository
         private readonly DynamoDbClient $client,
         private readonly string $tableName,
     ) {
-        $this->marshaler = new Marshaler();
+        $this->marshaler = new Marshaler;
     }
 
     public function findAll(): array

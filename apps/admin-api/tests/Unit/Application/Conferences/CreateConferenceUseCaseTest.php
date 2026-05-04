@@ -21,7 +21,6 @@ use Ramsey\Uuid\Uuid;
  * テスト容易性のため Carbon::setTestNow() と Str::createUuidsUsing() で
  * 時間と UUID を固定する (beforeEach で Given として共通セットアップ)。
  */
-
 beforeEach(function () {
     // Given (共通): 時刻と UUID を固定して決定的にする
     Carbon::setTestNow('2026-05-04T10:00:00+09:00');
@@ -76,6 +75,7 @@ it('Repository->save() に組み立てた Conference を渡す', function () {
         ->once()
         ->with(Mockery::on(function (Conference $c) use (&$captured) {
             $captured = $c;
+
             return true;
         }));
 

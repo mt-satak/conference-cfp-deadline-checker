@@ -19,7 +19,6 @@ beforeEach(function () {
  *   - 409 CONFLICT: name / slug 重複
  *   - 422 VALIDATION_FAILED
  */
-
 it('PUT /admin/api/categories/{id} は 200 と更新後 Category を返す', function () {
     // Given
     $id = '550e8400-e29b-41d4-a716-446655440000';
@@ -98,23 +97,24 @@ it('PUT /admin/api/categories/{id} は axis に文字列を渡すと enum に変
     // Given: UseCase に渡る $fields の axis が enum に変換されることを capture で検証
     $id = '550e8400-e29b-41d4-a716-446655440000';
     $captured = null;
-    $useCase = Mockery::mock(\App\Application\Categories\UpdateCategoryUseCase::class);
+    $useCase = Mockery::mock(UpdateCategoryUseCase::class);
     $useCase->shouldReceive('execute')
         ->once()
         ->with($id, Mockery::on(function (array $fields) use (&$captured): bool {
             $captured = $fields;
+
             return true;
         }))
-        ->andReturn(new \App\Domain\Categories\Category(
+        ->andReturn(new Category(
             categoryId: $id,
             name: 'PHP',
             slug: 'php',
             displayOrder: 100,
-            axis: \App\Domain\Categories\CategoryAxis::B,
+            axis: CategoryAxis::B,
             createdAt: '2025-01-01T00:00:00+09:00',
             updatedAt: '2026-05-04T10:00:00+09:00',
         ));
-    app()->instance(\App\Application\Categories\UpdateCategoryUseCase::class, $useCase);
+    app()->instance(UpdateCategoryUseCase::class, $useCase);
 
     // When: axis="B"
     $response = $this->putJson("/admin/api/categories/{$id}", ['axis' => 'B']);
@@ -123,30 +123,31 @@ it('PUT /admin/api/categories/{id} は axis に文字列を渡すと enum に変
     $response->assertStatus(200);
     expect($captured)->toBeArray();
     /** @var array{axis?: mixed} $captured */
-    expect($captured['axis'] ?? null)->toBe(\App\Domain\Categories\CategoryAxis::B);
+    expect($captured['axis'] ?? null)->toBe(CategoryAxis::B);
 });
 
 it('PUT /admin/api/categories/{id} で axis を省略しても 200 (axis フィールドは UseCase に渡らない)', function () {
     // Given: axis 不在 → UseCase の $fields に axis キーが含まれないことを capture で検証
     $id = '550e8400-e29b-41d4-a716-446655440000';
     $captured = null;
-    $useCase = Mockery::mock(\App\Application\Categories\UpdateCategoryUseCase::class);
+    $useCase = Mockery::mock(UpdateCategoryUseCase::class);
     $useCase->shouldReceive('execute')
         ->once()
         ->with($id, Mockery::on(function (array $fields) use (&$captured): bool {
             $captured = $fields;
+
             return ! array_key_exists('axis', $fields);
         }))
-        ->andReturn(new \App\Domain\Categories\Category(
+        ->andReturn(new Category(
             categoryId: $id,
             name: 'PHP',
             slug: 'php',
             displayOrder: 100,
-            axis: \App\Domain\Categories\CategoryAxis::A,
+            axis: CategoryAxis::A,
             createdAt: '2025-01-01T00:00:00+09:00',
             updatedAt: '2026-05-04T10:00:00+09:00',
         ));
-    app()->instance(\App\Application\Categories\UpdateCategoryUseCase::class, $useCase);
+    app()->instance(UpdateCategoryUseCase::class, $useCase);
 
     // When: axis 省略
     $response = $this->putJson("/admin/api/categories/{$id}", ['name' => 'PHP']);

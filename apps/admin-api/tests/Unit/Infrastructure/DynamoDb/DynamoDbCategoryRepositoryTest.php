@@ -6,6 +6,7 @@ use App\Infrastructure\DynamoDb\DynamoDbCategoryRepository;
 use Aws\DynamoDb\DynamoDbClient;
 use Aws\DynamoDb\Marshaler;
 use Aws\Result;
+use Mockery\MockInterface;
 
 /**
  * DynamoDbCategoryRepository のユニットテスト (DynamoDB Client モック使用)。
@@ -17,11 +18,10 @@ use Aws\Result;
  *
  * 実 DynamoDB との結合は Integration テスト側で検証。
  */
-
 const CATEGORIES_TABLE_NAME = 'cfp-categories';
 
 /**
- * @return array{0: \Mockery\MockInterface, 1: DynamoDbCategoryRepository}
+ * @return array{0: MockInterface, 1: DynamoDbCategoryRepository}
  */
 function makeMockedCategoryRepo(): array
 {
@@ -33,7 +33,7 @@ function makeMockedCategoryRepo(): array
 
 function categoryMarshalled(array $plain): array
 {
-    return (new Marshaler())->marshalItem($plain);
+    return (new Marshaler)->marshalItem($plain);
 }
 
 function sampleCategoryItem(string $id = 'id-1'): array
@@ -169,7 +169,7 @@ it('save は PutItem API を呼び、axis を含めて永続化する', function
     $client->shouldReceive('putItem')
         ->once()
         ->with(Mockery::on(function (array $args): bool {
-            $unmarshaled = (new Marshaler())->unmarshalItem($args['Item']);
+            $unmarshaled = (new Marshaler)->unmarshalItem($args['Item']);
 
             return $args['TableName'] === CATEGORIES_TABLE_NAME
                 && $unmarshaled['categoryId'] === 'id-1'
@@ -198,7 +198,7 @@ it('save で axis が null の場合は axis 属性を付けない', function ()
     $client->shouldReceive('putItem')
         ->once()
         ->with(Mockery::on(function (array $args): bool {
-            $unmarshaled = (new Marshaler())->unmarshalItem($args['Item']);
+            $unmarshaled = (new Marshaler)->unmarshalItem($args['Item']);
 
             return ! array_key_exists('axis', $unmarshaled);
         }));

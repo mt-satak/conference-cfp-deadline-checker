@@ -5,7 +5,6 @@ namespace App\Exceptions;
 use App\Domain\Categories\CategoryConflictException;
 use App\Domain\Categories\CategoryNotFoundException;
 use App\Domain\Conferences\ConferenceNotFoundException;
-use App\Exceptions\InvalidOriginException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -27,7 +26,7 @@ use Throwable;
 class AdminApiExceptionRenderer
 {
     /**
-     * @return JsonResponse|null  null を返した場合は Laravel デフォルトに委譲
+     * @return JsonResponse|null null を返した場合は Laravel デフォルトに委譲
      */
     public function __invoke(Throwable $e, Request $request): ?JsonResponse
     {
@@ -173,6 +172,7 @@ class AdminApiExceptionRenderer
     {
         // クラス名が含まれていれば basename を取る
         $basename = basename(str_replace('\\', '/', $ruleIdentifier));
+
         // PascalCase → snake_case (preg_replace は実用上 null を返さない入力で
         // 呼ぶが、PHPStan は null 可能性を見るため ?? で fallback)
         return strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $basename) ?? $basename);

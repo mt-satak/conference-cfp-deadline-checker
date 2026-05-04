@@ -11,7 +11,6 @@ use App\Domain\Categories\CategoryNotFoundException;
  * - 200 OK: {"data": <Category>}
  * - 404 NOT_FOUND
  */
-
 it('GET /admin/api/categories/{id} は 200 と data に Category を返す', function () {
     // Given
     $id = '550e8400-e29b-41d4-a716-446655440000';

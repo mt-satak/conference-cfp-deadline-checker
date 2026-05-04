@@ -13,12 +13,13 @@
 
 use App\Domain\Categories\CategoryConflictException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 it('admin/api 配下で ValidationException が 422 + VALIDATION_FAILED を返す', function () {
     // Given: 必須フィールドが未指定だと ValidationException を投げるルートを動的に登録する
-    Route::post('/admin/api/_test_validation', function (\Illuminate\Http\Request $request) {
+    Route::post('/admin/api/_test_validation', function (Request $request) {
         $request->validate([
             'email' => 'required|email',
             'name' => 'required|string|min:3',
@@ -51,7 +52,7 @@ it('admin/api 配下の存在しないルートが 404 + NOT_FOUND を返す', f
 it('admin/api 配下で ModelNotFoundException が 404 + NOT_FOUND を返す', function () {
     // Given: ModelNotFoundException を投げるルートを動的に登録する
     Route::get('/admin/api/_test_model_missing', function () {
-        throw new ModelNotFoundException();
+        throw new ModelNotFoundException;
     });
 
     // When: 当該ルートに GET する
@@ -109,7 +110,7 @@ it('admin/api 配下で CategoryConflictException が 409 + CONFLICT を返す',
 it('admin/api 配下で予期しない例外が 500 + INTERNAL_ERROR を返す', function () {
     // Given: 任意の RuntimeException を投げるルートを動的に登録する
     Route::get('/admin/api/_test_runtime', function () {
-        throw new \RuntimeException('boom');
+        throw new RuntimeException('boom');
     });
 
     // When: 当該ルートに GET する
