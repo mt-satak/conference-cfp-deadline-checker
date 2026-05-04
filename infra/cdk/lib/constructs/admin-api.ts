@@ -56,11 +56,14 @@ export class AdminApi extends Construct {
 
     const region = Stack.of(this).region;
 
-    // Bref の統合 PHP レイヤー (アカウント ID 534081306603 は Bref のもの)
+    // Bref の統合 PHP レイヤー (公開アカウント ID 873528684822 は Bref のもの)。
+    // 旧アカウント 534081306603 は廃止済み: 取得しようとすると Lambda 側で
+    // GetLayerVersion が 403 (no resource-based policy) で失敗する。
+    // 最新の ARN / バージョンは https://runtimes.bref.sh/?region=ap-northeast-1 で確認。
     const phpLayer = LayerVersion.fromLayerVersionArn(
       this,
       'PhpLayer',
-      `arn:aws:lambda:${region}:534081306603:layer:php-85:14`,
+      `arn:aws:lambda:${region}:873528684822:layer:php-85:14`,
     );
 
     // Lambda 関数本体。
