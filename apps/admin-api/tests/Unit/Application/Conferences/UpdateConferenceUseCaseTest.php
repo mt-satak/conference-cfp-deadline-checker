@@ -17,7 +17,6 @@ use Illuminate\Support\Carbon;
  * - Repository->save() で永続化
  * - 更新後 Conference を返す
  */
-
 beforeEach(function () {
     // Given (共通): 時刻を固定し、updatedAt の検証を決定的にする
     Carbon::setTestNow('2026-05-04T10:00:00+09:00');
@@ -116,6 +115,7 @@ it('Repository->save() に更新後 Conference が渡される', function () {
         ->once()
         ->with(Mockery::on(function (Conference $c) use (&$captured) {
             $captured = $c;
+
             return true;
         }));
 

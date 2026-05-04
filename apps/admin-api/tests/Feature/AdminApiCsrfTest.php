@@ -18,6 +18,7 @@
  *   (= CSRF が本番で適用されること) は AdminApiRoutingTest 側で確認済み。
  */
 
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Route;
 
@@ -64,5 +65,5 @@ it('/admin/api 配下のルートは web ミドルウェアグループに属し
     expect($route)->not->toBeNull();
     expect($route->middleware())->toContain('web');
     expect($webMiddleware)
-        ->toContain(\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class);
+        ->toContain(PreventRequestForgery::class);
 });

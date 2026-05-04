@@ -12,7 +12,6 @@ use App\Domain\Conferences\ConferenceRepository;
  * 責務: Repository->findById() で取得し、存在しなければ
  * ConferenceNotFoundException を投げる。
  */
-
 function getUseCaseSampleConference(string $id): Conference
 {
     return new Conference(

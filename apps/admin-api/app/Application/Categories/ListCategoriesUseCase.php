@@ -18,7 +18,7 @@ class ListCategoriesUseCase
     ) {}
 
     /**
-     * @return Category[]  displayOrder 昇順
+     * @return Category[] displayOrder 昇順
      */
     public function execute(): array
     {

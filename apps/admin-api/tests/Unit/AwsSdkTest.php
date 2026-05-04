@@ -8,7 +8,6 @@ use Aws\DynamoDb\DynamoDbClient;
  * 後続 Issue で Repository 層から DynamoDB クライアントを利用するため、
  * 雛形段階で SDK が依存解決できているかを早期に確認しておく。
  */
-
 it('AWS DynamoDB クライアントクラスが解決できる', function () {
     // When / Then: クラスがオートロードできる
     expect(class_exists(DynamoDbClient::class))->toBeTrue();

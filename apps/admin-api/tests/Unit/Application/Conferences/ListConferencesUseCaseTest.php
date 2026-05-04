@@ -11,7 +11,6 @@ use App\Domain\Conferences\ConferenceRepository;
  * UseCase の責務は「Repository から全件取得して呼び出し元に返す」のみ。
  * フィルタ・ソート・ページネーション等は呼び出し側 (HTTP コントローラ等) で行う。
  */
-
 function listUseCaseSampleConference(string $id, string $name): Conference
 {
     return new Conference(

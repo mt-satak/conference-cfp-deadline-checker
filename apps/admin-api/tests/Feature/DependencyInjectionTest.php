@@ -13,7 +13,6 @@ use Aws\DynamoDb\DynamoDbClient;
  * Controller / UseCase は ConferenceRepository に依存して書くため、
  * この紐付けが切れるとアプリ全体が動かなくなる。
  */
-
 it('Container から DynamoDbClient を解決できる (シングルトン)', function () {
     // When: コンテナから DynamoDbClient を 2 回解決する
     $client1 = app(DynamoDbClient::class);

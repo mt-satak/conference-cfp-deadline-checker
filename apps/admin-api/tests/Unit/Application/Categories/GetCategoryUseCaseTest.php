@@ -11,7 +11,6 @@ use App\Domain\Categories\CategoryRepository;
  *
  * 責務: Repository->findById() の結果を返す。null なら CategoryNotFoundException。
  */
-
 it('Repository が Category を返した場合はそのまま返す', function () {
     // Given: Repository が Category を返す
     $category = new Category(

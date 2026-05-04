@@ -28,7 +28,7 @@ class DeleteCategoryUseCase
 
     /**
      * @throws CategoryNotFoundException
-     * @throws CategoryConflictException  参照する Conference が存在する場合
+     * @throws CategoryConflictException 参照する Conference が存在する場合
      */
     public function execute(string $categoryId): void
     {

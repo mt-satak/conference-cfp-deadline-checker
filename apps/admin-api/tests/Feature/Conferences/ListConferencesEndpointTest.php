@@ -15,7 +15,6 @@ use App\Domain\Conferences\ConferenceFormat;
  * ソート (?sort, ?order) / フィルタ (?q, ?category, ?status) は後続コミット
  * もしくは別 Issue で扱う。
  */
-
 function listEndpointSampleConference(string $id, string $name): Conference
 {
     return new Conference(

@@ -11,7 +11,6 @@ use App\Http\Middleware\VerifyOrigin;
  *   - 204 No Content (削除成功)
  *   - 404 NOT_FOUND (該当無し)
  */
-
 beforeEach(function () {
     // Given (共通): VerifyOrigin は別テスト責務なのでバイパス
     test()->withoutMiddleware(VerifyOrigin::class);

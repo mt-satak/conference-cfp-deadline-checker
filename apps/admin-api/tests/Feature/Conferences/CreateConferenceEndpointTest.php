@@ -27,7 +27,6 @@ beforeEach(function () {
  * NOTE: categories の参照整合性 (categoryId が categories テーブルに存在
  * すること) は Categories Repository が無いため本コミット時点では検証しない。
  */
-
 function validCreatePayload(): array
 {
     return [

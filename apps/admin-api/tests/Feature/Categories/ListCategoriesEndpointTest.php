@@ -11,7 +11,6 @@ use App\Domain\Categories\CategoryAxis;
  *   - 200 OK: {"data": [<Category>], "meta": {"count": N}}
  *   - displayOrder 昇順
  */
-
 it('GET /admin/api/categories は 200 と data に Category 配列を返す', function () {
     // Given: ListCategoriesUseCase が 2 件返すモック (displayOrder 昇順)
     $cat1 = new Category(

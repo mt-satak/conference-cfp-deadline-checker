@@ -14,7 +14,6 @@ use App\Domain\Conferences\ConferenceRepository;
  * OpenAPI 仕様で DELETE は 204 (成功) または 404 (該当無し) を返すため、
  * 後者は HTTP 層で例外を 404 + NOT_FOUND に整形する想定。
  */
-
 it('Repository->deleteById() が true を返したら例外なく完了する', function () {
     // Given: Repository->deleteById() が true (削除済み) を返すモック
     $id = '550e8400-e29b-41d4-a716-446655440000';
@@ -23,7 +22,7 @@ it('Repository->deleteById() が true を返したら例外なく完了する', 
 
     // When / Then: UseCase 実行で例外は投げられない
     $useCase = new DeleteConferenceUseCase($repository);
-    expect(fn () => $useCase->execute($id))->not->toThrow(\Throwable::class);
+    expect(fn () => $useCase->execute($id))->not->toThrow(Throwable::class);
 });
 
 it('Repository->deleteById() が false を返したら ConferenceNotFoundException を投げる', function () {

@@ -18,7 +18,6 @@ use Ramsey\Uuid\Uuid;
  * - UUID と現在時刻を補完して Category を構築
  * - Repository->save() で永続化
  */
-
 beforeEach(function () {
     Carbon::setTestNow('2026-05-04T10:00:00+09:00');
     Str::createUuidsUsing(fn () => Uuid::fromString('aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'));

@@ -10,7 +10,6 @@ use App\Domain\Conferences\ConferenceFormat;
  * Eloquent / DynamoDB SDK には依存せず、Repository を介して永続化層と
  * やり取りする際の境界型として使う。
  */
-
 function makeConference(): Conference
 {
     return new Conference(

@@ -20,7 +20,6 @@ use App\Http\Middleware\VerifyOrigin;
  * shape 検証のみ。後続で UseCase 側に既存データ取得後の cross-field 検証を
  * 追加する余地を残す。
  */
-
 beforeEach(function () {
     // Given (共通): VerifyOrigin は別テスト責務なのでバイパス
     test()->withoutMiddleware(VerifyOrigin::class);

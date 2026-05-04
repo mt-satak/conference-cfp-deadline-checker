@@ -8,7 +8,6 @@ use App\Domain\Categories\CategoryAxis;
  *
  * readonly クラスなので構築値の保持と axis enum の取り扱いを検証する。
  */
-
 it('全フィールドを指定して Category を構築できる', function () {
     // Given: 全プロパティ値
     // When: Category 構築
