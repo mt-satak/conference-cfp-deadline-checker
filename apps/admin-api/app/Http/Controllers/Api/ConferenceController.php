@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Application\Conferences\GetConferenceUseCase;
 use App\Application\Conferences\ListConferencesUseCase;
 use App\Domain\Conferences\Conference;
 use App\Http\Presenters\ConferencePresenter;
@@ -36,5 +37,19 @@ class ConferenceController extends BaseController
         );
 
         return $this->ok($data, ['count' => count($data)]);
+    }
+
+    /**
+     * GET /admin/api/conferences/{id} (operationId: getConference)
+     *
+     * 該当無しの場合 UseCase が ConferenceNotFoundException を投げ、
+     * グローバル例外ハンドラ (AdminApiExceptionRenderer) が 404 + NOT_FOUND
+     * に整形する。本コントローラでは catch せず素通しでよい。
+     */
+    public function show(string $id, GetConferenceUseCase $useCase): JsonResponse
+    {
+        $conference = $useCase->execute($id);
+
+        return $this->ok(ConferencePresenter::toArray($conference));
     }
 }
