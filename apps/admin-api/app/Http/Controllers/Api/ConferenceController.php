@@ -6,10 +6,12 @@ use App\Application\Conferences\CreateConferenceInput;
 use App\Application\Conferences\CreateConferenceUseCase;
 use App\Application\Conferences\GetConferenceUseCase;
 use App\Application\Conferences\ListConferencesUseCase;
+use App\Application\Conferences\UpdateConferenceUseCase;
 use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceFormat;
 use App\Http\Presenters\ConferencePresenter;
 use App\Http\Requests\Conferences\StoreConferenceRequest;
+use App\Http\Requests\Conferences\UpdateConferenceRequest;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -87,5 +89,28 @@ class ConferenceController extends BaseController
         $conference = $useCase->execute($input);
 
         return $this->created(ConferencePresenter::toArray($conference));
+    }
+
+    /**
+     * PUT /admin/api/conferences/{id} (operationId: updateConference)
+     *
+     * UpdateConferenceRequest が部分更新のバリデーション (キーが存在する
+     * 場合のみ shape チェック) を担う。
+     * 該当無し時は UseCase が ConferenceNotFoundException を投げ、
+     * グローバル例外ハンドラが 404 + NOT_FOUND に整形する。
+     */
+    public function update(string $id, UpdateConferenceRequest $request, UpdateConferenceUseCase $useCase): JsonResponse
+    {
+        $fields = $request->validated();
+
+        // format は string で来るので enum に変換する (UseCase が ConferenceFormat
+        // 期待のため)。空キーや不正値は FormRequest 側で弾かれている前提。
+        if (isset($fields['format']) && is_string($fields['format'])) {
+            $fields['format'] = ConferenceFormat::from($fields['format']);
+        }
+
+        $conference = $useCase->execute($id, $fields);
+
+        return $this->ok(ConferencePresenter::toArray($conference));
     }
 }
