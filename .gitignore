@@ -2,6 +2,9 @@
 concept.md
 architecture.md
 
+# Claude Code ローカルメモリ (~/.claude 配下のリポジトリ内コピー、共有対象外)
+.claude/memory/
+
 # Node
 node_modules/
 .pnpm-store/
