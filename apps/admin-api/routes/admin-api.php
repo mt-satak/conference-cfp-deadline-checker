@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\CsrfTokenController;
 use App\Http\Controllers\Api\HealthController;
 use Illuminate\Support\Facades\Route;
 
@@ -16,3 +17,10 @@ use Illuminate\Support\Facades\Route;
 // GET /admin/api/health — 認証不要のサーバー稼働確認エンドポイント。
 // OpenAPI 仕様 (operationId: healthCheck) 準拠。
 Route::get('/health', [HealthController::class, 'check']);
+
+// ── CSRF Token ──
+// GET /admin/api/csrf-token — SPA フロント向けの CSRF トークン発行。
+// 取得した csrfToken を後続の状態変更系リクエストの X-XSRF-TOKEN
+// ヘッダにセットすることで CSRF 検証を通過できる。
+// OpenAPI 仕様 (operationId: getCsrfToken) 準拠。
+Route::get('/csrf-token', [CsrfTokenController::class, 'token']);
