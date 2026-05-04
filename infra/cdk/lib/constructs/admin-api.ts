@@ -75,6 +75,56 @@ export class AdminApi extends Construct {
       handler: 'public/index.php',
       code: Code.fromAsset(
         path.join(__dirname, '..', '..', '..', '..', 'apps', 'admin-api'),
+        {
+          // Lambda の unzipped 250MB 制限に収めるため、ランタイム不要なファイルを除外。
+          // 本番デプロイは composer install --no-dev で行う前提だが、誤って dev 含み
+          // で deploy された場合も exclude で防御する。
+          exclude: [
+            // テスト系
+            'tests/**',
+            'phpunit.xml',
+            'phpstan.neon',
+            'phpstan-baseline.neon',
+            // ローカル / 開発時のキャッシュ・出力
+            'storage/coverage/**',
+            'storage/logs/**',
+            'storage/framework/cache/**',
+            'storage/framework/sessions/**',
+            'storage/framework/views/**',
+            'storage/framework/testing/**',
+            // ローカル DB ファイル
+            'database/database.sqlite',
+            // dev 用 node 関連 (Vite / Tailwind 等、Lambda では使わない)
+            'node_modules/**',
+            'public/build/**',
+            'public/hot',
+            // Composer / git 内部
+            'composer.lock',
+            '.git/**',
+            // .env はランタイム環境変数で渡すため不要 (誤コミット時の二重防御)
+            '.env',
+            '.env.example',
+            '.env.testing',
+            // dev tools
+            'scripts/**',
+            'Makefile',
+            'README.md',
+            // IDE / OS
+            '.idea/**',
+            '.vscode/**',
+            '.DS_Store',
+            // dev only PHP packages の残骸 (composer install --no-dev 前提だが念のため)
+            'vendor/pestphp/**',
+            'vendor/phpstan/**',
+            'vendor/larastan/**',
+            'vendor/laravel/pint/**',
+            'vendor/mockery/**',
+            'vendor/nunomaduro/collision/**',
+            'vendor/fakerphp/**',
+            'vendor/laravel/pail/**',
+            'vendor/laravel/pao/**',
+          ],
+        },
       ),
       layers: [phpLayer],
       architecture: Architecture.X86_64,
