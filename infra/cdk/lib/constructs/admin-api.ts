@@ -1,6 +1,7 @@
 import * as path from 'node:path';
 import { Duration, Stack } from 'aws-cdk-lib';
 import { type Table } from 'aws-cdk-lib/aws-dynamodb';
+import { Effect, PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import {
   Architecture,
   Code,
@@ -138,6 +139,10 @@ export class AdminApi extends Construct {
         DYNAMODB_CONFERENCES_TABLE: props.conferences.tableName,
         DYNAMODB_CATEGORIES_TABLE: props.categories.tableName,
         DYNAMODB_DONATIONS_TABLE: props.donations.tableName,
+        // LLM URL 抽出 (Issue #40 Phase 3): 本番は Bedrock 経由、API キー不要
+        LLM_PROVIDER: 'bedrock',
+        LLM_MODEL: 'anthropic.claude-sonnet-4-6',
+        LLM_REGION: region,
       },
       description: 'Admin API for Conference CfP Deadline Checker',
     });
@@ -147,6 +152,25 @@ export class AdminApi extends Construct {
     props.conferences.grantReadWriteData(this.function);
     props.categories.grantReadWriteData(this.function);
     props.donations.grantReadWriteData(this.function);
+
+    // Bedrock InvokeModel 権限を付与 (Issue #40 Phase 3 LLM URL 抽出機能用)。
+    // 利用モデルは Claude Sonnet 4.6 (anthropic.claude-sonnet-4-6 系) のみに限定。
+    // リソース ARN は本リージョン内 + 横断推論プロファイル両方を許可するため、
+    // foundation-model と inference-profile の両 ARN を含める。
+    // 万が一プロンプトが他モデルを指定するコードが書かれても、IAM レベルで
+    // 本許可外のモデルは呼び出せない (= 最小権限の原則)。
+    this.function.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ['bedrock:InvokeModel', 'bedrock:Converse'],
+        resources: [
+          `arn:aws:bedrock:${region}::foundation-model/anthropic.claude-sonnet-4-6*`,
+          `arn:aws:bedrock:${region}:*:inference-profile/*anthropic.claude-sonnet-4-6*`,
+          // 横断推論で他リージョンが参照される場合のフォールバック (apac.* 等)
+          `arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6*`,
+        ],
+      }),
+    );
 
     // Function URL を AWS_IAM 認証で発行。
     // CloudFront 側で OAC (Origin Access Control) を設定することで、
