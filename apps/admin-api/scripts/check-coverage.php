@@ -50,6 +50,7 @@ $thresholds = [
     'App\\Http\\Requests\\' => 100.0,  // バリデーションルール定義
     'App\\Http\\Controllers\\' => 85.0,   // 薄いオーケストレーション
     'App\\Http\\Middleware\\' => 85.0,   // フレームワーク hook 分岐含む
+    'App\\Console\\Commands\\' => 85.0,   // Artisan コマンド (Controllers 同様の薄いオーケストレーション)
     'App\\Exceptions\\' => 75.0,   // match true + compound instanceof で xdebug が micro-branch を細かく分割するため一律 80%+ は padding テストでしか到達不能。実測上限 79.59% に余裕を取って 75。詳細 docs/test-strategy.md 参照
     'App\\Infrastructure\\' => 75.0,   // AWS SDK 例外パスのモック網羅コストが高い
 ];
