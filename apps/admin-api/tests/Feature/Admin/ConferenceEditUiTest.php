@@ -121,6 +121,55 @@ it('PUT /admin/conferences/{id} は該当無しなら 404', function () {
     $response->assertStatus(404);
 });
 
+it('GET edit は Published 状態のバッジを表示する (Phase 0.5)', function () {
+    // Given
+    bindEditCategoriesUseCaseStub();
+    $get = Mockery::mock(GetConferenceUseCase::class);
+    $get->shouldReceive('execute')->once()->andReturn(makeEditUiSampleConference());
+    app()->instance(GetConferenceUseCase::class, $get);
+
+    // When
+    $response = $this->get('/admin/conferences/550e8400-e29b-41d4-a716-446655440000/edit');
+
+    // Then
+    $response->assertStatus(200);
+    $response->assertSee('公開中', false);
+});
+
+it('GET edit は Draft 状態のバッジを表示する', function () {
+    // Given: Draft の Conference
+    bindEditCategoriesUseCaseStub();
+    $draft = new Conference(
+        conferenceId: 'draft-id',
+        name: 'Draft カンファ',
+        trackName: null,
+        officialUrl: 'https://draft.example.com',
+        cfpUrl: null,
+        eventStartDate: null,
+        eventEndDate: null,
+        venue: null,
+        format: null,
+        cfpStartDate: null,
+        cfpEndDate: null,
+        categories: [],
+        description: null,
+        themeColor: null,
+        createdAt: '2026-04-15T10:30:00+09:00',
+        updatedAt: '2026-04-15T10:30:00+09:00',
+        status: ConferenceStatus::Draft,
+    );
+    $get = Mockery::mock(GetConferenceUseCase::class);
+    $get->shouldReceive('execute')->once()->andReturn($draft);
+    app()->instance(GetConferenceUseCase::class, $get);
+
+    // When
+    $response = $this->get('/admin/conferences/draft-id/edit');
+
+    // Then
+    $response->assertStatus(200);
+    $response->assertSee('下書き', false);
+});
+
 it('PUT /admin/conferences/{id} で status を published に更新できる (Phase 0.5)', function () {
     // Given: status=published 送信時に UseCase に enum で渡る
     bindEditCategoriesUseCaseStub();

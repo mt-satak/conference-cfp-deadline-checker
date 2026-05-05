@@ -15,7 +15,6 @@
             'conference' => null,
             'action' => route('admin.conferences.store'),
             'method' => 'POST',
-            'submitLabel' => '作成する',
         ])
     </div>
 @endsection

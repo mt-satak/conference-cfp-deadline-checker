@@ -6,7 +6,11 @@
       $formats      ConferenceFormat[]  enum cases
       $action       string       form の action URL
       $method       'POST'|'PUT' form の HTTP method (PUT は @method で偽装)
-      $submitLabel  string       送信ボタンのラベル
+
+    送信は 2 つの submit ボタンで status を切り替える:
+      - 「下書き保存」: name="status" value="draft" → StoreRequest が Draft 用に
+        分岐し、cfpUrl 等は任意扱いになる (Phase 0.5 / Issue #41)
+      - 「公開する」: name="status" value="published" → 従来通り全項目必須
 
     エラー / 旧入力は FormRequest 違反時に session に自動 flash されるので
     `old()` / `@error` で復元する。
@@ -32,7 +36,7 @@
 
     {{-- name --}}
     <div>
-        <label for="name" class="mb-1 block text-sm font-medium">名称 <span class="text-red-600">*</span></label>
+        <label for="name" class="mb-1 block text-sm font-medium">名称 <span class="text-red-600" title="公開時は必須 (下書き保存は任意)">*</span></label>
         <input type="text" id="name" name="name" required maxlength="200"
                value="{{ $val('name') }}"
                class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none">
@@ -51,7 +55,7 @@
     {{-- URLs --}}
     <div class="grid gap-5 sm:grid-cols-2">
         <div>
-            <label for="officialUrl" class="mb-1 block text-sm font-medium">公式 URL <span class="text-red-600">*</span></label>
+            <label for="officialUrl" class="mb-1 block text-sm font-medium">公式 URL <span class="text-red-600" title="公開時は必須 (下書き保存は任意)">*</span></label>
             <input type="url" id="officialUrl" name="officialUrl" required
                    value="{{ $val('officialUrl') }}"
                    placeholder="https://..."
@@ -59,8 +63,8 @@
             @error('officialUrl')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
         </div>
         <div>
-            <label for="cfpUrl" class="mb-1 block text-sm font-medium">CfP URL <span class="text-red-600">*</span></label>
-            <input type="url" id="cfpUrl" name="cfpUrl" required
+            <label for="cfpUrl" class="mb-1 block text-sm font-medium">CfP URL <span class="text-red-600" title="公開時は必須 (下書き保存は任意)">*</span></label>
+            <input type="url" id="cfpUrl" name="cfpUrl"
                    value="{{ $val('cfpUrl') }}"
                    placeholder="https://..."
                    class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none">
@@ -71,15 +75,15 @@
     {{-- 日付 --}}
     <div class="grid gap-5 sm:grid-cols-2">
         <div>
-            <label for="eventStartDate" class="mb-1 block text-sm font-medium">開催開始日 <span class="text-red-600">*</span></label>
-            <input type="date" id="eventStartDate" name="eventStartDate" required
+            <label for="eventStartDate" class="mb-1 block text-sm font-medium">開催開始日 <span class="text-red-600" title="公開時は必須 (下書き保存は任意)">*</span></label>
+            <input type="date" id="eventStartDate" name="eventStartDate"
                    value="{{ $val('eventStartDate') }}"
                    class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none">
             @error('eventStartDate')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
         </div>
         <div>
-            <label for="eventEndDate" class="mb-1 block text-sm font-medium">開催終了日 <span class="text-red-600">*</span></label>
-            <input type="date" id="eventEndDate" name="eventEndDate" required
+            <label for="eventEndDate" class="mb-1 block text-sm font-medium">開催終了日 <span class="text-red-600" title="公開時は必須 (下書き保存は任意)">*</span></label>
+            <input type="date" id="eventEndDate" name="eventEndDate"
                    value="{{ $val('eventEndDate') }}"
                    class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none">
             @error('eventEndDate')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
@@ -92,8 +96,8 @@
             @error('cfpStartDate')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
         </div>
         <div>
-            <label for="cfpEndDate" class="mb-1 block text-sm font-medium">CfP 締切 <span class="text-red-600">*</span></label>
-            <input type="date" id="cfpEndDate" name="cfpEndDate" required
+            <label for="cfpEndDate" class="mb-1 block text-sm font-medium">CfP 締切 <span class="text-red-600" title="公開時は必須 (下書き保存は任意)">*</span></label>
+            <input type="date" id="cfpEndDate" name="cfpEndDate"
                    value="{{ $val('cfpEndDate') }}"
                    class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none">
             @error('cfpEndDate')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
@@ -102,8 +106,8 @@
 
     {{-- venue --}}
     <div>
-        <label for="venue" class="mb-1 block text-sm font-medium">会場 <span class="text-red-600">*</span></label>
-        <input type="text" id="venue" name="venue" required maxlength="100"
+        <label for="venue" class="mb-1 block text-sm font-medium">会場 <span class="text-red-600" title="公開時は必須 (下書き保存は任意)">*</span></label>
+        <input type="text" id="venue" name="venue" maxlength="100"
                value="{{ $val('venue') }}"
                class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none">
         @error('venue')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
@@ -111,7 +115,7 @@
 
     {{-- format (radio) --}}
     <div>
-        <span class="mb-1 block text-sm font-medium">形式 <span class="text-red-600">*</span></span>
+        <span class="mb-1 block text-sm font-medium">形式 <span class="text-red-600" title="公開時は必須 (下書き保存は任意)">*</span></span>
         <div class="flex gap-4">
             @php
                 $currentFormat = old('format', $existing?->format?->value ?? '');
@@ -130,7 +134,7 @@
 
     {{-- categories (multi-select via checkbox) --}}
     <div>
-        <span class="mb-1 block text-sm font-medium">カテゴリ <span class="text-red-600">*</span> <span class="text-xs text-gray-500">(1 つ以上)</span></span>
+        <span class="mb-1 block text-sm font-medium">カテゴリ <span class="text-red-600" title="公開時は必須 (下書き保存は任意)">*</span> <span class="text-xs text-gray-500">(1 つ以上)</span></span>
         @if (count($categories) === 0)
             <p class="text-sm text-gray-500">登録されたカテゴリがありません</p>
         @else
@@ -168,15 +172,22 @@
         @error('themeColor')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
     </div>
 
-    {{-- 送信 --}}
-    <div class="flex justify-end gap-2 pt-2">
+    {{-- 送信: 2 つの submit ボタンで status を分岐させる (Phase 0.5 / Issue #41)
+         クリックされたボタンの name=value だけが request に乗る仕様を活用。
+         サーバ側 StoreConferenceRequest が status='draft' なら必須項目を緩和、
+         status='published' なら従来通り全項目検証する。 --}}
+    <div class="flex flex-wrap items-center justify-end gap-2 pt-2">
         <a href="{{ route('admin.conferences.index') }}"
            class="rounded border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50">
             キャンセル
         </a>
-        <button type="submit"
+        <button type="submit" name="status" value="draft"
+                class="rounded border border-gray-400 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            下書き保存
+        </button>
+        <button type="submit" name="status" value="published"
                 class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-            {{ $submitLabel }}
+            公開する
         </button>
     </div>
 </form>

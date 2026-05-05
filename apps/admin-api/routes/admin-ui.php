@@ -25,6 +25,8 @@ Route::post('/conferences', [ConferenceController::class, 'store'])->name('admin
 Route::get('/conferences/{id}/edit', [ConferenceController::class, 'edit'])->name('admin.conferences.edit');
 Route::put('/conferences/{id}', [ConferenceController::class, 'update'])->name('admin.conferences.update');
 Route::delete('/conferences/{id}', [ConferenceController::class, 'destroy'])->name('admin.conferences.destroy');
+// Draft → Published 昇格専用 (Phase 0.5 / Issue #41 PR-3)
+Route::post('/conferences/{id}/publish', [ConferenceController::class, 'publish'])->name('admin.conferences.publish');
 
 // ── Categories ──
 Route::get('/categories', [CategoryController::class, 'index'])->name('admin.categories.index');

@@ -9,6 +9,7 @@ use App\Application\Conferences\DeleteConferenceUseCase;
 use App\Application\Conferences\GetConferenceUseCase;
 use App\Application\Conferences\ListConferencesUseCase;
 use App\Application\Conferences\UpdateConferenceUseCase;
+use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceFormat;
 use App\Domain\Conferences\ConferenceNotFoundException;
 use App\Domain\Conferences\ConferenceStatus;
@@ -17,6 +18,7 @@ use App\Http\Requests\Conferences\StoreConferenceRequest;
 use App\Http\Requests\Conferences\UpdateConferenceRequest;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 
 /**
  * 管理画面のカンファレンス管理 UI (Blade SSR)。
@@ -34,13 +36,22 @@ class ConferenceController extends Controller
 {
     /**
      * GET /admin/conferences — 一覧画面。
+     *
+     * クエリパラメータ:
+     * - ?status=draft|published: status バッジによるフィルタ (Phase 0.5 / Issue #41)
+     * 未知 status 値は無視 = 全件返却 (= API Controller と同じ fail-soft)。
      */
-    public function index(ListConferencesUseCase $useCase): View
+    public function index(Request $request, ListConferencesUseCase $useCase): View
     {
-        $conferences = $useCase->execute();
+        $statusParam = $request->query('status');
+        $statusFilter = is_string($statusParam) ? ConferenceStatus::tryFrom($statusParam) : null;
+
+        $conferences = $useCase->execute($statusFilter);
 
         return view('admin.conferences.index', [
             'conferences' => $conferences,
+            // Blade 側でフィルタタブのアクティブ判定に使う (string 値)
+            'statusFilter' => $statusFilter?->value,
         ]);
     }
 
@@ -176,5 +187,70 @@ class ConferenceController extends Controller
         return redirect()
             ->route('admin.conferences.index')
             ->with('status', 'カンファレンスを削除しました');
+    }
+
+    /**
+     * POST /admin/conferences/{id}/publish — Draft → Published 昇格専用 (Phase 0.5 / Issue #41)。
+     *
+     * 一覧画面の Draft 行から 1 クリックで公開するためのショートカット。
+     * 既存エンティティの Published 必須項目が揃っているかを Repository データで検証し、
+     * 欠落時は edit 画面に戻して error フラッシュを出す (= 編集してから再公開を促す)。
+     */
+    public function publish(
+        string $id,
+        GetConferenceUseCase $getUseCase,
+        UpdateConferenceUseCase $updateUseCase,
+    ): RedirectResponse {
+        try {
+            $existing = $getUseCase->execute($id);
+        } catch (ConferenceNotFoundException) {
+            abort(404);
+        }
+
+        $missing = $this->missingPublishedFields($existing);
+        if ($missing !== []) {
+            return redirect()
+                ->route('admin.conferences.edit', $id)
+                ->with('error', '公開に必要な項目が不足しています: '.implode(', ', $missing));
+        }
+
+        $updateUseCase->execute($id, ['status' => ConferenceStatus::Published]);
+
+        return redirect()
+            ->route('admin.conferences.index')
+            ->with('status', "「{$existing->name}」を公開しました");
+    }
+
+    /**
+     * Published 状態が要求する非 null 項目で、現状 null になっているフィールド名を返す。
+     *
+     * @return string[]
+     */
+    private function missingPublishedFields(Conference $c): array
+    {
+        $missing = [];
+        if ($c->cfpUrl === null) {
+            $missing[] = 'cfpUrl';
+        }
+        if ($c->eventStartDate === null) {
+            $missing[] = 'eventStartDate';
+        }
+        if ($c->eventEndDate === null) {
+            $missing[] = 'eventEndDate';
+        }
+        if ($c->venue === null) {
+            $missing[] = 'venue';
+        }
+        if ($c->format === null) {
+            $missing[] = 'format';
+        }
+        if ($c->cfpEndDate === null) {
+            $missing[] = 'cfpEndDate';
+        }
+        if ($c->categories === []) {
+            $missing[] = 'categories';
+        }
+
+        return $missing;
     }
 }
