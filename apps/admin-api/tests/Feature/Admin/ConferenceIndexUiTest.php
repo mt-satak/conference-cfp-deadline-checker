@@ -3,7 +3,9 @@
 use App\Application\Conferences\ListConferencesUseCase;
 use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceFormat;
+use App\Domain\Conferences\ConferenceSortKey;
 use App\Domain\Conferences\ConferenceStatus;
+use App\Domain\Conferences\SortOrder;
 
 /**
  * /admin/conferences (一覧画面) の Blade SSR Feature テスト。
@@ -106,7 +108,10 @@ it('Published / Draft の status バッジが行ごとに表示される (Phase 
 it('?status=draft で UseCase に Draft フィルタが渡る', function () {
     // Given
     $useCase = Mockery::mock(ListConferencesUseCase::class);
-    $useCase->shouldReceive('execute')->once()->with(ConferenceStatus::Draft)->andReturn([]);
+    $useCase->shouldReceive('execute')
+        ->once()
+        ->with(ConferenceStatus::Draft, null, SortOrder::Asc)
+        ->andReturn([]);
     app()->instance(ListConferencesUseCase::class, $useCase);
 
     // When
@@ -119,7 +124,10 @@ it('?status=draft で UseCase に Draft フィルタが渡る', function () {
 it('?status=published で UseCase に Published フィルタが渡る', function () {
     // Given
     $useCase = Mockery::mock(ListConferencesUseCase::class);
-    $useCase->shouldReceive('execute')->once()->with(ConferenceStatus::Published)->andReturn([]);
+    $useCase->shouldReceive('execute')
+        ->once()
+        ->with(ConferenceStatus::Published, null, SortOrder::Asc)
+        ->andReturn([]);
     app()->instance(ListConferencesUseCase::class, $useCase);
 
     // When
@@ -132,7 +140,10 @@ it('?status=published で UseCase に Published フィルタが渡る', function
 it('?status 未指定はフィルタなしで UseCase が呼ばれる', function () {
     // Given
     $useCase = Mockery::mock(ListConferencesUseCase::class);
-    $useCase->shouldReceive('execute')->once()->with(null)->andReturn([]);
+    $useCase->shouldReceive('execute')
+        ->once()
+        ->with(null, null, SortOrder::Asc)
+        ->andReturn([]);
     app()->instance(ListConferencesUseCase::class, $useCase);
 
     // When
@@ -171,4 +182,52 @@ it('Published 行には「公開する」ボタンは出ない', function () {
     // Then: publish エンドポイントへの form は描画されない
     $response->assertStatus(200);
     expect($response->getContent())->not->toContain('/publish');
+});
+
+it('?sort=name&order=desc で UseCase に sortKey + Desc が渡る (Issue #47 Phase A)', function () {
+    // Given
+    $useCase = Mockery::mock(ListConferencesUseCase::class);
+    $useCase->shouldReceive('execute')
+        ->once()
+        ->with(null, ConferenceSortKey::Name, SortOrder::Desc)
+        ->andReturn([]);
+    app()->instance(ListConferencesUseCase::class, $useCase);
+
+    // When
+    $response = $this->get('/admin/conferences?sort=name&order=desc');
+
+    // Then
+    $response->assertStatus(200);
+});
+
+it('既定 (?sort 未指定) で 列ヘッダの CfP 締切に ▲ 印が出る', function () {
+    // Given: 1 件返す
+    $conf = makeUiSampleConference('Conf', ConferenceStatus::Published);
+    $useCase = Mockery::mock(ListConferencesUseCase::class);
+    $useCase->shouldReceive('execute')->once()->andReturn([$conf]);
+    app()->instance(ListConferencesUseCase::class, $useCase);
+
+    // When
+    $response = $this->get('/admin/conferences');
+
+    // Then: cfpEndDate 列ヘッダに ▲ がついて表示される
+    $response->assertStatus(200);
+    $response->assertSee('CfP 締切 ▲', false);
+});
+
+it('?sort=name&order=desc で名称列に ▼、CfP 締切列には記号なし', function () {
+    // Given
+    $conf = makeUiSampleConference('Conf', ConferenceStatus::Published);
+    $useCase = Mockery::mock(ListConferencesUseCase::class);
+    $useCase->shouldReceive('execute')->once()->andReturn([$conf]);
+    app()->instance(ListConferencesUseCase::class, $useCase);
+
+    // When
+    $response = $this->get('/admin/conferences?sort=name&order=desc');
+
+    // Then
+    $response->assertStatus(200);
+    $response->assertSee('名称 ▼', false);
+    expect($response->getContent())->not->toContain('CfP 締切 ▲');
+    expect($response->getContent())->not->toContain('CfP 締切 ▼');
 });

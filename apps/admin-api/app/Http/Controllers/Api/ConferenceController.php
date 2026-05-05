@@ -10,7 +10,9 @@ use App\Application\Conferences\ListConferencesUseCase;
 use App\Application\Conferences\UpdateConferenceUseCase;
 use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceFormat;
+use App\Domain\Conferences\ConferenceSortKey;
 use App\Domain\Conferences\ConferenceStatus;
+use App\Domain\Conferences\SortOrder;
 use App\Http\Presenters\ConferencePresenter;
 use App\Http\Requests\Conferences\StoreConferenceRequest;
 use App\Http\Requests\Conferences\UpdateConferenceRequest;
@@ -33,17 +35,27 @@ class ConferenceController extends BaseController
      * GET /admin/api/conferences (operationId: listConferences)
      *
      * クエリパラメータ:
-     * - ?status=draft|published: 該当ステータスのみに絞り込む (Phase 0.5)
+     * - ?status=draft|published: 該当ステータスのみに絞り込む (Phase 0.5 / Issue #41)
+     * - ?sort=cfpEndDate|eventStartDate|cfpStartDate|name|createdAt: ソートキー (Issue #47 Phase A)
+     * - ?order=asc|desc: 並び順 (Issue #47 Phase A)
      *
-     * ?q / ?category / ?sort / ?order の対応は別 Issue で扱う。
-     * 未知の status 値は無視 (= 全件返却) として fail-soft にする。
+     * 未知の status / sort / order 値は無視 (= デフォルト挙動) で fail-soft。
+     * ?q / ?category の対応は Issue #47 Phase B で扱う。
      */
     public function index(Request $request, ListConferencesUseCase $useCase): JsonResponse
     {
         $statusParam = $request->query('status');
         $statusFilter = is_string($statusParam) ? ConferenceStatus::tryFrom($statusParam) : null;
 
-        $conferences = $useCase->execute($statusFilter);
+        $sortParam = $request->query('sort');
+        $sortKey = is_string($sortParam) ? ConferenceSortKey::tryFrom($sortParam) : null;
+
+        $orderParam = $request->query('order');
+        $order = is_string($orderParam)
+            ? (SortOrder::tryFrom($orderParam) ?? SortOrder::Asc)
+            : SortOrder::Asc;
+
+        $conferences = $useCase->execute($statusFilter, $sortKey, $order);
 
         $data = array_map(
             static fn (Conference $c): array => ConferencePresenter::toArray($c),

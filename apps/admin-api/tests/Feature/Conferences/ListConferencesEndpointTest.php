@@ -3,7 +3,9 @@
 use App\Application\Conferences\ListConferencesUseCase;
 use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceFormat;
+use App\Domain\Conferences\ConferenceSortKey;
 use App\Domain\Conferences\ConferenceStatus;
+use App\Domain\Conferences\SortOrder;
 
 /**
  * GET /admin/api/conferences (operationId: listConferences) の Feature テスト。
@@ -95,7 +97,7 @@ it('?status=draft で UseCase に Draft フィルタが渡る (Phase 0.5)', func
     $useCase = Mockery::mock(ListConferencesUseCase::class);
     $useCase->shouldReceive('execute')
         ->once()
-        ->with(ConferenceStatus::Draft)
+        ->with(ConferenceStatus::Draft, null, SortOrder::Asc)
         ->andReturn([]);
     app()->instance(ListConferencesUseCase::class, $useCase);
 
@@ -111,7 +113,7 @@ it('?status=published で UseCase に Published フィルタが渡る', function
     $useCase = Mockery::mock(ListConferencesUseCase::class);
     $useCase->shouldReceive('execute')
         ->once()
-        ->with(ConferenceStatus::Published)
+        ->with(ConferenceStatus::Published, null, SortOrder::Asc)
         ->andReturn([]);
     app()->instance(ListConferencesUseCase::class, $useCase);
 
@@ -127,7 +129,7 @@ it('?status 未指定なら UseCase はフィルタなしで呼ばれる', funct
     $useCase = Mockery::mock(ListConferencesUseCase::class);
     $useCase->shouldReceive('execute')
         ->once()
-        ->with(null)
+        ->with(null, null, SortOrder::Asc)
         ->andReturn([]);
     app()->instance(ListConferencesUseCase::class, $useCase);
 
@@ -143,7 +145,7 @@ it('?status に未知値があってもフィルタなしで処理する (fail-s
     $useCase = Mockery::mock(ListConferencesUseCase::class);
     $useCase->shouldReceive('execute')
         ->once()
-        ->with(null)
+        ->with(null, null, SortOrder::Asc)
         ->andReturn([]);
     app()->instance(ListConferencesUseCase::class, $useCase);
 
@@ -167,4 +169,52 @@ it('UseCase が空配列を返した場合は data: [], meta.count: 0 になる'
     $response->assertStatus(200);
     $response->assertJsonPath('meta.count', 0);
     expect($response->json('data'))->toBe([]);
+});
+
+it('?sort=eventStartDate&order=desc で UseCase に enum 化されて渡る (Issue #47 Phase A)', function () {
+    // Given
+    $useCase = Mockery::mock(ListConferencesUseCase::class);
+    $useCase->shouldReceive('execute')
+        ->once()
+        ->with(null, ConferenceSortKey::EventStartDate, SortOrder::Desc)
+        ->andReturn([]);
+    app()->instance(ListConferencesUseCase::class, $useCase);
+
+    // When
+    $response = $this->getJson('/admin/api/conferences?sort=eventStartDate&order=desc');
+
+    // Then
+    $response->assertStatus(200);
+});
+
+it('?sort に未知値があると sortKey=null (デフォルト cfpEndDate 昇順) で UseCase が呼ばれる', function () {
+    // Given
+    $useCase = Mockery::mock(ListConferencesUseCase::class);
+    $useCase->shouldReceive('execute')
+        ->once()
+        ->with(null, null, SortOrder::Asc)
+        ->andReturn([]);
+    app()->instance(ListConferencesUseCase::class, $useCase);
+
+    // When
+    $response = $this->getJson('/admin/api/conferences?sort=invalid');
+
+    // Then: 200 (= 未知値はデフォルト動作にフォールバック)
+    $response->assertStatus(200);
+});
+
+it('?order に未知値があると order=Asc にフォールバック', function () {
+    // Given
+    $useCase = Mockery::mock(ListConferencesUseCase::class);
+    $useCase->shouldReceive('execute')
+        ->once()
+        ->with(null, ConferenceSortKey::Name, SortOrder::Asc)
+        ->andReturn([]);
+    app()->instance(ListConferencesUseCase::class, $useCase);
+
+    // When
+    $response = $this->getJson('/admin/api/conferences?sort=name&order=garbage');
+
+    // Then
+    $response->assertStatus(200);
 });
