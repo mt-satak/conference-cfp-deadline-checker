@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\BuildController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\ConferenceController;
 use App\Http\Controllers\Admin\HomeController;
@@ -32,3 +33,7 @@ Route::post('/categories', [CategoryController::class, 'store'])->name('admin.ca
 Route::get('/categories/{id}/edit', [CategoryController::class, 'edit'])->name('admin.categories.edit');
 Route::put('/categories/{id}', [CategoryController::class, 'update'])->name('admin.categories.update');
 Route::delete('/categories/{id}', [CategoryController::class, 'destroy'])->name('admin.categories.destroy');
+
+// ── Build (静的サイト再ビルド) ──
+Route::get('/build', [BuildController::class, 'index'])->name('admin.build.index');
+Route::post('/build/trigger', [BuildController::class, 'trigger'])->name('admin.build.trigger');

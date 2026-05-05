@@ -20,11 +20,11 @@
             <div class="mt-2 text-sm text-gray-600">タグ・分類軸の登録 / 編集 / 削除</div>
         </a>
 
-        {{-- Build は後続 PR で追加 --}}
-        <div class="rounded-lg border border-dashed border-gray-300 bg-white p-5 text-gray-400">
-            <div class="text-sm">予定</div>
-            <div class="mt-1 text-lg font-semibold">ビルド状態</div>
-            <div class="mt-2 text-sm">後続 PR で追加</div>
-        </div>
+        <a href="{{ route('admin.build.index') }}"
+           class="block rounded-lg border border-gray-200 bg-white p-5 transition hover:border-blue-400 hover:shadow-sm">
+            <div class="text-sm text-gray-500">運用</div>
+            <div class="mt-1 text-lg font-semibold">ビルド</div>
+            <div class="mt-2 text-sm text-gray-600">静的サイトの再ビルド / 履歴確認</div>
+        </a>
     </div>
 @endsection
