@@ -13,7 +13,7 @@ const client = new DynamoDBClient({
   credentials: { accessKeyId: 'dummy', secretAccessKey: 'dummy' },
 });
 
-const TABLE_NAMES = ['cfp-conferences', 'cfp-categories', 'cfp-donations'];
+const TABLE_NAMES = ['cfp-conferences', 'cfp-categories'];
 
 async function deleteTableIfExists(name: string): Promise<void> {
   try {

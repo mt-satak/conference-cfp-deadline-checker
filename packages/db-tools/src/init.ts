@@ -32,26 +32,6 @@ const TABLES: CreateTableCommandInput[] = [
     AttributeDefinitions: [{ AttributeName: 'categoryId', AttributeType: 'S' }],
     BillingMode: 'PAY_PER_REQUEST',
   },
-  {
-    TableName: 'cfp-donations',
-    KeySchema: [{ AttributeName: 'donationId', KeyType: 'HASH' }],
-    AttributeDefinitions: [
-      { AttributeName: 'donationId', AttributeType: 'S' },
-      { AttributeName: 'gsi1pk', AttributeType: 'S' },
-      { AttributeName: 'gsi1sk', AttributeType: 'S' },
-    ],
-    BillingMode: 'PAY_PER_REQUEST',
-    GlobalSecondaryIndexes: [
-      {
-        IndexName: 'gsi1',
-        KeySchema: [
-          { AttributeName: 'gsi1pk', KeyType: 'HASH' },
-          { AttributeName: 'gsi1sk', KeyType: 'RANGE' },
-        ],
-        Projection: { ProjectionType: 'ALL' },
-      },
-    ],
-  },
 ];
 
 interface SeedCategory {

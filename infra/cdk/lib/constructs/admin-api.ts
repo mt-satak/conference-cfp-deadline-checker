@@ -16,13 +16,12 @@ import { Construct } from 'constructs';
 /**
  * AdminApi Construct のオプション
  *
- * conferences / categories / donations: 管理 API がアクセスする DynamoDB テーブル。
+ * conferences / categories: 管理 API がアクセスする DynamoDB テーブル。
  * これらに対する読み書き権限が Lambda 実行ロールへ自動付与される。
  */
 export interface AdminApiProps {
   readonly conferences: Table;
   readonly categories: Table;
-  readonly donations: Table;
 }
 
 /**
@@ -138,7 +137,6 @@ export class AdminApi extends Construct {
         // 管理 API が参照する DynamoDB テーブル名 (Lambda 実行時に解決)
         DYNAMODB_CONFERENCES_TABLE: props.conferences.tableName,
         DYNAMODB_CATEGORIES_TABLE: props.categories.tableName,
-        DYNAMODB_DONATIONS_TABLE: props.donations.tableName,
         // LLM URL 抽出 (Issue #40 Phase 3): 本番は Bedrock 経由、API キー不要
         LLM_PROVIDER: 'bedrock',
         LLM_MODEL: 'anthropic.claude-sonnet-4-6',
@@ -151,7 +149,6 @@ export class AdminApi extends Construct {
     // grantReadWriteData は GetItem/PutItem/UpdateItem/DeleteItem/Scan/Query 等を許可。
     props.conferences.grantReadWriteData(this.function);
     props.categories.grantReadWriteData(this.function);
-    props.donations.grantReadWriteData(this.function);
 
     // Bedrock InvokeModel 権限を付与 (Issue #40 Phase 3 LLM URL 抽出機能用)。
     // 利用モデルは Claude Sonnet 4.6 (anthropic.claude-sonnet-4-6 系) のみに限定。
