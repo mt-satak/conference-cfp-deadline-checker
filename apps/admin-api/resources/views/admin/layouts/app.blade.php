@@ -27,7 +27,10 @@
                    class="{{ request()->routeIs('admin.categories.*') ? 'font-semibold text-blue-700' : 'text-gray-600 hover:text-gray-900' }}">
                     カテゴリ
                 </a>
-                {{-- Build は後続 PR で追加 --}}
+                <a href="{{ route('admin.build.index') }}"
+                   class="{{ request()->routeIs('admin.build.*') ? 'font-semibold text-blue-700' : 'text-gray-600 hover:text-gray-900' }}">
+                    ビルド
+                </a>
             </nav>
         </div>
     </header>
