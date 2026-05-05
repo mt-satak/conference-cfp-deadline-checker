@@ -7,6 +7,7 @@
  * リクエストごとの API コール（コスト・レイテンシ）を抑える。
  */
 
+import { Buffer } from 'node:buffer';
 import {
   GetSecretValueCommand,
   SecretsManagerClient,
