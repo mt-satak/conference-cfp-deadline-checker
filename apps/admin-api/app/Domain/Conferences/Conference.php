@@ -23,6 +23,10 @@ final readonly class Conference
 {
     /**
      * @param  string[]  $categories  categories.categoryId の配列 (UUID v4)
+     *
+     * status はデフォルト Published。Phase 0.5 (Issue #41) 導入前の既存コール
+     * サイトとの後方互換のため。Draft 状態は明示指定で構築する。
+     * PR-2 で Draft 状態時に他フィールドを nullable 化するスコープ拡張を行う。
      */
     public function __construct(
         public string $conferenceId,
@@ -41,5 +45,6 @@ final readonly class Conference
         public ?string $themeColor,
         public string $createdAt,
         public string $updatedAt,
+        public ConferenceStatus $status = ConferenceStatus::Published,
     ) {}
 }

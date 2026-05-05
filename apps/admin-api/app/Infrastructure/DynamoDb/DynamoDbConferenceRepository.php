@@ -5,6 +5,7 @@ namespace App\Infrastructure\DynamoDb;
 use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceFormat;
 use App\Domain\Conferences\ConferenceRepository;
+use App\Domain\Conferences\ConferenceStatus;
 use Aws\DynamoDb\DynamoDbClient;
 use Aws\DynamoDb\Marshaler;
 use DateTimeImmutable;
@@ -151,6 +152,7 @@ class DynamoDbConferenceRepository implements ConferenceRepository
             'createdAt' => $conference->createdAt,
             'updatedAt' => $conference->updatedAt,
             'ttl' => $this->computeTtl($conference->cfpEndDate),
+            'status' => $conference->status->value,
         ];
 
         // optional フィールドは null の場合は項目自体を載せない
@@ -206,7 +208,26 @@ class DynamoDbConferenceRepository implements ConferenceRepository
             themeColor: $this->nullableString($item, 'themeColor'),
             createdAt: $this->stringify($item, 'createdAt'),
             updatedAt: $this->stringify($item, 'updatedAt'),
+            status: $this->resolveStatus($item),
         );
+    }
+
+    /**
+     * status 属性を ConferenceStatus enum に解決する。
+     *
+     * 後方互換のため、属性欠落 (Phase 0.5 導入前のレガシーアイテム) または
+     * 未知値は Published に丸めて fail-safe 復元する。例外は投げない。
+     *
+     * @param  array<string, mixed>  $item
+     */
+    private function resolveStatus(array $item): ConferenceStatus
+    {
+        $value = $item['status'] ?? null;
+        if (! is_string($value)) {
+            return ConferenceStatus::Published;
+        }
+
+        return ConferenceStatus::tryFrom($value) ?? ConferenceStatus::Published;
     }
 
     /**
