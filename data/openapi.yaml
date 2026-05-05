@@ -100,13 +100,17 @@ paths:
           in: query
           required: false
           description: |
-            CfP の状態でフィルタ:
-            - upcoming: cfpStartDate > 今日 (応募開始前)
-            - active: cfpStartDate <= 今日 <= cfpEndDate (応募受付中)
-            - closed: cfpEndDate < 今日 (応募締切済み、参考情報)
+            ライフサイクル状態でフィルタ (Phase 0.5 / Issue #41):
+            - published: 公開中。公開フロントエンドにも露出する確定状態
+            - draft: 下書き。仮登録 (CfP 期間未確定や LLM 抽出結果のレビュー待ち) で、
+              公開フロントエンドには露出しない
+            未指定時は両方を返す。未知値は無視して両方を返す (fail-soft)。
+
+            cfpStartDate / cfpEndDate ベースの「応募受付中」フィルタは別途実装予定
+            (本コミット時点では未実装)。
           schema:
             type: string
-            enum: [upcoming, active, closed]
+            enum: [draft, published]
         - name: sort
           in: query
           required: false
@@ -898,19 +902,27 @@ components:
     # ── Conference (応答用フル) ──
     Conference:
       type: object
+      description: |
+        カンファレンス情報。Phase 0.5 (Issue #41) で `status` が導入され、
+        Draft (下書き) と Published (公開中) の 2 状態を持つ。
+
+        - **status=published**: 全 9 必須項目 (cfpUrl, eventStartDate, eventEndDate,
+          venue, format, cfpEndDate, categories) が非 null として確定している
+        - **status=draft**: name + officialUrl + status のみ確実に値があり、
+          それ以外は null / 空配列の可能性がある (CfP 期間未確定 / LLM 抽出途中
+          / 公開待ち等を表現)
+
+        旧データ (Phase 0.5 導入前に作成された Conference) は status 属性が
+        欠落しているが、サーバー側で読み込み時に Published として復元される
+        (後方互換)。
       required:
         - conferenceId
         - name
         - officialUrl
-        - cfpUrl
-        - eventStartDate
-        - eventEndDate
-        - venue
-        - format
-        - cfpEndDate
         - categories
         - createdAt
         - updatedAt
+        - status
       properties:
         conferenceId:
           type: string
@@ -920,67 +932,91 @@ components:
           type: string
           minLength: 1
           maxLength: 200
-          description: カンファレンス名
+          description: カンファレンス名 (両状態で必須)
         trackName:
           type: string
+          nullable: true
           maxLength: 100
           description: トラック名 (複数 CfP がある場合のみ)
         officialUrl:
           type: string
           format: uri
           pattern: '^https://'
-          description: 公式サイト URL (https のみ)
+          description: 公式サイト URL (両状態で必須、https のみ)
         cfpUrl:
           type: string
           format: uri
+          nullable: true
           pattern: '^https://'
-          description: CfP 応募ページ URL (https のみ)
+          description: CfP 応募ページ URL (Published で必須、Draft は null 可)
         eventStartDate:
           type: string
           format: date
-          description: 開催開始日 (JST)
+          nullable: true
+          description: 開催開始日 (JST、Published で必須、Draft は null 可)
         eventEndDate:
           type: string
           format: date
-          description: 開催終了日 (JST)
+          nullable: true
+          description: 開催終了日 (JST、Published で必須、Draft は null 可)
         venue:
           type: string
+          nullable: true
           minLength: 1
           maxLength: 100
-          description: 開催地 (例 "東京", "オンライン")
+          description: 開催地 (例 "東京", "オンライン"、Published で必須)
         format:
           type: string
+          nullable: true
           enum: [online, offline, hybrid]
+          description: 開催形式 (Published で必須、Draft は null 可)
         cfpStartDate:
           type: string
           format: date
-          description: CfP 開始日 (任意。不明時は省略)
+          nullable: true
+          description: CfP 開始日 (両状態で任意。不明時は null)
         cfpEndDate:
           type: string
           format: date
-          description: CfP 締切日 (JST 23:59 を期限とする)
+          nullable: true
+          description: |
+            CfP 締切日 (JST 23:59 を期限とする)。
+            Published で必須、Draft は null 可。
         categories:
           type: array
-          minItems: 1
           items:
             type: string
             format: uuid
-          description: categories.categoryId の配列
+          description: |
+            categories.categoryId の配列。
+            Published では minItems: 1 (HTTP 層 FormRequest で検証)、
+            Draft では空配列可。
+        status:
+          type: string
+          enum: [draft, published]
+          description: |
+            ライフサイクル状態 (Phase 0.5 / Issue #41 導入)。
+            - draft: 仮登録、公開フロントエンドには露出しない
+            - published: 公開中
         description:
           type: string
+          nullable: true
           maxLength: 2000
           description: 概要・備考 (HTML 不可、プレーンテキストのみ)
         themeColor:
           type: string
+          nullable: true
           pattern: '^#[0-9a-fA-F]{6}$'
           description: HEX カラー (例 "#FF6B6B")
         ttl:
           type: integer
+          nullable: true
           readOnly: true
           description: |
             DynamoDB TTL 用 UNIX タイムスタンプ (サーバー側で算出)。
             cfpEndDate の翌日 00:00 JST を UNIX タイムスタンプ化した値。
-            cfpEndDate を PUT で更新した場合は自動的に再計算される。
+            cfpEndDate が null の場合 (= Draft で未確定) は ttl も付かないため
+            Draft アイテムは TTL による自動削除を受けない。
         createdAt:
           type: string
           format: date-time
@@ -996,14 +1032,12 @@ components:
       required:
         - name
         - officialUrl
-        - cfpUrl
-        - eventStartDate
-        - eventEndDate
-        - venue
-        - format
-        - cfpEndDate
-        - categories
       properties:
+        status:
+          $ref: '#/components/schemas/Conference/properties/status'
+          description: |
+            省略時は published (= 後方互換)。draft 指定時は cfpUrl 等の
+            Published 必須項目を省略可能。
         name:
           $ref: '#/components/schemas/Conference/properties/name'
         trackName:
@@ -1031,26 +1065,46 @@ components:
         themeColor:
           $ref: '#/components/schemas/Conference/properties/themeColor'
       description: |
-        以下の整合性ルールがサーバー側で検証される (違反は 422):
-        - cfpStartDate <= cfpEndDate (cfpStartDate 指定時)
-        - cfpEndDate <= eventStartDate
-        - eventStartDate <= eventEndDate
-        - categories の各 ID が categories テーブルに存在
+        Phase 0.5 (Issue #41) で status による条件分岐バリデーションを導入:
+
+        - **status=draft**: name + officialUrl のみ必須 (それ以外はすべて任意)。
+          仮登録 (CfP 期間未確定 / LLM 抽出結果のレビュー前 / 公開待ち) を表現。
+        - **status=published** (省略時のデフォルト): 従来通り全 9 項目必須
+          (cfpUrl, eventStartDate, eventEndDate, venue, format, cfpEndDate,
+          categories minItems: 1) + 整合性ルール:
+            - cfpStartDate <= cfpEndDate (cfpStartDate 指定時)
+            - cfpEndDate <= eventStartDate
+            - eventStartDate <= eventEndDate
+            - categories の各 ID が categories テーブルに存在
 
     # ── Conference (更新用、全フィールド任意) ──
     ConferenceUpdate:
       type: object
       description: |
         部分更新 (PATCH 相当) を PUT で許容する。指定されたフィールドのみ更新。
-        整合性ルールは ConferenceCreate と同じ。
+
+        Phase 0.5 (Issue #41) 後の挙動:
+        - status を含めて全フィールドが任意 (sometimes)
+        - cfpUrl 等の Published 必須項目は null 許容で送信可能 (Draft 化の途中状態)
+        - status='published' で更新すると Published 整合性ルールが適用される
+        - status='draft' に変更する操作は技術的に可能だが、運用上は Issue #41 で
+          「published → draft 取り下げは当面サポート対象外」としている。
+          Admin UI の編集フォームでも下書き保存ボタンから事実上可能なため、
+          意図しない取り下げが起きないよう運用側で注意 (将来 UI 抑制を検討)
+
+        整合性ルール (status='published' 更新時):
+        - cfpStartDate <= cfpEndDate (cfpStartDate 指定時)
+        - cfpEndDate <= eventStartDate
+        - eventStartDate <= eventEndDate
+        - categories の各 ID が categories テーブルに存在
 
         サーバー側挙動の注意点:
         - cfpEndDate を更新した場合、サーバーは ttl 属性を再計算する
           (新しい cfpEndDate の翌日 00:00 JST を UNIX タイムスタンプ化)。
-        - categories を空配列で送ると minItems: 1 に違反するため 422 を返す。
-          カテゴリを完全に剥がしたい場合は最低 1 件の categoryId を残す必要がある
-          (運用上「未分類」相当のカテゴリを 1 件持っておくと運用が楽)。
+          cfpEndDate を null に更新した場合は ttl 属性も外す (= 自動削除されない)。
       properties:
+        status:
+          $ref: '#/components/schemas/Conference/properties/status'
         name:
           $ref: '#/components/schemas/Conference/properties/name'
         trackName:

@@ -71,6 +71,62 @@ php artisan categories:seed --source=path/to/file.json
 - DynamoDB Local 向け: `make db-up && make db-init` 後にこのコマンドを実行
 - 本番 AWS 向け Bref Console handler 化は Phase 2 で対応予定
 
+## カンファレンスの Draft / Published 状態 (Phase 0.5)
+
+カンファレンスは 2 つのライフサイクル状態を持つ (Issue #41 で導入):
+
+| 状態 | 用途 | 必須項目 |
+|---|---|---|
+| **Published** (公開中) | 確定したカンファレンス。公開フロントエンドにも露出する | name / officialUrl / cfpUrl / eventStartDate / eventEndDate / venue / format / cfpEndDate / categories (≥1) |
+| **Draft** (下書き) | CfP 期間未確定の仮登録、LLM 抽出結果のレビュー前置き場 (Phase 3 想定)、公開待ち | name / officialUrl のみ |
+
+### Admin UI での操作
+
+- 一覧画面 `/admin/conferences` 上部の「すべて / 公開中 / 下書き」タブで状態フィルタ
+- 各行に色付きバッジで状態を表示 (緑=公開中、グレー=下書き)
+- 編集フォームの送信ボタンが 2 つ:
+  - **下書き保存**: name + officialUrl だけ埋まっていれば保存可能
+  - **公開する**: 従来通り全 9 必須項目 + 整合性ルール (URL https / 日付順序 / 等) を要求
+- 一覧の Draft 行に「公開する」ショートカットがあり、編集画面を経由せず 1 クリックで Published に昇格
+  - 必須項目欠落時は edit 画面に戻り、不足項目をエラーフラッシュで提示
+
+### API で Draft を扱う
+
+```sh
+# Draft で最小作成
+curl -X POST http://127.0.0.1:8080/admin/api/conferences \
+  -H 'Content-Type: application/json' \
+  -d '{"status":"draft","name":"PHPカンファレンス2027","officialUrl":"https://phpcon.example.com/2027"}'
+
+# Draft 一覧フィルタ
+curl 'http://127.0.0.1:8080/admin/api/conferences?status=draft'
+
+# Draft → Published 昇格 (PUT)
+curl -X PUT http://127.0.0.1:8080/admin/api/conferences/{id} \
+  -H 'Content-Type: application/json' \
+  -d '{"status":"published"}'
+```
+
+詳細は `data/openapi.yaml` の Conference / ConferenceCreate / ConferenceUpdate スキーマ参照。
+
+### データ後方互換
+
+Phase 0.5 導入前に作成された旧 Conference アイテム (DynamoDB に `status` 属性が無い) は、Repository 読み込み時に Published として復元される (`DynamoDbConferenceRepository::resolveStatus()` の fail-safe 処理)。マイグレーション不要。
+
+### TTL の挙動
+
+- Published: `cfpEndDate` 翌日 00:00 JST を UNIX タイムスタンプ化した値が `ttl` 属性に付与され、DynamoDB が自動削除
+- Draft (`cfpEndDate` が null): `ttl` 属性なし → 自動削除されない (= CfP 発表まで残せる)
+- Draft → Published 昇格時: `save()` 再発行で `ttl` が後付けされる
+
+### 現状の制約 / 注意点 (Phase 0.5 で残されている課題)
+
+1. **Published → Draft 取り下げが UI 上技術的に可能**:
+   Issue #41 では「published → draft 取り下げは当面サポートしない (将来検討)」としたが、編集フォームの「下書き保存」ボタンは status を draft にして保存するため、結果として取り下げが可能になっている。意図しない取り下げが起きないよう運用注意。将来必要なら UI 側で抑制する別 Issue を立てる。
+2. **公開フロントエンド側の Draft 除外**: published のみ返す API/フロント実装は Astro 側着手時に対応 (Issue #41 Out of Scope)。
+3. **status 変更の audit log**: 誰がいつ Draft → Published に昇格させたかの記録は持たない。必要になったら別 Issue。
+4. **ベース seed (Issue #40 Phase 1) は本機能完了後**: 30+ 件の `data/seeds/conferences.json` 投入は別 PR で対応 (Phase 1)。
+
 ## テスト
 
 | コマンド | 内容 |
