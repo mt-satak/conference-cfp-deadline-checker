@@ -6,11 +6,36 @@
     @php
         /** @var \App\Domain\Conferences\Conference[] $conferences */
         /** @var ?string $statusFilter */
+        /** @var string $sortKey */
+        /** @var string $sortOrder */
         $tabs = [
             ['label' => 'すべて', 'value' => null],
             ['label' => '公開中', 'value' => 'published'],
             ['label' => '下書き', 'value' => 'draft'],
         ];
+
+        // 列ヘッダのソートリンク URL を生成。
+        // - 同じキーをクリック → order を反転 (asc ⇄ desc)
+        // - 別キーをクリック → asc (= 新しいキーでまず昇順)
+        // status フィルタも同時に保持する (active なフィルタを維持したまま並び替え)。
+        $sortUrl = static function (string $key) use ($sortKey, $sortOrder, $statusFilter): string {
+            $nextOrder = ($key === $sortKey && $sortOrder === 'asc') ? 'desc' : 'asc';
+            $params = ['sort' => $key, 'order' => $nextOrder];
+            if ($statusFilter !== null) {
+                $params['status'] = $statusFilter;
+            }
+
+            return route('admin.conferences.index').'?'.http_build_query($params);
+        };
+
+        // 列ヘッダで現在のソートキーかつ方向を視覚化する記号 (▲ asc / ▼ desc)
+        $sortIndicator = static function (string $key) use ($sortKey, $sortOrder): string {
+            if ($key !== $sortKey) {
+                return '';
+            }
+
+            return $sortOrder === 'desc' ? ' ▼' : ' ▲';
+        };
     @endphp
 
     <div class="mb-4 flex items-center justify-between">
@@ -46,10 +71,16 @@
             <table class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead class="bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
                     <tr>
-                        <th class="px-4 py-3">名称</th>
+                        <th class="px-4 py-3">
+                            <a href="{{ $sortUrl('name') }}" class="hover:text-gray-900">名称{{ $sortIndicator('name') }}</a>
+                        </th>
                         <th class="px-4 py-3">状態</th>
-                        <th class="px-4 py-3">CfP 締切</th>
-                        <th class="px-4 py-3">開催日</th>
+                        <th class="px-4 py-3">
+                            <a href="{{ $sortUrl('cfpEndDate') }}" class="hover:text-gray-900">CfP 締切{{ $sortIndicator('cfpEndDate') }}</a>
+                        </th>
+                        <th class="px-4 py-3">
+                            <a href="{{ $sortUrl('eventStartDate') }}" class="hover:text-gray-900">開催日{{ $sortIndicator('eventStartDate') }}</a>
+                        </th>
                         <th class="px-4 py-3">形式</th>
                         <th class="px-4 py-3">カテゴリ数</th>
                         <th class="px-4 py-3 text-right">操作</th>

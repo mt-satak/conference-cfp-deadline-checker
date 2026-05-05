@@ -12,7 +12,9 @@ use App\Application\Conferences\UpdateConferenceUseCase;
 use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceFormat;
 use App\Domain\Conferences\ConferenceNotFoundException;
+use App\Domain\Conferences\ConferenceSortKey;
 use App\Domain\Conferences\ConferenceStatus;
+use App\Domain\Conferences\SortOrder;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Conferences\StoreConferenceRequest;
 use App\Http\Requests\Conferences\UpdateConferenceRequest;
@@ -39,19 +41,32 @@ class ConferenceController extends Controller
      *
      * クエリパラメータ:
      * - ?status=draft|published: status バッジによるフィルタ (Phase 0.5 / Issue #41)
-     * 未知 status 値は無視 = 全件返却 (= API Controller と同じ fail-soft)。
+     * - ?sort=cfpEndDate|eventStartDate|cfpStartDate|name|createdAt: ソートキー (Issue #47 Phase A)
+     * - ?order=asc|desc: 並び順 (Issue #47 Phase A)
+     * 未知値は無視して既定挙動 (= API Controller と同じ fail-soft)。
      */
     public function index(Request $request, ListConferencesUseCase $useCase): View
     {
         $statusParam = $request->query('status');
         $statusFilter = is_string($statusParam) ? ConferenceStatus::tryFrom($statusParam) : null;
 
-        $conferences = $useCase->execute($statusFilter);
+        $sortParam = $request->query('sort');
+        $sortKey = is_string($sortParam) ? ConferenceSortKey::tryFrom($sortParam) : null;
+
+        $orderParam = $request->query('order');
+        $order = is_string($orderParam)
+            ? (SortOrder::tryFrom($orderParam) ?? SortOrder::Asc)
+            : SortOrder::Asc;
+
+        $conferences = $useCase->execute($statusFilter, $sortKey, $order);
 
         return view('admin.conferences.index', [
             'conferences' => $conferences,
             // Blade 側でフィルタタブのアクティブ判定に使う (string 値)
             'statusFilter' => $statusFilter?->value,
+            // Blade 側で列ヘッダの「現在のソート」表示と次にクリックした時の order 反転に使う
+            'sortKey' => ($sortKey ?? ConferenceSortKey::CfpEndDate)->value,
+            'sortOrder' => $order->value,
         ]);
     }
 

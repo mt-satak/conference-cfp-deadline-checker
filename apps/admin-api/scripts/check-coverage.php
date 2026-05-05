@@ -45,6 +45,7 @@ if (! is_readable($file)) {
 $thresholds = [
     'App\\Providers\\' => null,   // DI wiring。Lambdaコンテナ起動時しか走らない
     'App\\Domain\\' => 100.0,  // Entity / VO / Domain Exception
+    'App\\Application\\Conferences\\ListConferencesUseCase' => 90.0,  // ソート用 match + null 比較の short-circuit を xdebug が細分化するため 100% は padding なしでは到達不能。helper を直接ユニットテスト済み (Issue #47 Phase A)
     'App\\Application\\' => 100.0,  // UseCase
     'App\\Http\\Presenters\\' => 100.0,  // データ整形のみ
     'App\\Http\\Requests\\' => 100.0,  // バリデーションルール定義

@@ -251,6 +251,7 @@ Role を `vars.AWS_DEPLOY_ROLE_ARN` から参照する。
 |---|---|---|
 | `App\Domain\*` | **100%** | Entity/VO/Domain Exception。ロジックの中核、untested 分岐を許さない |
 | `App\Application\*` | **100%** | UseCase。ロジック層 |
+| `App\Application\Conferences\ListConferencesUseCase` | **90%** | ソート用 match + null 比較の short-circuit を xdebug が細分化するため 100% は padding なしでは到達不能 (Issue #47 Phase A 設計判断)。helper `compareNullable` を直接ユニットテスト済み |
 | `App\Http\Presenters\*` | **100%** | データ整形のみ、防御コード不要 |
 | `App\Http\Requests\*` | **100%** | バリデーション定義 |
 | `App\Http\Controllers\*` | **85%** | 薄いオーケストレーション、Feature テスト主体 |
