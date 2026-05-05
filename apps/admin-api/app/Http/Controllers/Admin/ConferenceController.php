@@ -11,6 +11,7 @@ use App\Application\Conferences\ListConferencesUseCase;
 use App\Application\Conferences\UpdateConferenceUseCase;
 use App\Domain\Conferences\ConferenceFormat;
 use App\Domain\Conferences\ConferenceNotFoundException;
+use App\Domain\Conferences\ConferenceStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Conferences\StoreConferenceRequest;
 use App\Http\Requests\Conferences\UpdateConferenceRequest;
@@ -62,20 +63,27 @@ class ConferenceController extends Controller
     {
         $v = $request->validated();
 
+        // status 省略時は Published (= 後方互換)。Phase 0.5 (Issue #41) で nullable 受付化。
+        $status = isset($v['status'])
+            ? (ConferenceStatus::tryFrom($v['status']) ?? ConferenceStatus::Published)
+            : ConferenceStatus::Published;
+
+        $formatRaw = $v['format'] ?? null;
         $input = new CreateConferenceInput(
             name: $v['name'],
             trackName: $v['trackName'] ?? null,
             officialUrl: $v['officialUrl'],
-            cfpUrl: $v['cfpUrl'],
-            eventStartDate: $v['eventStartDate'],
-            eventEndDate: $v['eventEndDate'],
-            venue: $v['venue'],
-            format: ConferenceFormat::from($v['format']),
+            cfpUrl: $v['cfpUrl'] ?? null,
+            eventStartDate: $v['eventStartDate'] ?? null,
+            eventEndDate: $v['eventEndDate'] ?? null,
+            venue: $v['venue'] ?? null,
+            format: $formatRaw !== null ? ConferenceFormat::from($formatRaw) : null,
             cfpStartDate: $v['cfpStartDate'] ?? null,
-            cfpEndDate: $v['cfpEndDate'],
-            categories: $v['categories'],
+            cfpEndDate: $v['cfpEndDate'] ?? null,
+            categories: $v['categories'] ?? [],
             description: $v['description'] ?? null,
             themeColor: $v['themeColor'] ?? null,
+            status: $status,
         );
 
         $conference = $useCase->execute($input);
@@ -116,26 +124,31 @@ class ConferenceController extends Controller
     ): RedirectResponse {
         $validated = $request->validated();
 
-        // ConferenceController (API) と同じ「format 変換 + typed shape」パターン。
+        // ConferenceController (API) と同じ「format / status 変換 + typed shape」パターン。
+        // Phase 0.5 (Issue #41) で cfpUrl 等を nullable 受付化、status 受付追加。
         /** @var array{
+         *     status?: ConferenceStatus,
          *     name?: string,
          *     trackName?: string|null,
          *     officialUrl?: string,
-         *     cfpUrl?: string,
-         *     eventStartDate?: string,
-         *     eventEndDate?: string,
-         *     venue?: string,
-         *     format?: ConferenceFormat,
+         *     cfpUrl?: string|null,
+         *     eventStartDate?: string|null,
+         *     eventEndDate?: string|null,
+         *     venue?: string|null,
+         *     format?: ConferenceFormat|null,
          *     cfpStartDate?: string|null,
-         *     cfpEndDate?: string,
+         *     cfpEndDate?: string|null,
          *     categories?: array<int, string>,
          *     description?: string|null,
          *     themeColor?: string|null,
          * } $fields
          */
         $fields = $validated;
-        if (isset($validated['format'])) {
-            $fields['format'] = ConferenceFormat::from($validated['format']);
+        if (array_key_exists('format', $validated)) {
+            $fields['format'] = $validated['format'] !== null ? ConferenceFormat::from($validated['format']) : null;
+        }
+        if (isset($validated['status'])) {
+            $fields['status'] = ConferenceStatus::from($validated['status']);
         }
 
         try {

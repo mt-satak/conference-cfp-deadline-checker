@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Conferences;
 
 use App\Domain\Conferences\ConferenceFormat;
+use App\Domain\Conferences\ConferenceStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -33,18 +34,20 @@ class UpdateConferenceRequest extends FormRequest
     {
         // sometimes ルールで「キーが存在する場合のみ後続ルールを適用」する。
         // これにより部分更新セマンティクスが実現できる。
+        // Phase 0.5 (Issue #41) で cfpUrl 等を nullable 受付に拡張、status 受付追加。
         return [
+            'status' => ['sometimes', Rule::in(array_column(ConferenceStatus::cases(), 'value'))],
             'name' => ['sometimes', 'string', 'min:1', 'max:200'],
             'trackName' => ['sometimes', 'nullable', 'string', 'max:100'],
             'officialUrl' => ['sometimes', 'string', 'url:https'],
-            'cfpUrl' => ['sometimes', 'string', 'url:https'],
-            'eventStartDate' => ['sometimes', 'date_format:Y-m-d'],
-            'eventEndDate' => ['sometimes', 'date_format:Y-m-d'],
-            'venue' => ['sometimes', 'string', 'min:1', 'max:100'],
-            'format' => ['sometimes', Rule::in(array_column(ConferenceFormat::cases(), 'value'))],
+            'cfpUrl' => ['sometimes', 'nullable', 'string', 'url:https'],
+            'eventStartDate' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'eventEndDate' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'venue' => ['sometimes', 'nullable', 'string', 'min:1', 'max:100'],
+            'format' => ['sometimes', 'nullable', Rule::in(array_column(ConferenceFormat::cases(), 'value'))],
             'cfpStartDate' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
-            'cfpEndDate' => ['sometimes', 'date_format:Y-m-d'],
-            'categories' => ['sometimes', 'array', 'min:1'],
+            'cfpEndDate' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'categories' => ['sometimes', 'array'],
             'categories.*' => ['string', 'uuid'],
             'description' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'themeColor' => ['sometimes', 'nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
@@ -55,17 +58,20 @@ class UpdateConferenceRequest extends FormRequest
      * 部分更新セマンティクス: すべてのキーが optional。
      * StoreConferenceRequest::validated() の解説参照。
      *
+     * Phase 0.5 (Issue #41) で cfpUrl 等を string|null union に変更、status を追加。
+     *
      * @return array{
+     *     status?: string,
      *     name?: string,
      *     trackName?: string|null,
      *     officialUrl?: string,
-     *     cfpUrl?: string,
-     *     eventStartDate?: string,
-     *     eventEndDate?: string,
-     *     venue?: string,
-     *     format?: string,
+     *     cfpUrl?: string|null,
+     *     eventStartDate?: string|null,
+     *     eventEndDate?: string|null,
+     *     venue?: string|null,
+     *     format?: string|null,
      *     cfpStartDate?: string|null,
-     *     cfpEndDate?: string,
+     *     cfpEndDate?: string|null,
      *     categories?: array<int, string>,
      *     description?: string|null,
      *     themeColor?: string|null,
@@ -74,16 +80,17 @@ class UpdateConferenceRequest extends FormRequest
     public function validated($key = null, $default = null): array
     {
         /** @var array{
+         *     status?: string,
          *     name?: string,
          *     trackName?: string|null,
          *     officialUrl?: string,
-         *     cfpUrl?: string,
-         *     eventStartDate?: string,
-         *     eventEndDate?: string,
-         *     venue?: string,
-         *     format?: string,
+         *     cfpUrl?: string|null,
+         *     eventStartDate?: string|null,
+         *     eventEndDate?: string|null,
+         *     venue?: string|null,
+         *     format?: string|null,
          *     cfpStartDate?: string|null,
-         *     cfpEndDate?: string,
+         *     cfpEndDate?: string|null,
          *     categories?: array<int, string>,
          *     description?: string|null,
          *     themeColor?: string|null,

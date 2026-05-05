@@ -425,6 +425,87 @@ it('findById は status 属性が欠落したアイテムを Published として
     expect($result->status)->toBe(ConferenceStatus::Published);
 });
 
+it('save は Draft (cfpEndDate=null) アイテムでは ttl 属性を付与しない', function () {
+    // Given: cfpEndDate を含む Published 必須項目すべてを null にした Draft Conference
+    [$client, $repository] = makeMockedRepo();
+    $conference = new Conference(
+        conferenceId: 'draft-no-ttl',
+        name: 'CfP 未確定',
+        trackName: null,
+        officialUrl: 'https://draft.example.com',
+        cfpUrl: null,
+        eventStartDate: null,
+        eventEndDate: null,
+        venue: null,
+        format: null,
+        cfpStartDate: null,
+        cfpEndDate: null,
+        categories: [],
+        description: null,
+        themeColor: null,
+        createdAt: '2026-04-15T10:30:00+09:00',
+        updatedAt: '2026-04-15T10:30:00+09:00',
+        status: ConferenceStatus::Draft,
+    );
+    $captured = null;
+    $client->shouldReceive('putItem')
+        ->once()
+        ->with(Mockery::on(function ($args) use (&$captured) {
+            $captured = $args;
+
+            return true;
+        }))
+        ->andReturn(new Result([]));
+
+    // When
+    $repository->save($conference);
+
+    // Then: ttl が付かず、Published 必須属性も付かない
+    /** @var array<string, mixed> $captured */
+    expect($captured)->not->toBeNull();
+    $item = (new Marshaler)->unmarshalItem($captured['Item']);
+    expect($item)->not->toHaveKey('ttl');
+    expect($item)->not->toHaveKey('cfpEndDate');
+    expect($item)->not->toHaveKey('cfpUrl');
+    expect($item)->not->toHaveKey('eventStartDate');
+    expect($item)->not->toHaveKey('eventEndDate');
+    expect($item)->not->toHaveKey('venue');
+    expect($item)->not->toHaveKey('format');
+    expect($item['status'])->toBe('draft');
+});
+
+it('findById は cfpUrl 等の任意属性が欠落した Draft アイテムを null で復元する', function () {
+    // Given: Draft 用に Published 必須属性を欠落させた DynamoDB アイテム
+    [$client, $repository] = makeMockedRepo();
+    $item = makeMarshalledItem([
+        'conferenceId' => 'draft-id',
+        'name' => 'Draft カンファ',
+        'officialUrl' => 'https://draft.example.com',
+        'categories' => [],
+        'createdAt' => '2026-04-15T10:30:00+09:00',
+        'updatedAt' => '2026-04-15T10:30:00+09:00',
+        'status' => 'draft',
+        // cfpUrl, eventStartDate, eventEndDate, venue, format, cfpEndDate は不在
+    ]);
+    $client->shouldReceive('getItem')
+        ->once()
+        ->andReturn(new Result(['Item' => $item]));
+
+    // When
+    $result = $repository->findById('draft-id');
+
+    // Then: 各任意フィールドが null で復元され、status が Draft
+    expect($result)->toBeInstanceOf(Conference::class);
+    expect($result->cfpUrl)->toBeNull();
+    expect($result->eventStartDate)->toBeNull();
+    expect($result->eventEndDate)->toBeNull();
+    expect($result->venue)->toBeNull();
+    expect($result->format)->toBeNull();
+    expect($result->cfpEndDate)->toBeNull();
+    expect($result->categories)->toBe([]);
+    expect($result->status)->toBe(ConferenceStatus::Draft);
+});
+
 it('findById は status に未知の文字列があったら Published で fail-safe 復元する', function () {
     // Given: status='archived' のような未知値を持つアイテム
     [$client, $repository] = makeMockedRepo();

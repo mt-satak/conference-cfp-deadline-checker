@@ -6,6 +6,7 @@ use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceFormat;
 use App\Domain\Conferences\ConferenceNotFoundException;
 use App\Domain\Conferences\ConferenceRepository;
+use App\Domain\Conferences\ConferenceStatus;
 use Illuminate\Support\Carbon;
 
 /**
@@ -30,22 +31,25 @@ class UpdateConferenceUseCase
 
     /**
      * 部分更新の入力 shape は UpdateConferenceRequest::validated() と同じ
-     * (Controller で format のみ enum 化済み)。型 narrowing のため明示。
+     * (Controller で format のみ enum 化、status も enum 化済み)。型 narrowing のため明示。
+     *
+     * Phase 0.5 (Issue #41) で cfpUrl 等を Nullable 化、status を受付対象に追加。
      *
      * @param  array{
      *     name?: string,
      *     trackName?: string|null,
      *     officialUrl?: string,
-     *     cfpUrl?: string,
-     *     eventStartDate?: string,
-     *     eventEndDate?: string,
-     *     venue?: string,
-     *     format?: ConferenceFormat,
+     *     cfpUrl?: string|null,
+     *     eventStartDate?: string|null,
+     *     eventEndDate?: string|null,
+     *     venue?: string|null,
+     *     format?: ConferenceFormat|null,
      *     cfpStartDate?: string|null,
-     *     cfpEndDate?: string,
+     *     cfpEndDate?: string|null,
      *     categories?: array<int, string>,
      *     description?: string|null,
      *     themeColor?: string|null,
+     *     status?: ConferenceStatus,
      * }  $fields
      *
      * @throws ConferenceNotFoundException
@@ -59,7 +63,7 @@ class UpdateConferenceUseCase
 
         // 既存値で全フィールドを埋め、入力 array に含まれるキーだけ上書きする。
         // array_merge で「キー不在 = 既存値維持、値 null = 明示的に null セット」を
-        // 自然に表現でき、フィールド毎の if 分岐 (= branch coverage 数 × 13) を
+        // 自然に表現でき、フィールド毎の if 分岐 (= branch coverage 数 × 14) を
         // 1 箇所のマージに集約できる。
         $args = [
             'conferenceId' => $existing->conferenceId,
@@ -78,6 +82,7 @@ class UpdateConferenceUseCase
             'themeColor' => $existing->themeColor,
             'createdAt' => $existing->createdAt,
             'updatedAt' => Carbon::now('Asia/Tokyo')->toIso8601String(),
+            'status' => $existing->status,
         ];
         $args = array_merge($args, $fields);
 
@@ -87,18 +92,19 @@ class UpdateConferenceUseCase
          *     name: string,
          *     trackName: string|null,
          *     officialUrl: string,
-         *     cfpUrl: string,
-         *     eventStartDate: string,
-         *     eventEndDate: string,
-         *     venue: string,
-         *     format: ConferenceFormat,
+         *     cfpUrl: string|null,
+         *     eventStartDate: string|null,
+         *     eventEndDate: string|null,
+         *     venue: string|null,
+         *     format: ConferenceFormat|null,
          *     cfpStartDate: string|null,
-         *     cfpEndDate: string,
+         *     cfpEndDate: string|null,
          *     categories: array<int, string>,
          *     description: string|null,
          *     themeColor: string|null,
          *     createdAt: string,
          *     updatedAt: string,
+         *     status: ConferenceStatus,
          * } $args
          */
         $updated = new Conference(...$args);

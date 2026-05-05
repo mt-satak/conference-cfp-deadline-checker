@@ -7,6 +7,7 @@ use App\Domain\Categories\Category;
 use App\Domain\Categories\CategoryAxis;
 use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceFormat;
+use App\Domain\Conferences\ConferenceStatus;
 use App\Http\Middleware\VerifyOrigin;
 
 /**
@@ -114,4 +115,54 @@ it('POST /admin/conferences はバリデーション違反時に 422/302 で戻�
     // Then: 302 with validation errors flashed
     $response->assertStatus(302);
     $response->assertSessionHasErrors(['name', 'officialUrl', 'cfpUrl', 'eventStartDate', 'venue', 'format']);
+});
+
+it('POST /admin/conferences は status=draft + 最小入力で成功 (Phase 0.5)', function () {
+    // Given: Draft の最小入力 + UseCase が Draft Conference を返す
+    bindListCategoriesUseCaseStub([]);
+    $captured = null;
+    $useCase = Mockery::mock(CreateConferenceUseCase::class);
+    $useCase->shouldReceive('execute')
+        ->once()
+        ->with(Mockery::on(function (CreateConferenceInput $input) use (&$captured): bool {
+            $captured = $input;
+
+            return true;
+        }))
+        ->andReturn(new Conference(
+            conferenceId: 'draft-id',
+            name: 'Draft カンファ',
+            trackName: null,
+            officialUrl: 'https://draft.example.com',
+            cfpUrl: null,
+            eventStartDate: null,
+            eventEndDate: null,
+            venue: null,
+            format: null,
+            cfpStartDate: null,
+            cfpEndDate: null,
+            categories: [],
+            description: null,
+            themeColor: null,
+            createdAt: '2026-05-04T10:00:00+09:00',
+            updatedAt: '2026-05-04T10:00:00+09:00',
+            status: ConferenceStatus::Draft,
+        ));
+    app()->instance(CreateConferenceUseCase::class, $useCase);
+
+    // When: status=draft で最小フィールドだけ送信
+    $response = $this->post('/admin/conferences', [
+        'status' => 'draft',
+        'name' => 'Draft カンファ',
+        'officialUrl' => 'https://draft.example.com',
+    ]);
+
+    // Then: redirect 成功 + Input は Draft + null 多数
+    $response->assertStatus(302);
+    $response->assertRedirect('/admin/conferences');
+    expect($captured)->toBeInstanceOf(CreateConferenceInput::class);
+    expect($captured->status)->toBe(ConferenceStatus::Draft);
+    expect($captured->cfpEndDate)->toBeNull();
+    expect($captured->format)->toBeNull();
+    expect($captured->categories)->toBe([]);
 });

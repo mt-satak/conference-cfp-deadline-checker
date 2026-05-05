@@ -4,6 +4,7 @@ use App\Application\Conferences\UpdateConferenceUseCase;
 use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceFormat;
 use App\Domain\Conferences\ConferenceNotFoundException;
+use App\Domain\Conferences\ConferenceStatus;
 use App\Http\Middleware\VerifyOrigin;
 
 /**
@@ -117,4 +118,90 @@ it('PUT で format が enum 列挙外だと 422', function () {
     $response->assertStatus(422);
     $fields = collect($response->json('error.details'))->pluck('field')->all();
     expect($fields)->toContain('format');
+});
+
+it('PUT で status を published に更新できる (Phase 0.5: Draft → Published 昇格)', function () {
+    // Given: 既存 Draft Conference を Published 化する更新
+    $captured = null;
+    $useCase = Mockery::mock(UpdateConferenceUseCase::class);
+    $useCase->shouldReceive('execute')
+        ->once()
+        ->with('id-1', Mockery::on(function (array $fields) use (&$captured): bool {
+            $captured = $fields;
+
+            return true;
+        }))
+        ->andReturn(new Conference(
+            conferenceId: 'id-1',
+            name: 'PHPカンファレンス',
+            trackName: null,
+            officialUrl: 'https://example.com',
+            cfpUrl: 'https://example.com/cfp',
+            eventStartDate: '2026-09-19',
+            eventEndDate: '2026-09-20',
+            venue: '東京',
+            format: ConferenceFormat::Offline,
+            cfpStartDate: null,
+            cfpEndDate: '2026-07-15',
+            categories: ['1d4f2a83-6b48-4f1c-9c8a-7e2b3d4f5a02'],
+            description: null,
+            themeColor: null,
+            createdAt: '2026-04-15T10:30:00+09:00',
+            updatedAt: '2026-05-04T10:00:00+09:00',
+            status: ConferenceStatus::Published,
+        ));
+    app()->instance(UpdateConferenceUseCase::class, $useCase);
+
+    // When
+    $response = $this->putJson('/admin/api/conferences/id-1', ['status' => 'published']);
+
+    // Then: 200 + UseCase に enum 化された status が渡る
+    $response->assertStatus(200);
+    $response->assertJsonPath('data.status', 'published');
+    /** @var array<string, mixed> $captured */
+    expect($captured)->toBeArray();
+    expect($captured['status'])->toBe(ConferenceStatus::Published);
+});
+
+it('PUT で format を null に明示クリアできる', function () {
+    // Given: format を null にする更新 (Draft 化等の一環で起こりうる)
+    $captured = null;
+    $useCase = Mockery::mock(UpdateConferenceUseCase::class);
+    $useCase->shouldReceive('execute')
+        ->once()
+        ->with('id-1', Mockery::on(function (array $fields) use (&$captured): bool {
+            $captured = $fields;
+
+            return true;
+        }))
+        ->andReturn(new Conference(
+            conferenceId: 'id-1',
+            name: 'X',
+            trackName: null,
+            officialUrl: 'https://x.example.com',
+            cfpUrl: null,
+            eventStartDate: null,
+            eventEndDate: null,
+            venue: null,
+            format: null,
+            cfpStartDate: null,
+            cfpEndDate: null,
+            categories: [],
+            description: null,
+            themeColor: null,
+            createdAt: '2026-04-15T10:30:00+09:00',
+            updatedAt: '2026-05-04T10:00:00+09:00',
+            status: ConferenceStatus::Draft,
+        ));
+    app()->instance(UpdateConferenceUseCase::class, $useCase);
+
+    // When: format=null を明示送信 (JSON null)
+    $response = $this->putJson('/admin/api/conferences/id-1', ['format' => null]);
+
+    // Then: 200 + UseCase に format=null が渡る
+    $response->assertStatus(200);
+    /** @var array<string, mixed> $captured */
+    expect($captured)->toBeArray();
+    expect(array_key_exists('format', $captured))->toBeTrue();
+    expect($captured['format'])->toBeNull();
 });

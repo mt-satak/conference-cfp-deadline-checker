@@ -10,10 +10,12 @@ use App\Application\Conferences\ListConferencesUseCase;
 use App\Application\Conferences\UpdateConferenceUseCase;
 use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceFormat;
+use App\Domain\Conferences\ConferenceStatus;
 use App\Http\Presenters\ConferencePresenter;
 use App\Http\Requests\Conferences\StoreConferenceRequest;
 use App\Http\Requests\Conferences\UpdateConferenceRequest;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 /**
  * Conferences リソースの HTTP エンドポイント群。
@@ -30,13 +32,18 @@ class ConferenceController extends BaseController
     /**
      * GET /admin/api/conferences (operationId: listConferences)
      *
-     * 本コミット時点ではフィルタ・ソートを実装していない (全件返却)。
-     * ?q / ?category / ?status / ?sort / ?order のクエリパラメータ対応は
-     * 後続コミット または別 Issue で扱う。
+     * クエリパラメータ:
+     * - ?status=draft|published: 該当ステータスのみに絞り込む (Phase 0.5)
+     *
+     * ?q / ?category / ?sort / ?order の対応は別 Issue で扱う。
+     * 未知の status 値は無視 (= 全件返却) として fail-soft にする。
      */
-    public function index(ListConferencesUseCase $useCase): JsonResponse
+    public function index(Request $request, ListConferencesUseCase $useCase): JsonResponse
     {
-        $conferences = $useCase->execute();
+        $statusParam = $request->query('status');
+        $statusFilter = is_string($statusParam) ? ConferenceStatus::tryFrom($statusParam) : null;
+
+        $conferences = $useCase->execute($statusFilter);
 
         $data = array_map(
             static fn (Conference $c): array => ConferencePresenter::toArray($c),
@@ -71,20 +78,27 @@ class ConferenceController extends BaseController
     {
         $validated = $request->validated();
 
+        // status 省略 / 未知値は Published で扱う (Draft 入力時のみ status='draft' 必須)
+        $status = isset($validated['status'])
+            ? (ConferenceStatus::tryFrom($validated['status']) ?? ConferenceStatus::Published)
+            : ConferenceStatus::Published;
+
+        $formatRaw = $validated['format'] ?? null;
         $input = new CreateConferenceInput(
             name: $validated['name'],
             trackName: $validated['trackName'] ?? null,
             officialUrl: $validated['officialUrl'],
-            cfpUrl: $validated['cfpUrl'],
-            eventStartDate: $validated['eventStartDate'],
-            eventEndDate: $validated['eventEndDate'],
-            venue: $validated['venue'],
-            format: ConferenceFormat::from($validated['format']),
+            cfpUrl: $validated['cfpUrl'] ?? null,
+            eventStartDate: $validated['eventStartDate'] ?? null,
+            eventEndDate: $validated['eventEndDate'] ?? null,
+            venue: $validated['venue'] ?? null,
+            format: $formatRaw !== null ? ConferenceFormat::from($formatRaw) : null,
             cfpStartDate: $validated['cfpStartDate'] ?? null,
-            cfpEndDate: $validated['cfpEndDate'],
-            categories: $validated['categories'],
+            cfpEndDate: $validated['cfpEndDate'] ?? null,
+            categories: $validated['categories'] ?? [],
             description: $validated['description'] ?? null,
             themeColor: $validated['themeColor'] ?? null,
+            status: $status,
         );
 
         $conference = $useCase->execute($input);
@@ -104,29 +118,33 @@ class ConferenceController extends BaseController
     {
         $validated = $request->validated();
 
-        // format は string で来るので enum に変換する (UseCase が ConferenceFormat
-        // 期待のため)。FormRequest の Rule::in が enum 値の string 以外を弾く。
+        // format / status は string で来るので enum に変換する。
         // 元の $validated を変更すると PHPStan の array shape が string|enum union に
         // なるので、UseCase に渡す配列を新規構築して型を確定させる。
+        // Phase 0.5 (Issue #41) で format と status の enum 化、cfpUrl 等の null 受付。
         /** @var array{
+         *     status?: ConferenceStatus,
          *     name?: string,
          *     trackName?: string|null,
          *     officialUrl?: string,
-         *     cfpUrl?: string,
-         *     eventStartDate?: string,
-         *     eventEndDate?: string,
-         *     venue?: string,
-         *     format?: ConferenceFormat,
+         *     cfpUrl?: string|null,
+         *     eventStartDate?: string|null,
+         *     eventEndDate?: string|null,
+         *     venue?: string|null,
+         *     format?: ConferenceFormat|null,
          *     cfpStartDate?: string|null,
-         *     cfpEndDate?: string,
+         *     cfpEndDate?: string|null,
          *     categories?: array<int, string>,
          *     description?: string|null,
          *     themeColor?: string|null,
          * } $fields
          */
         $fields = $validated;
-        if (isset($validated['format'])) {
-            $fields['format'] = ConferenceFormat::from($validated['format']);
+        if (array_key_exists('format', $validated)) {
+            $fields['format'] = $validated['format'] !== null ? ConferenceFormat::from($validated['format']) : null;
+        }
+        if (isset($validated['status'])) {
+            $fields['status'] = ConferenceStatus::from($validated['status']);
         }
 
         $conference = $useCase->execute($id, $fields);

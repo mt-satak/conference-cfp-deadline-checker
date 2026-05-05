@@ -4,6 +4,7 @@ use App\Application\Conferences\CreateConferenceInput;
 use App\Application\Conferences\CreateConferenceUseCase;
 use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceFormat;
+use App\Domain\Conferences\ConferenceStatus;
 use App\Http\Middleware\VerifyOrigin;
 
 beforeEach(function () {
@@ -177,4 +178,143 @@ it('categories が空配列だと 422 (minItems: 1)', function () {
     $response->assertStatus(422);
     $fields = collect($response->json('error.details'))->pluck('field')->all();
     expect($fields)->toContain('categories');
+});
+
+it('status=draft + name + officialUrl のみで 201 (Phase 0.5: Draft の最小入力)', function () {
+    // Given: Draft の最小入力 (name + officialUrl + status のみ)
+    $payload = [
+        'status' => 'draft',
+        'name' => '未確定カンファ',
+        'officialUrl' => 'https://draft.example.com',
+    ];
+    $captured = null;
+    $useCase = Mockery::mock(CreateConferenceUseCase::class);
+    $useCase->shouldReceive('execute')
+        ->once()
+        ->with(Mockery::on(function (CreateConferenceInput $input) use (&$captured): bool {
+            $captured = $input;
+
+            return true;
+        }))
+        ->andReturn(new Conference(
+            conferenceId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+            name: '未確定カンファ',
+            trackName: null,
+            officialUrl: 'https://draft.example.com',
+            cfpUrl: null,
+            eventStartDate: null,
+            eventEndDate: null,
+            venue: null,
+            format: null,
+            cfpStartDate: null,
+            cfpEndDate: null,
+            categories: [],
+            description: null,
+            themeColor: null,
+            createdAt: '2026-05-04T10:00:00+09:00',
+            updatedAt: '2026-05-04T10:00:00+09:00',
+            status: ConferenceStatus::Draft,
+        ));
+    app()->instance(CreateConferenceUseCase::class, $useCase);
+
+    // When
+    $response = $this->postJson('/admin/api/conferences', $payload);
+
+    // Then: 201 + status=draft で UseCase に渡される
+    $response->assertStatus(201);
+    $response->assertJsonPath('data.status', 'draft');
+    $response->assertJsonPath('data.cfpEndDate', null);
+    expect($captured)->toBeInstanceOf(CreateConferenceInput::class);
+    expect($captured->status)->toBe(ConferenceStatus::Draft);
+    expect($captured->cfpEndDate)->toBeNull();
+    expect($captured->categories)->toBe([]);
+});
+
+it('status=draft なら cfpUrl 等の Published 必須項目欠落でも 201', function () {
+    // Given: Draft 指定 + cfpUrl などを欠落させた入力 (Published なら 422 になる)
+    $payload = [
+        'status' => 'draft',
+        'name' => 'PHPカンファレンス2027',
+        'officialUrl' => 'https://phpcon.example.com/2027',
+        // cfpUrl, eventStartDate, eventEndDate, venue, format, cfpEndDate, categories は欠落
+    ];
+    $useCase = Mockery::mock(CreateConferenceUseCase::class);
+    $useCase->shouldReceive('execute')->once()->andReturn(new Conference(
+        conferenceId: 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff',
+        name: 'PHPカンファレンス2027',
+        trackName: null,
+        officialUrl: 'https://phpcon.example.com/2027',
+        cfpUrl: null,
+        eventStartDate: null,
+        eventEndDate: null,
+        venue: null,
+        format: null,
+        cfpStartDate: null,
+        cfpEndDate: null,
+        categories: [],
+        description: null,
+        themeColor: null,
+        createdAt: '2026-05-04T10:00:00+09:00',
+        updatedAt: '2026-05-04T10:00:00+09:00',
+        status: ConferenceStatus::Draft,
+    ));
+    app()->instance(CreateConferenceUseCase::class, $useCase);
+
+    // When
+    $response = $this->postJson('/admin/api/conferences', $payload);
+
+    // Then: 201 (Draft では Published 必須項目欠落を許容)
+    $response->assertStatus(201);
+});
+
+it('status=published なら cfpUrl 欠落で 422 (= 既存挙動)', function () {
+    // Given: Published 指定 + cfpUrl を欠落させた入力
+    $payload = validCreatePayload();
+    $payload['status'] = 'published';
+    unset($payload['cfpUrl']);
+    $useCase = Mockery::mock(CreateConferenceUseCase::class);
+    $useCase->shouldNotReceive('execute');
+    app()->instance(CreateConferenceUseCase::class, $useCase);
+
+    // When
+    $response = $this->postJson('/admin/api/conferences', $payload);
+
+    // Then: 422 + details に cfpUrl
+    $response->assertStatus(422);
+    $fields = collect($response->json('error.details'))->pluck('field')->all();
+    expect($fields)->toContain('cfpUrl');
+});
+
+it('status 省略時は published 扱いで cfpUrl 欠落は 422 (後方互換)', function () {
+    // Given: status 省略 + cfpUrl 欠落 (= 既存呼出からの想定)
+    $payload = validCreatePayload();
+    unset($payload['cfpUrl']);
+    $useCase = Mockery::mock(CreateConferenceUseCase::class);
+    $useCase->shouldNotReceive('execute');
+    app()->instance(CreateConferenceUseCase::class, $useCase);
+
+    // When
+    $response = $this->postJson('/admin/api/conferences', $payload);
+
+    // Then: 422 (status 未指定 = published デフォルトで cfpUrl 必須)
+    $response->assertStatus(422);
+    $fields = collect($response->json('error.details'))->pluck('field')->all();
+    expect($fields)->toContain('cfpUrl');
+});
+
+it('status に未知値を指定すると 422', function () {
+    // Given: status='archived' (enum 外)
+    $payload = validCreatePayload();
+    $payload['status'] = 'archived';
+    $useCase = Mockery::mock(CreateConferenceUseCase::class);
+    $useCase->shouldNotReceive('execute');
+    app()->instance(CreateConferenceUseCase::class, $useCase);
+
+    // When
+    $response = $this->postJson('/admin/api/conferences', $payload);
+
+    // Then: 422 + details に status
+    $response->assertStatus(422);
+    $fields = collect($response->json('error.details'))->pluck('field')->all();
+    expect($fields)->toContain('status');
 });

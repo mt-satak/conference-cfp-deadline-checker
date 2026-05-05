@@ -4,14 +4,16 @@ namespace App\Application\Conferences;
 
 use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceRepository;
+use App\Domain\Conferences\ConferenceStatus;
 
 /**
  * カンファレンス全件取得 UseCase。
  *
  * 責務:
  * - Repository から全件を取得して呼び出し元に返す
+ * - status 指定があれば該当ステータスのみに絞り込む
  *
- * フィルタ・ソート・ページネーションは UseCase スコープ外。
+ * ソート・ページネーションは UseCase スコープ外。
  * HTTP 層 (Controller) で OpenAPI のクエリパラメータに従って加工する。
  */
 class ListConferencesUseCase
@@ -23,8 +25,16 @@ class ListConferencesUseCase
     /**
      * @return Conference[]
      */
-    public function execute(): array
+    public function execute(?ConferenceStatus $statusFilter = null): array
     {
-        return $this->repository->findAll();
+        $all = $this->repository->findAll();
+        if ($statusFilter === null) {
+            return $all;
+        }
+
+        return array_values(array_filter(
+            $all,
+            static fn (Conference $c): bool => $c->status === $statusFilter,
+        ));
     }
 }
