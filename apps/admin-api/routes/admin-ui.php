@@ -17,5 +17,9 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', [HomeController::class, 'index'])->name('admin.home');
 
 // ── Conferences ──
-// CRUD UI を順次追加。本コミット時点では index (一覧) のみ。
 Route::get('/conferences', [ConferenceController::class, 'index'])->name('admin.conferences.index');
+Route::get('/conferences/create', [ConferenceController::class, 'create'])->name('admin.conferences.create');
+Route::post('/conferences', [ConferenceController::class, 'store'])->name('admin.conferences.store');
+Route::get('/conferences/{id}/edit', [ConferenceController::class, 'edit'])->name('admin.conferences.edit');
+Route::put('/conferences/{id}', [ConferenceController::class, 'update'])->name('admin.conferences.update');
+Route::delete('/conferences/{id}', [ConferenceController::class, 'destroy'])->name('admin.conferences.destroy');
