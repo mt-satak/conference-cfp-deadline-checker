@@ -5,8 +5,10 @@
 @section('content')
     <div class="mb-4 flex items-center justify-between">
         <h1 class="text-2xl font-bold">カンファレンス一覧</h1>
-        {{-- 新規作成ボタンは後続 PR で追加 --}}
-        <span class="text-sm text-gray-400">新規作成 / 編集 / 削除は後続 PR</span>
+        <a href="{{ route('admin.conferences.create') }}"
+           class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+            + 新規作成
+        </a>
     </div>
 
     @if (count($conferences) === 0)
@@ -23,6 +25,7 @@
                         <th class="px-4 py-3">開催日</th>
                         <th class="px-4 py-3">形式</th>
                         <th class="px-4 py-3">カテゴリ数</th>
+                        <th class="px-4 py-3 text-right">操作</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
@@ -47,6 +50,10 @@
                                 </span>
                             </td>
                             <td class="px-4 py-3">{{ count($conf->categories) }}</td>
+                            <td class="px-4 py-3 text-right">
+                                <a href="{{ route('admin.conferences.edit', $conf->conferenceId) }}"
+                                   class="text-blue-600 hover:text-blue-800">編集</a>
+                            </td>
                         </tr>
                     @endforeach
                 </tbody>
