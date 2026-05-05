@@ -50,6 +50,27 @@ pecl install xdebug
 # php.ini 自動編集される。インストール後 `php -m | grep xdebug` で確認
 ```
 
+## カテゴリ初期投入 (categories:seed)
+
+`data/seeds/categories.json` の 34 件を `CategoryRepository` に upsert する Artisan コマンド。
+運用初期に 1 度実行すれば軸 (axis) と表示順 (displayOrder) を含む全カテゴリが揃う。
+カテゴリ管理を「管理フリー」に近づけるための一括投入機構 (Issue #38)。
+
+```sh
+# 投入予定だけ確認 (DB 書き込みなし)
+php artisan categories:seed --dry-run
+
+# 本投入 (idempotent。同 categoryId は上書き)
+php artisan categories:seed
+
+# 別ファイルから投入
+php artisan categories:seed --source=path/to/file.json
+```
+
+- 既定パス: `data/seeds/categories.json` (リポジトリ同梱、34 件)
+- DynamoDB Local 向け: `make db-up && make db-init` 後にこのコマンドを実行
+- 本番 AWS 向け Bref Console handler 化は Phase 2 で対応予定
+
 ## テスト
 
 | コマンド | 内容 |
@@ -111,6 +132,7 @@ Role を `vars.AWS_DEPLOY_ROLE_ARN` から参照する。
 | `App\Http\Requests\*` | **100%** | バリデーション定義 |
 | `App\Http\Controllers\*` | **85%** | 薄いオーケストレーション、Feature テスト主体 |
 | `App\Http\Middleware\*` | **85%** | 同上 + フレームワーク hook 分岐 |
+| `App\Console\Commands\*` | **85%** | Artisan コマンド。Controllers と同様の薄いオーケストレーション |
 | `App\Exceptions\*` | **75%** | match (true) + compound instanceof で xdebug が micro-branch 細分割するため一律 80%+ は padding テストでしか到達不能。実測上限を踏まえた現実値 |
 | `App\Infrastructure\*` | **75%** | AWS SDK の例外パスのモック網羅コストが高い |
 | `App\Providers\*` | (計測対象外) | DI 配線、Lambda コンテナ起動時のみ走る |
