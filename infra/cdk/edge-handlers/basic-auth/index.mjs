@@ -85,5 +85,11 @@ export const handler = async (event) => {
     };
   }
 
+  // CloudFront → Lambda Function URL は OAC で SigV4 署名される。
+  // viewer の Authorization (Basic ...) を origin に転送すると SigV4 と衝突して
+  // Function URL 側で AccessDeniedException (403) になるため、認証成功後は
+  // ヘッダを削除して CloudFront に SigV4 を上書きさせる。
+  delete request.headers.authorization;
+
   return request;
 };
