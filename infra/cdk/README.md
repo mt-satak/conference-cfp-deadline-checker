@@ -112,3 +112,174 @@ bootstrap で作成した `cdk-hnb659fds-deploy-role-*` 等を `sts:AssumeRole` 
 これにより本 Role が万一漏洩しても、CDK bootstrap で許可された範囲外の操作は
 できないため、被害を最小化できる (例: 任意の IAM Role 作成や別 AWS サービスへの
 影響は不可)。
+
+## 本番アプリの初回デプロイ手順 (Edge / Main スタック / Issue #54)
+
+`CfpDeadlineCheckerEdgeStack` (us-east-1) と `CfpDeadlineCheckerStack` (ap-northeast-1) を
+デプロイして本番アプリを稼働させる手順。**初回のみ参照**、以降は GitHub Actions の
+deploy workflow が代行する。
+
+### 前提条件
+
+1. **AWS アカウントへの SSO ログイン**
+   ```sh
+   aws sso login --profile <profile-name>
+   export AWS_PROFILE=<profile-name>
+   aws sts get-caller-identity   # → アカウント ID が返れば OK
+   ```
+
+2. **CDK bootstrap (両リージョン必須)**
+   ```sh
+   ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+   cdk bootstrap aws://$ACCOUNT/ap-northeast-1
+   cdk bootstrap aws://$ACCOUNT/us-east-1   # EdgeStack (Lambda@Edge / WAF / ACM) 用
+   ```
+   既に bootstrap 済の場合は idempotent なのでスキップ可。
+
+3. **Bedrock モデルアクセス申請** (= LLM URL 抽出機能の前提)
+   - AWS Bedrock コンソール (ap-northeast-1) → "Model access" → `Anthropic Claude Sonnet 4.6` を選択 → "Submit use case details" → "Save changes"
+   - 通常は数分〜1 時間で承認される
+   - **Tokyo (ap-northeast-1) で直接呼べない場合**: 横断推論プロファイル `apac.anthropic.claude-sonnet-4-6` をモデル ID として使う
+     - その場合は `infra/cdk/lib/constructs/admin-api.ts` の環境変数 `LLM_MODEL` を
+       `apac.anthropic.claude-sonnet-4-6` に変更してから deploy
+   - 承認状況の確認:
+     ```sh
+     aws bedrock list-foundation-models --region ap-northeast-1 \
+       --query "modelSummaries[?contains(modelId, 'sonnet-4-6')].[modelId,modelLifecycle.status]" \
+       --output table
+     ```
+
+4. **(任意) カスタムドメイン使用時**
+   - `domainName=<host>` (例: `cfp.example.com`)
+   - `rootDomain=<root>` (例: `example.com`、Hosted Zone を作る apex)
+   - 両方指定時のみ Route 53 / ACM が自動セットアップされる
+   - ドメイン未取得 / 不要なら指定せず、CloudFront のデフォルト `*.cloudfront.net` で動く
+
+5. **(任意) 運用アラーム通知**
+   - `alertEmail=<email>` 指定で SNS 購読自動登録
+   - 受信側で確認リンク必須
+
+### Step 1: EdgeStack を us-east-1 にデプロイ
+
+```sh
+cd infra/cdk
+
+# diff 確認 (差分プレビュー)
+pnpm cdk diff CfpDeadlineCheckerEdgeStack
+
+# デプロイ実行
+pnpm cdk deploy CfpDeadlineCheckerEdgeStack
+# (任意ドメイン使用時)
+# pnpm cdk deploy CfpDeadlineCheckerEdgeStack \
+#   --context domainName=cfp.example.com \
+#   --context rootDomain=example.com
+```
+
+EdgeStack が作成するリソース:
+- WAF WebACL (CloudFront 用)
+- Lambda@Edge (Basic 認証)
+- Secrets Manager Secret (Basic 認証パスワード自動生成)
+- ACM 証明書 (ドメイン使用時のみ)
+- Route 53 Hosted Zone (ドメイン使用時のみ)
+
+**所要時間**: 5〜10 分 (CloudFront propagation 含む)
+
+### Step 2: MainStack を ap-northeast-1 にデプロイ
+
+```sh
+# diff 確認
+pnpm cdk diff CfpDeadlineCheckerStack
+
+# デプロイ実行
+pnpm cdk deploy CfpDeadlineCheckerStack
+# (任意設定併用時)
+# pnpm cdk deploy CfpDeadlineCheckerStack \
+#   --context domainName=cfp.example.com \
+#   --context rootDomain=example.com \
+#   --context alertEmail=ops@example.com
+```
+
+MainStack が作成するリソース:
+- DynamoDB 2 テーブル (`cfp-conferences`, `cfp-categories`)
+- Lambda Function (admin-api、Bref + PHP-FPM、`bedrock:InvokeModel` 権限付き)
+- Lambda Function URL (AWS_IAM 認証)
+- S3 Bucket + CloudFront Distribution (静的サイト + 管理画面ルーティング)
+- CloudWatch アラーム + SNS Topic (Operations)
+
+**所要時間**: 5〜15 分 (CloudFront 反映に追加で数分かかる)
+
+### Step 3: Output を控える
+
+```sh
+aws cloudformation describe-stacks \
+  --stack-name CfpDeadlineCheckerStack \
+  --region ap-northeast-1 \
+  --query "Stacks[0].Outputs" \
+  --output table
+```
+
+主な出力:
+- `DistributionDomainName`: 公開アクセス URL (`*.cloudfront.net`)
+- `AdminApiFunctionUrl`: Lambda Function URL (CloudFront 経由のみ叩ける)
+- `AdminApiFunctionName`: Lambda 関数名 (CloudWatch Logs / `aws lambda invoke` 等で使用)
+- `ConferencesTableName` / `CategoriesTableName`: DynamoDB 名
+
+### Step 4: 初期データ投入
+
+DynamoDB は空でデプロイされるため、admin-api の seed コマンドを Lambda 上で実行する必要がある。
+**現状 Bref Console handler 未実装**のため、初回投入の選択肢:
+
+- (a) **AWS SDK で Lambda Invoke**: ローカルから Lambda の Function URL 経由で API を直接叩いて 1 件ずつ POST
+- (b) **CloudShell から DynamoDB に直接 PutItem**: スクリプトで `data/seeds/categories.json` / `conferences.json` を流し込む
+- (c) **Bref Console handler を別 Issue で追加**: `php artisan` を Lambda で実行できるようにする
+
+(c) が将来的にきれいだが工数高。当面は (a) or (b) で凌ぐ。詳細は別 Issue で扱う候補。
+
+### Step 5: 動作確認
+
+1. **Basic 認証パスワード取得**
+   ```sh
+   aws secretsmanager get-secret-value \
+     --secret-id <BasicAuthSecret-ARN> \
+     --region us-east-1 \
+     --query SecretString --output text
+   ```
+
+2. **CloudFront URL にアクセス**
+   - `https://<DistributionDomainName>/admin/conferences`
+   - Basic 認証ダイアログにユーザ名 `admin` + 上記パスワード入力
+   - 一覧画面が空状態で表示されれば OK
+
+3. **Bedrock LLM 抽出を実 URL で試す**
+   - `/admin/conferences/create` で公式 URL を入れて「取り込む」
+   - フォームが prefill されれば成功
+
+4. **CloudWatch Logs で抽出ログを確認**
+   ```sh
+   aws logs tail /aws/lambda/<AdminApiFunctionName> --region ap-northeast-1 --since 5m \
+     | grep "llm.extraction"
+   ```
+   `conference draft extraction succeeded` の行が出ればログ整形 OK。
+   `input_tokens` / `output_tokens` が記録されている事を確認。
+
+### よくある失敗 / 対処
+
+| 失敗 | 原因 | 対処 |
+|---|---|---|
+| `cdk deploy` が `region not found` で失敗 | リージョン未 bootstrap | `cdk bootstrap aws://<ACCOUNT>/<REGION>` |
+| LLM 抽出で `AccessDeniedException` | Bedrock モデルアクセス未承認 | コンソールで Model access を再申請 |
+| LLM 抽出で `ResourceNotFoundException` | モデル ID が region で存在しない | `LLM_MODEL` を `apac.anthropic.claude-sonnet-4-6` に変更して再 deploy |
+| CloudFront にアクセスして 403 / 401 ループ | Basic 認証パスワード忘れ | Secrets Manager から再取得 |
+| Lambda Cold Start で 502 | Bref レイヤー初回ロード | 1〜2 分待って再アクセス |
+
+### ロールバック
+
+```sh
+# スタック単位で削除
+pnpm cdk destroy CfpDeadlineCheckerStack
+pnpm cdk destroy CfpDeadlineCheckerEdgeStack
+```
+
+ただし DynamoDB は `removalPolicy: RETAIN` + `deletionProtection: true` のため、
+スタック削除後もテーブルは残る (= データが消えない安全側設計)。
+完全に削除する場合は AWS コンソールで deletionProtection を OFF にしてから手動削除。
