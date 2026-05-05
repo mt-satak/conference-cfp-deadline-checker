@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\ConferenceController;
 use App\Http\Controllers\Admin\HomeController;
 use Illuminate\Support\Facades\Route;
@@ -23,3 +24,11 @@ Route::post('/conferences', [ConferenceController::class, 'store'])->name('admin
 Route::get('/conferences/{id}/edit', [ConferenceController::class, 'edit'])->name('admin.conferences.edit');
 Route::put('/conferences/{id}', [ConferenceController::class, 'update'])->name('admin.conferences.update');
 Route::delete('/conferences/{id}', [ConferenceController::class, 'destroy'])->name('admin.conferences.destroy');
+
+// ── Categories ──
+Route::get('/categories', [CategoryController::class, 'index'])->name('admin.categories.index');
+Route::get('/categories/create', [CategoryController::class, 'create'])->name('admin.categories.create');
+Route::post('/categories', [CategoryController::class, 'store'])->name('admin.categories.store');
+Route::get('/categories/{id}/edit', [CategoryController::class, 'edit'])->name('admin.categories.edit');
+Route::put('/categories/{id}', [CategoryController::class, 'update'])->name('admin.categories.update');
+Route::delete('/categories/{id}', [CategoryController::class, 'destroy'])->name('admin.categories.destroy');
