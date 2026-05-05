@@ -113,6 +113,13 @@ export class EdgeStack extends cdk.Stack {
         externalModules: [],
         format: cdk.aws_lambda_nodejs.OutputFormat.ESM,
         target: 'node20',
+        // ESM 出力時、esbuild は CJS 依存 (AWS SDK v3 内部) を解決するために
+        // `__require()` ヘルパーを生成するが、ESM ランタイムでは require が
+        // 未定義のため `Dynamic require of "buffer" is not supported` で落ちる。
+        // banner で `createRequire(import.meta.url)` を注入して require を
+        // ESM 上に存在させ、bundle 内の `__require` を機能させる。
+        banner:
+          "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
       },
     });
 
