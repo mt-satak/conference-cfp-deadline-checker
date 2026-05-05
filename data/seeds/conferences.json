@@ -1,0 +1,323 @@
+{
+  "_comment": "Conference seed data for `php artisan conferences:seed` (Issue #40 Phase 1).\n  Phase 0.5 (Issue #41) で導入した Draft 状態を活用し、CfP 期間が判明しているものは Published、\n  詳細未確定 / CfP 期間不明 / CfP 終了済かつ開催待ちのカンファは Draft で投入する。\n  Draft で登録された行は Phase 3 (LLM URL 抽出) で URL → 詳細補完 → Published 昇格の運用を想定。\n  各エントリの conferenceId は UUID v4。categorySlugs は data/seeds/categories.json の slug を参照。\n  情報源: fortee.jp / 公式サイト / 各種スケジュール集約記事 (2026-05-05 時点)。",
+  "conferences": [
+    {
+      "conferenceId": "6a5489e9-3fd9-4dbf-81b2-7a12b7d5bcd8",
+      "name": "大吉祥寺.pm 2026",
+      "officialUrl": "https://kichijojipm.connpass.com/event/2026/",
+      "cfpUrl": "https://fortee.jp/dai-kichijojipm-2026/cfp",
+      "eventStartDate": "2026-07-24",
+      "eventEndDate": "2026-07-25",
+      "venue": "武蔵野公会堂 (吉祥寺)",
+      "format": "offline",
+      "cfpStartDate": null,
+      "cfpEndDate": "2026-05-07",
+      "categorySlugs": ["backend"],
+      "status": "published"
+    },
+    {
+      "conferenceId": "d7a49e81-56a4-4098-9841-d157f171501c",
+      "name": "PHPカンファレンス愛媛 2026",
+      "officialUrl": "https://phpcon.ehime.jp/",
+      "cfpUrl": "https://fortee.jp/phpconehime-2026/cfp",
+      "eventStartDate": "2026-10-03",
+      "eventEndDate": "2026-10-03",
+      "venue": "松山",
+      "format": "offline",
+      "cfpStartDate": null,
+      "cfpEndDate": "2026-05-13",
+      "categorySlugs": ["php"],
+      "status": "published"
+    },
+    {
+      "conferenceId": "4209917d-973f-4e1c-b3b7-99490c9ce937",
+      "name": "PHP Conference Japan 2026",
+      "officialUrl": "https://phpcon.php.gr.jp/2026/",
+      "cfpUrl": "https://fortee.jp/phpcon-2026/cfp",
+      "eventStartDate": "2026-07-20",
+      "eventEndDate": "2026-07-20",
+      "venue": "大田区産業プラザ PiO",
+      "format": "offline",
+      "cfpStartDate": null,
+      "cfpEndDate": "2026-05-20",
+      "categorySlugs": ["php"],
+      "themeColor": "#777BB4",
+      "status": "published"
+    },
+    {
+      "conferenceId": "a5ee8c6c-ae7c-4f0c-9d74-a677134765f3",
+      "name": "AWS CDK Conference Japan 2026",
+      "officialUrl": "https://jaws-ug.jp/",
+      "cfpUrl": "https://fortee.jp/jawsug-cdk-conference-2026/cfp",
+      "eventStartDate": "2026-07-18",
+      "eventEndDate": "2026-07-18",
+      "venue": "東京",
+      "format": "hybrid",
+      "cfpStartDate": null,
+      "cfpEndDate": "2026-05-31",
+      "categorySlugs": ["cloud-native", "infrastructure"],
+      "status": "published"
+    },
+    {
+      "conferenceId": "01e2f100-5b94-4544-8416-8398fa2819d3",
+      "name": "PHPカンファレンス新潟 2026",
+      "officialUrl": "https://phpcon.niigata.jp/",
+      "cfpUrl": "https://fortee.jp/phpconniigata-2026/cfp",
+      "eventStartDate": "2026-11-14",
+      "eventEndDate": "2026-11-14",
+      "venue": "新潟",
+      "format": "offline",
+      "cfpStartDate": null,
+      "cfpEndDate": "2026-06-14",
+      "categorySlugs": ["php"],
+      "status": "published"
+    },
+    {
+      "conferenceId": "397ec183-d9ea-4010-9427-265167ff1f79",
+      "name": "Product Engineering Conference 2026",
+      "officialUrl": "https://product-engineering.jp/2026/",
+      "cfpUrl": "https://fortee.jp/pdeconf-2026/cfp",
+      "eventStartDate": "2026-09-05",
+      "eventEndDate": "2026-09-05",
+      "venue": "東京",
+      "format": "offline",
+      "cfpStartDate": null,
+      "cfpEndDate": "2026-06-30",
+      "categorySlugs": ["developer-productivity", "engineering-management"],
+      "status": "published"
+    },
+    {
+      "conferenceId": "b599e576-d1e1-4abb-b0a2-b85b450b2997",
+      "name": "iOSDC Japan 2026",
+      "officialUrl": "https://iosdc.jp/2026/",
+      "eventStartDate": "2026-09-11",
+      "eventEndDate": "2026-09-13",
+      "format": "hybrid",
+      "venue": "東京",
+      "categorySlugs": ["mobile-ios", "swift"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "1b4d5d46-b7f8-42a8-8c40-4947f053d7b2",
+      "name": "DroidKaigi 2026",
+      "officialUrl": "https://2026.droidkaigi.jp/",
+      "eventStartDate": "2026-09-01",
+      "eventEndDate": "2026-09-03",
+      "venue": "東京",
+      "format": "hybrid",
+      "categorySlugs": ["mobile-android", "kotlin"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "d20ade90-24e7-4dde-a9d2-241d4bdf5103",
+      "name": "PyCon JP 2026",
+      "officialUrl": "https://2026.pycon.jp/",
+      "eventStartDate": "2026-08-21",
+      "eventEndDate": "2026-08-23",
+      "venue": "広島",
+      "format": "hybrid",
+      "categorySlugs": ["python"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "ddb5e7f1-a8f4-41b7-9daa-afd416621b6c",
+      "name": "KubeCon + CloudNativeCon Japan 2026",
+      "officialUrl": "https://events.linuxfoundation.org/kubecon-cloudnativecon-japan/",
+      "eventStartDate": "2026-07-29",
+      "eventEndDate": "2026-07-30",
+      "venue": "横浜",
+      "format": "hybrid",
+      "categorySlugs": ["cloud-native", "infrastructure"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "837b075c-6e04-4d1b-8538-a3c9b5ec812d",
+      "name": "関数型まつり 2026",
+      "officialUrl": "https://2026.fp-matsuri.org/",
+      "eventStartDate": "2026-07-11",
+      "eventEndDate": "2026-07-12",
+      "venue": "東京",
+      "format": "hybrid",
+      "categorySlugs": ["scala", "elixir"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "bb7954ed-6a1e-4e0d-baae-387722c88713",
+      "name": "エンジニアがこの先生きのこるためのカンファレンス 2026",
+      "officialUrl": "https://kinoko-conf.dev/",
+      "eventStartDate": "2026-06-27",
+      "eventEndDate": "2026-06-28",
+      "venue": "日本科学未来館 (東京)",
+      "format": "offline",
+      "categorySlugs": ["engineering-management", "developer-productivity"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "c50a6c80-33f7-4559-8049-c26cc78ceb98",
+      "name": "フロントエンド・PHPカンファレンス北海道 2026",
+      "officialUrl": "https://frontend-php-con.hokkaido.jp/",
+      "eventStartDate": "2026-06-06",
+      "eventEndDate": "2026-06-06",
+      "venue": "札幌",
+      "format": "offline",
+      "categorySlugs": ["frontend", "php"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "bd6ea777-218a-41f8-a3a4-a383cfda82a6",
+      "name": "フロントエンドカンファレンス名古屋 2026",
+      "officialUrl": "https://fortee.jp/fec-nagoya-2026",
+      "eventStartDate": "2026-05-09",
+      "eventEndDate": "2026-05-09",
+      "venue": "名古屋",
+      "format": "offline",
+      "categorySlugs": ["frontend", "javascript"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "c01908cf-df23-4731-b29e-0f2b42bde44a",
+      "name": "PHPカンファレンス香川 2026",
+      "officialUrl": "https://phpcon.kagawa.jp/",
+      "eventStartDate": "2026-05-08",
+      "eventEndDate": "2026-05-10",
+      "venue": "高松",
+      "format": "offline",
+      "categorySlugs": ["php"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "03d516ff-bc0e-42c2-bb50-6beab099fc9d",
+      "name": "TSKaigi 2026",
+      "officialUrl": "https://2026.tskaigi.org/",
+      "eventStartDate": "2026-05-22",
+      "eventEndDate": "2026-05-23",
+      "venue": "東京 (羽田)",
+      "format": "hybrid",
+      "categorySlugs": ["typescript", "javascript"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "359caf9e-63e2-4a6a-ba86-fefabcc790b6",
+      "name": "Laravel Live Japan 2026",
+      "officialUrl": "https://laravellive.jp/",
+      "eventStartDate": "2026-05-26",
+      "eventEndDate": "2026-05-27",
+      "venue": "東京 (立川ステージガーデン)",
+      "format": "offline",
+      "categorySlugs": ["php", "laravel"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "04386e57-0323-4a60-9b24-8e0e4cf5777d",
+      "name": "JJUG CCC 2026 Spring",
+      "officialUrl": "https://www.java-users.jp/",
+      "eventStartDate": "2026-05-30",
+      "eventEndDate": "2026-05-30",
+      "venue": "東京",
+      "format": "hybrid",
+      "categorySlugs": ["java"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "0ce37c5d-7325-4547-ac5a-476b75e16f09",
+      "name": "Qiita Conference 2026",
+      "officialUrl": "https://qiita.com/official-events/qiita-conference-2026",
+      "eventStartDate": "2026-05-27",
+      "eventEndDate": "2026-05-29",
+      "venue": "東京",
+      "format": "hybrid",
+      "categorySlugs": ["developer-productivity"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "d573e64d-d3f8-4f48-937b-1f6b7e12fcc1",
+      "name": "CloudNative Days Nagoya 2026",
+      "officialUrl": "https://kaigi.cloudnativedays.jp/",
+      "eventStartDate": "2026-05-14",
+      "eventEndDate": "2026-05-15",
+      "venue": "名古屋",
+      "format": "hybrid",
+      "categorySlugs": ["cloud-native"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "d63bff9d-b121-4063-9e7c-3509cd043c6a",
+      "name": "RubyKaigi 2027",
+      "officialUrl": "https://rubykaigi.org/2027/",
+      "categorySlugs": ["ruby"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "8d3dedb9-a04e-4ba3-8013-908be94175cd",
+      "name": "Vue Fes Japan 2026",
+      "officialUrl": "https://vuefes.jp/2026/",
+      "categorySlugs": ["frontend", "vuejs"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "a71fc40c-51ce-4d6a-bd9f-b1f807ae547d",
+      "name": "CloudNative Days Tokyo 2026",
+      "officialUrl": "https://cloudnativedays.jp/",
+      "categorySlugs": ["cloud-native"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "c47b8249-2804-444d-88e9-e5ee45195395",
+      "name": "JSConf JP 2026",
+      "officialUrl": "https://jsconf.jp/2026/",
+      "categorySlugs": ["javascript", "frontend"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "77e2debd-ecff-49b2-abf3-8ef20ecbc787",
+      "name": "Rust.Tokyo 2026",
+      "officialUrl": "https://rust.tokyo/2026/",
+      "categorySlugs": ["rust"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "6dd1fdda-da1b-429e-9383-d49cfec00756",
+      "name": "Go Conference 2026",
+      "officialUrl": "https://gocon.jp/2026/",
+      "categorySlugs": ["go"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "2b4a5a6c-e915-4665-b999-099777984552",
+      "name": "JJUG CCC 2026 Fall",
+      "officialUrl": "https://www.java-users.jp/",
+      "categorySlugs": ["java"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "bcfa7121-6130-451c-abd5-7de3b5fb220b",
+      "name": "Object-Oriented Conference 2026",
+      "officialUrl": "https://ooc.dev/2026/",
+      "categorySlugs": ["backend", "engineering-management"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "5b855aaa-1d15-4e08-a2d4-857ce34df823",
+      "name": "SRE Kaigi 2026",
+      "officialUrl": "https://sre-kaigi.jp/2026/",
+      "eventStartDate": "2026-07-10",
+      "eventEndDate": "2026-07-11",
+      "categorySlugs": ["sre", "infrastructure"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "1ec137b3-05e8-4dbf-bc03-93b81c90a14d",
+      "name": "Scrum Fest Mikawa 2026",
+      "officialUrl": "https://www.scrumfestmikawa.org/2026/",
+      "categorySlugs": ["scrum", "agile"],
+      "status": "draft"
+    },
+    {
+      "conferenceId": "4d7423c5-d1fc-49bd-b7f5-8ac51f266ce5",
+      "name": "Developers Summit 2026 Summer",
+      "officialUrl": "https://event.shoeisha.jp/devsumi/",
+      "categorySlugs": ["developer-productivity"],
+      "status": "draft"
+    }
+  ]
+}

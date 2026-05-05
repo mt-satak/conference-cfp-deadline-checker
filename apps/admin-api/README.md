@@ -71,6 +71,73 @@ php artisan categories:seed --source=path/to/file.json
 - DynamoDB Local 向け: `make db-up && make db-init` 後にこのコマンドを実行
 - 本番 AWS 向け Bref Console handler 化は Phase 2 で対応予定
 
+## カンファレンス初期投入 (conferences:seed)
+
+`data/seeds/conferences.json` の 30+ 件を `ConferenceRepository` に upsert する Artisan コマンド (Issue #40 Phase 1)。
+カンファレンス管理を「半自動化」する第 1 段階で、既知のカンファを一気に登録する用途。
+Phase 0.5 (Issue #41) で導入した **Draft 状態を活用** しているため、CfP 期間が判明していないカンファレンスも仮登録できる。
+
+```sh
+# 投入予定だけ確認 (DB 書き込みなし)
+php artisan conferences:seed --dry-run
+
+# 本投入 (idempotent。同 conferenceId は上書き)
+php artisan conferences:seed
+
+# 別ファイルから投入
+php artisan conferences:seed --source=path/to/file.json
+```
+
+### JSON シード形式
+
+```json
+{
+  "conferences": [
+    {
+      "conferenceId": "uuid-v4-here",
+      "name": "PHP Conference Japan 2026",
+      "officialUrl": "https://phpcon.php.gr.jp/2026/",
+      "cfpUrl": "https://fortee.jp/phpcon-2026/cfp",
+      "eventStartDate": "2026-07-20",
+      "eventEndDate": "2026-07-20",
+      "venue": "大田区産業プラザ PiO",
+      "format": "offline",
+      "cfpEndDate": "2026-05-20",
+      "categorySlugs": ["php"],
+      "status": "published"
+    },
+    {
+      "conferenceId": "uuid-v4-here",
+      "name": "RubyKaigi 2027",
+      "officialUrl": "https://rubykaigi.org/2027/",
+      "categorySlugs": ["ruby"],
+      "status": "draft"
+    }
+  ]
+}
+```
+
+- `categorySlugs` は `data/seeds/categories.json` の `slug` (例: `php`, `frontend`, `mobile-ios`) を配列で指定
+  - コマンド内で `CategoryRepository::findBySlug()` で UUID に解決される (= 可読性優先で UUID 直書きを避ける)
+  - 未知 slug があると FAILURE で停止
+- `status="draft"` の行は `cfpUrl` 等の Published 必須項目を省略可能
+- `status="published"` の行は事前検証で必須項目欠落を弾く (= 投入後に admin UI でバリデーション違反になるデータを防ぐ)
+
+### 同梱種データの構成 (2026-05-05 時点)
+
+| 状態 | 件数 | 内訳 |
+|---|---|---|
+| **Published (CfP 募集中・締切確定済)** | 6 | 大吉祥寺.pm 2026 / PHP愛媛 2026 / PHP Japan 2026 / AWS CDK 2026 / PHP新潟 2026 / Product Engineering Conference 2026 |
+| **Draft (CfP 期間未確定 / 終了済)** | 25 | iOSDC / DroidKaigi / PyCon JP / KubeCon Japan / 関数型まつり / Vue Fes / RubyKaigi 2027 / 他 |
+
+合計 **31 件**。Draft の各エントリは公式 URL を持つので、Phase 3 (LLM 抽出) が完成すれば URL → 詳細補完 → Published 昇格の運用に乗せられる。
+
+### 運用シナリオ
+
+- **初期投入 (1 回限り)**: `make db-init && php artisan conferences:seed` で 31 件揃う
+- **新規カンファ追加**: 単発登録は admin UI から 1 件ずつ。バッチ追加なら JSON に追記して再実行 (idempotent なので重複なし)
+- **本番 AWS 向け Bref Console handler 化**: Phase 2 (= categories:seed と同様) で対応予定
+
 ## カンファレンスの Draft / Published 状態 (Phase 0.5)
 
 カンファレンスは 2 つのライフサイクル状態を持つ (Issue #41 で導入):
