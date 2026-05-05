@@ -20,8 +20,27 @@ make install
 # DynamoDB Local 起動 + テーブル作成 + シード投入 (プロジェクトルートから)
 cd ../.. && make db-up && make db-init && cd apps/admin-api
 
+# .env を雛形からコピー (初回のみ) + APP_KEY 生成
+cp .env.example .env && php artisan key:generate
+
 # Laravel ビルトインサーバ起動 (port 8080)
 make serve
+```
+
+ブラウザでアクセス:
+- 管理画面: http://127.0.0.1:8080/admin
+- API: http://127.0.0.1:8080/admin/api/health
+
+> **注意**: `make serve` は `127.0.0.1:8080` で起動するため、`.env` の
+> `APP_URL` は `http://127.0.0.1:8080` (= `.env.example` のデフォルト値)
+> である必要がある。`http://localhost:8080` 等で開くと VerifyOrigin
+> ミドルウェアが POST/PUT/DELETE で 403 INVALID_ORIGIN を返す。
+
+UI 開発時は別端末で Vite dev server を起動すると CSS/JS の hot reload が効く:
+
+```sh
+pnpm install   # 初回のみ
+pnpm dev
 ```
 
 xdebug が未インストールでカバレッジ機能を使う場合:

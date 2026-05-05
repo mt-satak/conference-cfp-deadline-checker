@@ -95,6 +95,11 @@ class DynamoDbCategoryRepository implements CategoryRepository
     /**
      * findByName / findBySlug の共通実装。Scan + FilterExpression で 1 件取得。
      * 件数 30〜50 想定なので GSI を導入せず Scan で済ます。
+     *
+     * NOTE: Limit を指定すると「フィルタ前の最大評価件数」になり、フィルタに
+     * 一致しないアイテムが先頭にあった場合に null を返してしまう (DynamoDB の
+     * Scan + FilterExpression の仕様)。本実装では Limit を指定せず全件評価し、
+     * 一致した先頭 1 件を返す。本来 30〜50 件のテーブルでは無問題。
      */
     private function findFirstByAttribute(string $attributeName, string $value): ?Category
     {
@@ -103,7 +108,6 @@ class DynamoDbCategoryRepository implements CategoryRepository
             'FilterExpression' => '#attr = :val',
             'ExpressionAttributeNames' => ['#attr' => $attributeName],
             'ExpressionAttributeValues' => $this->marshaler->marshalItem([':val' => $value]),
-            'Limit' => 1,
         ]);
 
         /** @var array<int, array<string, mixed>> $items */
