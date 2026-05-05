@@ -8,6 +8,7 @@ use Aws\BedrockRuntime\BedrockRuntimeClient;
 use Aws\BedrockRuntime\Exception\BedrockRuntimeException;
 use Aws\Command;
 use Aws\Result;
+use Illuminate\Support\Facades\Log;
 
 /**
  * BedrockConferenceDraftExtractor のユニットテスト (Issue #40 Phase 3 PR-2)。
@@ -231,6 +232,65 @@ it('Tool Use の categorySlugs から availableSlugs に含まれないものを
 
     // Then: 未知 slug は捨てられる
     expect($draft->categorySlugs)->toBe(['php', 'backend']);
+});
+
+it('成功時に Token 消費 / latency / モデル ID を構造化ログに残す (PR-4 観測性)', function () {
+    // Given: usage を含む Bedrock レスポンス
+    $output = [
+        'output' => ['message' => ['content' => [
+            ['toolUse' => ['toolUseId' => 'x', 'name' => 'extract_conference_draft',
+                'input' => ['name' => 'X', 'categorySlugs' => []]]],
+        ]]],
+        'usage' => ['inputTokens' => 9842, 'outputTokens' => 412, 'totalTokens' => 10254],
+    ];
+    $client = makeBedrockClientReturning($output);
+
+    // ログ期待: info 1 件 (channel=llm.extraction, source_url, model_id, tokens)
+    Log::shouldReceive('info')
+        ->once()
+        ->with(
+            'conference draft extraction succeeded',
+            Mockery::on(function (array $context): bool {
+                return ($context['source_url'] ?? null) === 'https://test.example.com'
+                    && ($context['provider'] ?? null) === 'bedrock'
+                    && ($context['model_id'] ?? null) === 'anthropic.claude-sonnet-4-6'
+                    && ($context['input_tokens'] ?? null) === 9842
+                    && ($context['output_tokens'] ?? null) === 412
+                    && is_int($context['elapsed_ms'] ?? null);
+            }),
+        );
+
+    // When
+    $extractor = new BedrockConferenceDraftExtractor($client, 'anthropic.claude-sonnet-4-6', []);
+    $extractor->extract('https://test.example.com', '<html></html>');
+});
+
+it('SDK 例外時に warning ログを残してから例外を投げる', function () {
+    // Given
+    $client = Mockery::mock(BedrockRuntimeClient::class);
+    $client->shouldReceive('converse')
+        ->once()
+        ->andThrow(new BedrockRuntimeException(
+            'throttled',
+            new Command('Converse'),
+            ['code' => 'ThrottlingException'],
+        ));
+
+    Log::shouldReceive('warning')
+        ->once()
+        ->with(
+            'conference draft extraction failed',
+            Mockery::on(function (array $context): bool {
+                return ($context['source_url'] ?? null) === 'https://x.example.com'
+                    && ($context['provider'] ?? null) === 'bedrock'
+                    && str_contains($context['exception_type'] ?? '', 'BedrockRuntimeException');
+            }),
+        );
+
+    // When/Then
+    $extractor = new BedrockConferenceDraftExtractor($client, 'anthropic.claude-sonnet-4-6', []);
+    expect(fn () => $extractor->extract('https://x.example.com', '<html></html>'))
+        ->toThrow(LlmExtractionFailedException::class);
 });
 
 it('converse 呼出時のリクエスト body に modelId / messages / tools / system が含まれる', function () {
