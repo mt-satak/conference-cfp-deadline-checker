@@ -49,6 +49,7 @@ class CreateConferenceUseCase
             themeColor: $input->themeColor,
             createdAt: $now,
             updatedAt: $now,
+            status: $input->status,
         );
 
         $this->repository->save($conference);

@@ -138,32 +138,46 @@ class DynamoDbConferenceRepository implements ConferenceRepository
      */
     private function toItem(Conference $conference): array
     {
+        // Draft / Published 共通の必須属性のみ最初に積む。
+        // status による任意項目 (cfpEndDate, eventStartDate 等) は null チェックで条件付け。
         $item = [
             'conferenceId' => $conference->conferenceId,
             'name' => $conference->name,
             'officialUrl' => $conference->officialUrl,
-            'cfpUrl' => $conference->cfpUrl,
-            'eventStartDate' => $conference->eventStartDate,
-            'eventEndDate' => $conference->eventEndDate,
-            'venue' => $conference->venue,
-            'format' => $conference->format->value,
-            'cfpEndDate' => $conference->cfpEndDate,
             'categories' => $conference->categories,
             'createdAt' => $conference->createdAt,
             'updatedAt' => $conference->updatedAt,
-            'ttl' => $this->computeTtl($conference->cfpEndDate),
             'status' => $conference->status->value,
         ];
 
-        // optional フィールドは null の場合は項目自体を載せない
-        // (DynamoDB には null 値の保存も可能だが、後の Scan/Get で
-        //  「キーが存在しない」と「null 値」を区別する必要が出るため、
-        //  単純に存在しない状態にしておく)
+        // null フィールドは属性自体を載せない (DynamoDB は null も保存可能だが、後の Scan/Get で
+        //  「キー不在」と「null 値」を区別する必要が出るため、単純に存在しない状態にしておく)
         if ($conference->trackName !== null) {
             $item['trackName'] = $conference->trackName;
         }
+        if ($conference->cfpUrl !== null) {
+            $item['cfpUrl'] = $conference->cfpUrl;
+        }
+        if ($conference->eventStartDate !== null) {
+            $item['eventStartDate'] = $conference->eventStartDate;
+        }
+        if ($conference->eventEndDate !== null) {
+            $item['eventEndDate'] = $conference->eventEndDate;
+        }
+        if ($conference->venue !== null) {
+            $item['venue'] = $conference->venue;
+        }
+        if ($conference->format !== null) {
+            $item['format'] = $conference->format->value;
+        }
         if ($conference->cfpStartDate !== null) {
             $item['cfpStartDate'] = $conference->cfpStartDate;
+        }
+        if ($conference->cfpEndDate !== null) {
+            $item['cfpEndDate'] = $conference->cfpEndDate;
+            // TTL は cfpEndDate 確定時のみ付与。Draft の未確定アイテムは TTL なし
+            // (= 自動削除されない)。Published 昇格時に save が再発行され TTL が付く。
+            $item['ttl'] = $this->computeTtl($conference->cfpEndDate);
         }
         if ($conference->description !== null) {
             $item['description'] = $conference->description;
@@ -191,18 +205,20 @@ class DynamoDbConferenceRepository implements ConferenceRepository
             $categoriesArray,
         ));
 
+        $formatValue = $this->nullableString($item, 'format');
+
         return new Conference(
             conferenceId: $this->stringify($item, 'conferenceId'),
             name: $this->stringify($item, 'name'),
             trackName: $this->nullableString($item, 'trackName'),
             officialUrl: $this->stringify($item, 'officialUrl'),
-            cfpUrl: $this->stringify($item, 'cfpUrl'),
-            eventStartDate: $this->stringify($item, 'eventStartDate'),
-            eventEndDate: $this->stringify($item, 'eventEndDate'),
-            venue: $this->stringify($item, 'venue'),
-            format: ConferenceFormat::from($this->stringify($item, 'format')),
+            cfpUrl: $this->nullableString($item, 'cfpUrl'),
+            eventStartDate: $this->nullableString($item, 'eventStartDate'),
+            eventEndDate: $this->nullableString($item, 'eventEndDate'),
+            venue: $this->nullableString($item, 'venue'),
+            format: $formatValue !== null ? ConferenceFormat::tryFrom($formatValue) : null,
             cfpStartDate: $this->nullableString($item, 'cfpStartDate'),
-            cfpEndDate: $this->stringify($item, 'cfpEndDate'),
+            cfpEndDate: $this->nullableString($item, 'cfpEndDate'),
             categories: $stringCategories,
             description: $this->nullableString($item, 'description'),
             themeColor: $this->nullableString($item, 'themeColor'),

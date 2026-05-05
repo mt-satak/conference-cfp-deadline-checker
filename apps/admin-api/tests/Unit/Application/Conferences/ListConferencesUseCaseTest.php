@@ -4,6 +4,7 @@ use App\Application\Conferences\ListConferencesUseCase;
 use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceFormat;
 use App\Domain\Conferences\ConferenceRepository;
+use App\Domain\Conferences\ConferenceStatus;
 
 /**
  * ListConferencesUseCase の単体テスト。
@@ -11,8 +12,11 @@ use App\Domain\Conferences\ConferenceRepository;
  * UseCase の責務は「Repository から全件取得して呼び出し元に返す」のみ。
  * フィルタ・ソート・ページネーション等は呼び出し側 (HTTP コントローラ等) で行う。
  */
-function listUseCaseSampleConference(string $id, string $name): Conference
-{
+function listUseCaseSampleConference(
+    string $id,
+    string $name,
+    ConferenceStatus $status = ConferenceStatus::Published,
+): Conference {
     return new Conference(
         conferenceId: $id,
         name: $name,
@@ -30,6 +34,7 @@ function listUseCaseSampleConference(string $id, string $name): Conference
         themeColor: null,
         createdAt: '2026-04-15T10:30:00+09:00',
         updatedAt: '2026-04-15T10:30:00+09:00',
+        status: $status,
     );
 }
 
@@ -61,4 +66,43 @@ it('Repository が空配列を返した場合は空配列をそのまま返す',
 
     // Then: 空配列が返る
     expect($result)->toBe([]);
+});
+
+it('status=Draft フィルタ指定で Published を除外する (Phase 0.5)', function () {
+    // Given: Draft 1 件 + Published 2 件
+    $all = [
+        listUseCaseSampleConference('id-1', 'Draft 1', ConferenceStatus::Draft),
+        listUseCaseSampleConference('id-2', 'Published A', ConferenceStatus::Published),
+        listUseCaseSampleConference('id-3', 'Published B', ConferenceStatus::Published),
+    ];
+    $repository = Mockery::mock(ConferenceRepository::class);
+    $repository->shouldReceive('findAll')->once()->andReturn($all);
+
+    // When: Draft フィルタで実行
+    $useCase = new ListConferencesUseCase($repository);
+    $result = $useCase->execute(ConferenceStatus::Draft);
+
+    // Then: Draft の 1 件のみ返る
+    expect($result)->toHaveCount(1);
+    expect($result[0]->name)->toBe('Draft 1');
+});
+
+it('status=Published フィルタ指定で Draft を除外する', function () {
+    // Given: Draft 1 件 + Published 2 件
+    $all = [
+        listUseCaseSampleConference('id-1', 'Draft 1', ConferenceStatus::Draft),
+        listUseCaseSampleConference('id-2', 'Published A', ConferenceStatus::Published),
+        listUseCaseSampleConference('id-3', 'Published B', ConferenceStatus::Published),
+    ];
+    $repository = Mockery::mock(ConferenceRepository::class);
+    $repository->shouldReceive('findAll')->once()->andReturn($all);
+
+    // When
+    $useCase = new ListConferencesUseCase($repository);
+    $result = $useCase->execute(ConferenceStatus::Published);
+
+    // Then: Published 2 件 (添字は 0,1 にリインデックスされる)
+    expect($result)->toHaveCount(2);
+    expect($result[0]->name)->toBe('Published A');
+    expect($result[1]->name)->toBe('Published B');
 });

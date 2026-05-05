@@ -22,24 +22,30 @@ namespace App\Domain\Conferences;
 final readonly class Conference
 {
     /**
-     * @param  string[]  $categories  categories.categoryId の配列 (UUID v4)
+     * @param  string[]  $categories  categories.categoryId の配列 (UUID v4)。Draft では空配列可。
      *
-     * status はデフォルト Published。Phase 0.5 (Issue #41) 導入前の既存コール
-     * サイトとの後方互換のため。Draft 状態は明示指定で構築する。
-     * PR-2 で Draft 状態時に他フィールドを nullable 化するスコープ拡張を行う。
+     * status による必須/任意の差分:
+     * - 必須 (両状態): conferenceId, name, officialUrl, createdAt, updatedAt, status
+     * - 任意 (Draft では null 可): cfpUrl, eventStartDate, eventEndDate, venue, format, cfpEndDate
+     * - 任意 (元から両状態 null 可): trackName, cfpStartDate, description, themeColor
+     *
+     * Published バリデーションは HTTP 層 (FormRequest) で実施。Domain Entity 側は
+     * 「Draft 中の中間状態」と「Published の確定状態」の両方を表現できる柔軟な型に留める。
+     *
+     * status はデフォルト Published で既存呼出との後方互換を取る (Issue #41 PR-1 / PR-2)。
      */
     public function __construct(
         public string $conferenceId,
         public string $name,
         public ?string $trackName,
         public string $officialUrl,
-        public string $cfpUrl,
-        public string $eventStartDate,
-        public string $eventEndDate,
-        public string $venue,
-        public ConferenceFormat $format,
+        public ?string $cfpUrl,
+        public ?string $eventStartDate,
+        public ?string $eventEndDate,
+        public ?string $venue,
+        public ?ConferenceFormat $format,
         public ?string $cfpStartDate,
-        public string $cfpEndDate,
+        public ?string $cfpEndDate,
         public array $categories,
         public ?string $description,
         public ?string $themeColor,

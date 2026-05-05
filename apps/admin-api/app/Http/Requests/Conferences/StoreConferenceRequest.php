@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Conferences;
 
 use App\Domain\Conferences\ConferenceFormat;
+use App\Domain\Conferences\ConferenceStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -12,6 +13,13 @@ use Illuminate\Validation\Rule;
  * 整合先: data/openapi.yaml の components.schemas.ConferenceCreate および
  * Conference スキーマ。整合性ルール (cfpStartDate <= cfpEndDate <=
  * eventStartDate <= eventEndDate / URL https / 等) も本クラスで担う。
+ *
+ * Phase 0.5 (Issue #41) で status による条件分岐:
+ * - Draft: name + officialUrl のみ必須。それ以外は任意 (来た場合は shape 検証)
+ * - Published: 従来通り全 9 項目必須 (cfpUrl, eventStartDate, eventEndDate, venue,
+ *   format, cfpEndDate, categories) + 整合性ルール
+ *
+ * status 自体が省略された場合 published として扱う (= 後方互換)。
  *
  * NOTE: categories の参照整合性 (categoryId が categories テーブルに存在
  * すること) は Categories Repository が無いため本コミット時点では検証しない。
@@ -31,22 +39,55 @@ class StoreConferenceRequest extends FormRequest
      */
     public function rules(): array
     {
+        $statusValues = array_column(ConferenceStatus::cases(), 'value');
+        $isPublished = $this->resolveStatus() === ConferenceStatus::Published;
+
         return [
+            'status' => ['sometimes', Rule::in($statusValues)],
             'name' => ['required', 'string', 'min:1', 'max:200'],
             'trackName' => ['nullable', 'string', 'max:100'],
             'officialUrl' => ['required', 'string', 'url:https'],
-            'cfpUrl' => ['required', 'string', 'url:https'],
-            'eventStartDate' => ['required', 'date_format:Y-m-d'],
-            'eventEndDate' => ['required', 'date_format:Y-m-d', 'after_or_equal:eventStartDate'],
-            'venue' => ['required', 'string', 'min:1', 'max:100'],
-            'format' => ['required', Rule::in(array_column(ConferenceFormat::cases(), 'value'))],
+            'cfpUrl' => $this->publishedRequiredOrNullable($isPublished, ['string', 'url:https']),
+            'eventStartDate' => $this->publishedRequiredOrNullable($isPublished, ['date_format:Y-m-d']),
+            'eventEndDate' => $this->publishedRequiredOrNullable($isPublished, ['date_format:Y-m-d', 'after_or_equal:eventStartDate']),
+            'venue' => $this->publishedRequiredOrNullable($isPublished, ['string', 'min:1', 'max:100']),
+            'format' => $this->publishedRequiredOrNullable($isPublished, [Rule::in(array_column(ConferenceFormat::cases(), 'value'))]),
             'cfpStartDate' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:cfpEndDate'],
-            'cfpEndDate' => ['required', 'date_format:Y-m-d', 'before_or_equal:eventStartDate'],
-            'categories' => ['required', 'array', 'min:1'],
+            'cfpEndDate' => $this->publishedRequiredOrNullable($isPublished, ['date_format:Y-m-d', 'before_or_equal:eventStartDate']),
+            'categories' => $isPublished
+                ? ['required', 'array', 'min:1']
+                : ['sometimes', 'array'],
             'categories.*' => ['string', 'uuid'],
             'description' => ['nullable', 'string', 'max:2000'],
             'themeColor' => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
         ];
+    }
+
+    /**
+     * status 入力値を ConferenceStatus に解決する (省略時は Published)。
+     */
+    private function resolveStatus(): ConferenceStatus
+    {
+        $value = $this->input('status');
+        if (! is_string($value)) {
+            return ConferenceStatus::Published;
+        }
+
+        return ConferenceStatus::tryFrom($value) ?? ConferenceStatus::Published;
+    }
+
+    /**
+     * Published 時は required + 内部 shape ルール、Draft 時は nullable + 内部 shape ルール、
+     * を共通組み立てするヘルパ。
+     *
+     * @param  array<int, mixed>  $shapeRules
+     * @return array<int, mixed>
+     */
+    private function publishedRequiredOrNullable(bool $isPublished, array $shapeRules): array
+    {
+        return $isPublished
+            ? array_merge(['required'], $shapeRules)
+            : array_merge(['nullable'], $shapeRules);
     }
 
     /**
@@ -56,21 +97,22 @@ class StoreConferenceRequest extends FormRequest
      * 配列 shape (PHPStan extension の概念) で実際の型を宣言する。これにより
      * Controller 側の `$validated['name']` 等が string と推論される。
      *
-     * 任意項目 (trackName 等) は欠落しうるため `?:` 付与。null 許容項目はキー存在
-     * 時 string|null。
+     * Phase 0.5 (Issue #41) で Draft 入力時に Published 必須項目 (cfpUrl 等) が
+     * 欠落 / null 許容になったため、対応するキーは optional + string|null union に変更。
      *
      * @return array{
+     *     status?: string,
      *     name: string,
      *     trackName?: string|null,
      *     officialUrl: string,
-     *     cfpUrl: string,
-     *     eventStartDate: string,
-     *     eventEndDate: string,
-     *     venue: string,
-     *     format: string,
+     *     cfpUrl?: string|null,
+     *     eventStartDate?: string|null,
+     *     eventEndDate?: string|null,
+     *     venue?: string|null,
+     *     format?: string|null,
      *     cfpStartDate?: string|null,
-     *     cfpEndDate: string,
-     *     categories: array<int, string>,
+     *     cfpEndDate?: string|null,
+     *     categories?: array<int, string>,
      *     description?: string|null,
      *     themeColor?: string|null,
      * }
@@ -78,17 +120,18 @@ class StoreConferenceRequest extends FormRequest
     public function validated($key = null, $default = null): array
     {
         /** @var array{
+         *     status?: string,
          *     name: string,
          *     trackName?: string|null,
          *     officialUrl: string,
-         *     cfpUrl: string,
-         *     eventStartDate: string,
-         *     eventEndDate: string,
-         *     venue: string,
-         *     format: string,
+         *     cfpUrl?: string|null,
+         *     eventStartDate?: string|null,
+         *     eventEndDate?: string|null,
+         *     venue?: string|null,
+         *     format?: string|null,
          *     cfpStartDate?: string|null,
-         *     cfpEndDate: string,
-         *     categories: array<int, string>,
+         *     cfpEndDate?: string|null,
+         *     categories?: array<int, string>,
          *     description?: string|null,
          *     themeColor?: string|null,
          * } $validated

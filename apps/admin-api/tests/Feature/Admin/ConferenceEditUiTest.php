@@ -8,6 +8,7 @@ use App\Domain\Categories\CategoryAxis;
 use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceFormat;
 use App\Domain\Conferences\ConferenceNotFoundException;
+use App\Domain\Conferences\ConferenceStatus;
 use App\Http\Middleware\VerifyOrigin;
 
 /**
@@ -118,4 +119,29 @@ it('PUT /admin/conferences/{id} は該当無しなら 404', function () {
 
     // Then
     $response->assertStatus(404);
+});
+
+it('PUT /admin/conferences/{id} で status を published に更新できる (Phase 0.5)', function () {
+    // Given: status=published 送信時に UseCase に enum で渡る
+    bindEditCategoriesUseCaseStub();
+    $captured = null;
+    $update = Mockery::mock(UpdateConferenceUseCase::class);
+    $update->shouldReceive('execute')
+        ->once()
+        ->with('id-1', Mockery::on(function (array $fields) use (&$captured): bool {
+            $captured = $fields;
+
+            return true;
+        }))
+        ->andReturn(makeEditUiSampleConference());
+    app()->instance(UpdateConferenceUseCase::class, $update);
+
+    // When
+    $response = $this->put('/admin/conferences/id-1', ['status' => 'published']);
+
+    // Then
+    $response->assertStatus(302);
+    /** @var array<string, mixed> $captured */
+    expect($captured)->toBeArray();
+    expect($captured['status'])->toBe(ConferenceStatus::Published);
 });

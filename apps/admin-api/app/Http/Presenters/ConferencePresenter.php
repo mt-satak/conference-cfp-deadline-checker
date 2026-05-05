@@ -29,7 +29,7 @@ class ConferencePresenter
             'eventStartDate' => $conference->eventStartDate,
             'eventEndDate' => $conference->eventEndDate,
             'venue' => $conference->venue,
-            'format' => $conference->format->value,
+            'format' => $conference->format?->value,
             'cfpStartDate' => $conference->cfpStartDate,
             'cfpEndDate' => $conference->cfpEndDate,
             'categories' => $conference->categories,
@@ -37,6 +37,7 @@ class ConferencePresenter
             'themeColor' => $conference->themeColor,
             'createdAt' => $conference->createdAt,
             'updatedAt' => $conference->updatedAt,
+            'status' => $conference->status->value,
         ];
     }
 }

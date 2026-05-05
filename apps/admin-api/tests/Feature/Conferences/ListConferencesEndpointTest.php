@@ -3,6 +3,7 @@
 use App\Application\Conferences\ListConferencesUseCase;
 use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceFormat;
+use App\Domain\Conferences\ConferenceStatus;
 
 /**
  * GET /admin/api/conferences (operationId: listConferences) の Feature テスト。
@@ -87,6 +88,70 @@ it('レスポンスの各 Conference は OpenAPI スキーマの主要フィー�
     $response->assertJsonPath('data.0.themeColor', '#777BB4');
     $response->assertJsonPath('data.0.createdAt', '2026-04-15T10:30:00+09:00');
     $response->assertJsonPath('data.0.updatedAt', '2026-04-15T10:30:00+09:00');
+});
+
+it('?status=draft で UseCase に Draft フィルタが渡る (Phase 0.5)', function () {
+    // Given: UseCase は Draft フィルタ引数で呼ばれることを期待
+    $useCase = Mockery::mock(ListConferencesUseCase::class);
+    $useCase->shouldReceive('execute')
+        ->once()
+        ->with(ConferenceStatus::Draft)
+        ->andReturn([]);
+    app()->instance(ListConferencesUseCase::class, $useCase);
+
+    // When
+    $response = $this->getJson('/admin/api/conferences?status=draft');
+
+    // Then
+    $response->assertStatus(200);
+});
+
+it('?status=published で UseCase に Published フィルタが渡る', function () {
+    // Given
+    $useCase = Mockery::mock(ListConferencesUseCase::class);
+    $useCase->shouldReceive('execute')
+        ->once()
+        ->with(ConferenceStatus::Published)
+        ->andReturn([]);
+    app()->instance(ListConferencesUseCase::class, $useCase);
+
+    // When
+    $response = $this->getJson('/admin/api/conferences?status=published');
+
+    // Then
+    $response->assertStatus(200);
+});
+
+it('?status 未指定なら UseCase はフィルタなしで呼ばれる', function () {
+    // Given
+    $useCase = Mockery::mock(ListConferencesUseCase::class);
+    $useCase->shouldReceive('execute')
+        ->once()
+        ->with(null)
+        ->andReturn([]);
+    app()->instance(ListConferencesUseCase::class, $useCase);
+
+    // When
+    $response = $this->getJson('/admin/api/conferences');
+
+    // Then
+    $response->assertStatus(200);
+});
+
+it('?status に未知値があってもフィルタなしで処理する (fail-soft)', function () {
+    // Given: 未知の status 値は ConferenceStatus::tryFrom が null を返す
+    $useCase = Mockery::mock(ListConferencesUseCase::class);
+    $useCase->shouldReceive('execute')
+        ->once()
+        ->with(null)
+        ->andReturn([]);
+    app()->instance(ListConferencesUseCase::class, $useCase);
+
+    // When
+    $response = $this->getJson('/admin/api/conferences?status=archived');
+
+    // Then: 200 (= 全件返却扱い、エラーにしない)
+    $response->assertStatus(200);
 });
 
 it('UseCase が空配列を返した場合は data: [], meta.count: 0 になる', function () {
