@@ -4,7 +4,14 @@
 
 @section('content')
     <div class="mb-4 flex items-center justify-between">
-        <h1 class="text-2xl font-bold">カンファレンス編集</h1>
+        <h1 class="text-2xl font-bold">
+            カンファレンス編集
+            @if ($conference->status === \App\Domain\Conferences\ConferenceStatus::Draft)
+                <span class="ml-2 rounded bg-gray-200 px-2 py-0.5 text-sm font-medium text-gray-800">下書き</span>
+            @else
+                <span class="ml-2 rounded bg-green-100 px-2 py-0.5 text-sm font-medium text-green-800">公開中</span>
+            @endif
+        </h1>
         <a href="{{ route('admin.conferences.index') }}" class="text-sm text-gray-600 hover:text-gray-900">
             ← 一覧へ戻る
         </a>
@@ -15,7 +22,6 @@
             'conference' => $conference,
             'action' => route('admin.conferences.update', $conference->conferenceId),
             'method' => 'PUT',
-            'submitLabel' => '更新する',
         ])
     </div>
 
