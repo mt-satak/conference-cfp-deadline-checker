@@ -2,15 +2,26 @@
 
 namespace App\Providers;
 
+use App\Application\Conferences\Extraction\ConferenceDraftExtractor;
+use App\Application\Conferences\Extraction\HtmlFetcher;
 use App\Domain\Build\BuildStatusReader;
 use App\Domain\Build\BuildTriggerer;
+use App\Domain\Categories\Category;
 use App\Domain\Categories\CategoryRepository;
 use App\Domain\Conferences\ConferenceRepository;
 use App\Infrastructure\Amplify\AmplifyBuildStatusReader;
 use App\Infrastructure\Amplify\AmplifyBuildTriggerer;
 use App\Infrastructure\DynamoDb\DynamoDbCategoryRepository;
 use App\Infrastructure\DynamoDb\DynamoDbConferenceRepository;
+use App\Infrastructure\Http\DnsHostValidator;
+use App\Infrastructure\Http\DnsResolver;
+use App\Infrastructure\Http\HostValidator;
+use App\Infrastructure\Http\LaravelHtmlFetcher;
+use App\Infrastructure\Http\PhpDnsResolver;
+use App\Infrastructure\LlmExtraction\BedrockConferenceDraftExtractor;
+use App\Infrastructure\LlmExtraction\MockConferenceDraftExtractor;
 use Aws\Amplify\AmplifyClient;
+use Aws\BedrockRuntime\BedrockRuntimeClient;
 use Aws\DynamoDb\DynamoDbClient;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\ClientInterface;
@@ -28,6 +39,7 @@ class AppServiceProvider extends ServiceProvider
         $this->registerRepositories();
         $this->registerAmplifyClient();
         $this->registerBuildServices();
+        $this->registerLlmExtractionServices();
     }
 
     /**
@@ -149,5 +161,62 @@ class AppServiceProvider extends ServiceProvider
         // Guzzle HTTP Client を ClientInterface 経由で解決可能にする
         // (Build 以外でも将来 HTTP 連携が増えた場合に共有できる)
         $this->app->singleton(ClientInterface::class, fn (): GuzzleClient => new GuzzleClient);
+    }
+
+    /**
+     * LLM URL 抽出系 (Issue #40 Phase 3) の interface を実装に紐付ける。
+     *
+     * - HostValidator: 常に DnsHostValidator (= SSRF 防御層、本番もテストも同じ)
+     * - HtmlFetcher: 常に LaravelHtmlFetcher (= Laravel HTTP facade ベース)
+     * - ConferenceDraftExtractor: LLM_PROVIDER 環境変数で切替
+     *   - mock (default): MockConferenceDraftExtractor (固定レスポンス、AWS 不要)
+     *   - bedrock: BedrockConferenceDraftExtractor (本番、IAM ロールで Bedrock 認証)
+     *
+     * Bedrock 利用時の availableSlugs (= categorySlugs 候補) は CategoryRepository から
+     * findAll() で読み込んで slug のみ抽出して渡す。CategoryRepository は DynamoDB バック
+     * なのでカテゴリ追加時に prompt cache がリセットされるが、本機能の利用頻度が低い
+     * (= 抽出 1 回 / 数日〜数週間レベル) のためコスト影響は微少。
+     *
+     * env() は config/llm.php 内のみで使用する (Larastan 推奨)。
+     */
+    private function registerLlmExtractionServices(): void
+    {
+        $this->app->bind(DnsResolver::class, PhpDnsResolver::class);
+        $this->app->bind(HostValidator::class, DnsHostValidator::class);
+
+        $this->app->bind(HtmlFetcher::class, function (Application $app): LaravelHtmlFetcher {
+            return new LaravelHtmlFetcher($app->make(HostValidator::class));
+        });
+
+        $this->app->singleton(BedrockRuntimeClient::class, function (): BedrockRuntimeClient {
+            $region = config('llm.region');
+
+            return new BedrockRuntimeClient([
+                'version' => 'latest',
+                'region' => is_string($region) ? $region : 'ap-northeast-1',
+            ]);
+        });
+
+        $this->app->bind(ConferenceDraftExtractor::class, function (Application $app): ConferenceDraftExtractor {
+            $provider = config('llm.provider');
+
+            if ($provider !== 'bedrock') {
+                return new MockConferenceDraftExtractor;
+            }
+
+            $modelId = config('llm.model');
+            /** @var Category[] $categories */
+            $categories = $app->make(CategoryRepository::class)->findAll();
+            $availableSlugs = array_values(array_map(
+                static fn ($c): string => $c->slug,
+                $categories,
+            ));
+
+            return new BedrockConferenceDraftExtractor(
+                client: $app->make(BedrockRuntimeClient::class),
+                modelId: is_string($modelId) ? $modelId : 'anthropic.claude-sonnet-4-6',
+                availableSlugs: $availableSlugs,
+            );
+        });
     }
 }
