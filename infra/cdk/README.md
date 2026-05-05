@@ -136,18 +136,35 @@ deploy workflow が代行する。
    ```
    既に bootstrap 済の場合は idempotent なのでスキップ可。
 
-3. **Bedrock モデルアクセス申請** (= LLM URL 抽出機能の前提)
-   - AWS Bedrock コンソール (ap-northeast-1) → "Model access" → `Anthropic Claude Sonnet 4.6` を選択 → "Submit use case details" → "Save changes"
-   - 通常は数分〜1 時間で承認される
-   - **Tokyo (ap-northeast-1) で直接呼べない場合**: 横断推論プロファイル `apac.anthropic.claude-sonnet-4-6` をモデル ID として使う
-     - その場合は `infra/cdk/lib/constructs/admin-api.ts` の環境変数 `LLM_MODEL` を
-       `apac.anthropic.claude-sonnet-4-6` に変更してから deploy
-   - 承認状況の確認:
+3. **Bedrock モデルアクセス確認** (= LLM URL 抽出機能の前提)
+   - 現状の AWS Bedrock は **「初回呼び出しで自動有効化」** 方式 (旧 Model access ページは廃止済)
+     ただし Anthropic モデルは初回時に use case 詳細提出が要求される場合あり
+   - **ap-northeast-1 では foundation model 直接呼び出しは on-demand 非対応** のため
+     横断推論プロファイル経由必須:
+     - `jp.anthropic.claude-sonnet-4-6` (日本国内データレジデンシ、推奨)
+     - `global.anthropic.claude-sonnet-4-6` (世界横断、capacity 重視)
+   - 利用可能性 + アクセス権の確認:
      ```sh
+     # 1. Foundation model がアカウントから見えるか
      aws bedrock list-foundation-models --region ap-northeast-1 \
-       --query "modelSummaries[?contains(modelId, 'sonnet-4-6')].[modelId,modelLifecycle.status]" \
-       --output table
+       --query "modelSummaries[?contains(modelId, 'sonnet-4-6')]" --output table
+
+     # 2. 利用可能な inference profile を一覧
+     aws bedrock list-inference-profiles --region ap-northeast-1 \
+       --query "inferenceProfileSummaries[?contains(inferenceProfileId, 'sonnet-4-6')]" --output table
+
+     # 3. 軽量呼び出しテスト (実コスト約 0.01 円)
+     aws bedrock-runtime converse \
+       --region ap-northeast-1 \
+       --model-id jp.anthropic.claude-sonnet-4-6 \
+       --messages '[{"role":"user","content":[{"text":"hello"}]}]' \
+       --inference-config '{"maxTokens":50}'
      ```
+     応答が返れば OK。`AccessDeniedException` が出た場合は use case 提出が必要 (Bedrock コンソール
+     で Sonnet 4.6 のページから提出フォームに記入)。
+   - **モデル ID 変更が必要な場合**: `infra/cdk/lib/constructs/admin-api.ts` の `LLM_MODEL` 環境変数
+     を変更 (デフォルトは `jp.anthropic.claude-sonnet-4-6`)。`global.*` に変えるかは可用性 vs データ
+     レジデンシのトレードオフで判断
 
 4. **(任意) カスタムドメイン使用時**
    - `domainName=<host>` (例: `cfp.example.com`)

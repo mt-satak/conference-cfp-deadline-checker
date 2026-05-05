@@ -138,8 +138,14 @@ export class AdminApi extends Construct {
         DYNAMODB_CONFERENCES_TABLE: props.conferences.tableName,
         DYNAMODB_CATEGORIES_TABLE: props.categories.tableName,
         // LLM URL 抽出 (Issue #40 Phase 3): 本番は Bedrock 経由、API キー不要
+        // ap-northeast-1 では foundation model 直接呼び出しは不可 (on-demand 非対応)、
+        // 横断推論プロファイル経由が必須。`jp.*` 系は日本国内に閉じた推論で
+        // データレジデンシを確保 (HTML が国外に出ない)。
+        // 検証コマンド (deploy 前):
+        //   aws bedrock list-inference-profiles --region ap-northeast-1 \
+        //     --query "inferenceProfileSummaries[?contains(inferenceProfileId, 'sonnet-4-6')]"
         LLM_PROVIDER: 'bedrock',
-        LLM_MODEL: 'anthropic.claude-sonnet-4-6',
+        LLM_MODEL: 'jp.anthropic.claude-sonnet-4-6',
         LLM_REGION: region,
       },
       description: 'Admin API for Conference CfP Deadline Checker',
