@@ -122,10 +122,12 @@ it('findByName は name 一致の Scan FilterExpression を発行する', functi
     $client->shouldReceive('scan')
         ->once()
         ->with(Mockery::on(function (array $args): bool {
+            // Limit は指定しない (Scan + FilterExpression の Limit 仕様で
+            // フィルタ前評価件数になり、先頭が一致しないと null になるバグの回避)
             return $args['TableName'] === CATEGORIES_TABLE_NAME
                 && $args['FilterExpression'] === '#attr = :val'
                 && $args['ExpressionAttributeNames'] === ['#attr' => 'name']
-                && $args['Limit'] === 1;
+                && ! isset($args['Limit']);
         }))
         ->andReturn(new Result(['Items' => [categoryMarshalled(sampleCategoryItem())]]));
 
