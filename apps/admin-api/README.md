@@ -138,6 +138,71 @@ php artisan conferences:seed --source=path/to/file.json
 - **新規カンファ追加**: 単発登録は admin UI から 1 件ずつ。バッチ追加なら JSON に追記して再実行 (idempotent なので重複なし)
 - **本番 AWS 向け Bref Console handler 化**: Phase 2 (= categories:seed と同様) で対応予定
 
+## カンファレンス情報の URL 取り込み (LLM 抽出 / Phase 3)
+
+公式サイト URL を入力すると、AI (Amazon Bedrock 上の Claude Sonnet 4.6) が自動で
+カンファレンス情報を抽出して新規作成フォームを prefill する機能 (Issue #40 Phase 3)。
+admin が転記する手作業をほぼゼロにし、URL 1 つの入力だけで Draft 登録に進める。
+
+### Admin UI からの利用
+
+`/admin/conferences/create` の上部「URL から取り込む (β)」入力欄に HTTPS の URL を入れて
+「取り込む」をクリック。AI が name / 開催日 / 会場 / format / categorySlugs / etc. を抽出して
+下のフォームを prefill する。**抽出結果は必ず内容を確認・修正してから保存**する
+(ハルシネーション可能性あり)。
+
+### 環境別の動作モード
+
+| 環境 | 設定 | 認証 | 動作 |
+|---|---|---|---|
+| ローカル開発 (既定) | `LLM_PROVIDER=mock` (`.env.example` のデフォルト) | 不要 | `MockConferenceDraftExtractor` が固定レスポンスを返す。AWS なしで UI 動作確認可能 |
+| ローカル本番検証 | `.env` で `LLM_PROVIDER=bedrock` に変更 | `aws sso login` で短期トークン取得 | 実 Bedrock を呼ぶ。コストは 1 件約 ¥6 (Sonnet 4.6) |
+| 本番 (Lambda) | CDK で `LLM_PROVIDER=bedrock` を環境変数に設定済 | Lambda 実行ロールに `bedrock:InvokeModel` 権限付与済 | IAM 経由で自動認証 |
+
+### 設定変数 (`config/llm.php` / `.env`)
+
+- `LLM_PROVIDER`: `mock` (default) / `bedrock`
+- `LLM_MODEL`: Bedrock モデル ID (例: `anthropic.claude-sonnet-4-6`)
+- `LLM_REGION`: Bedrock 呼び出し先リージョン (省略時は `AWS_DEFAULT_REGION`)
+
+**注意**: API キー類は `.env` / コードに **一切置かない** 方針 (project memory
+`project_no_api_keys_policy.md` 参照)。Bedrock + IAM/SSO 経路のみ使う。
+
+### セキュリティ防御層 (PR #50, #51 で実装済)
+
+| 対策 | 実装場所 |
+|---|---|
+| HTTPS 強制 (Controller + HtmlFetcher 二重) | `ConferenceController::extractFromUrl` validator + `LaravelHtmlFetcher::assertHttps` |
+| SSRF (loopback / private / link-local / metadata / DNS rebinding) | `DnsHostValidator` + `DnsResolver` |
+| リソース上限 (timeout 10s / 5MB / リダイレクト 5) | `LaravelHtmlFetcher` |
+| HTML サニタイズ (script/style/iframe/svg/form/noscript/comments 除去) | `LaravelHtmlFetcher::sanitizeAndExtract` |
+| プロンプト隔離 (`<page_content>` タグ) | `BedrockConferenceDraftExtractor::buildUserMessage` |
+| Tool Use JSON Schema 強制 | `BedrockConferenceDraftExtractor::buildToolSpec` |
+| **Rate Limit** (1 IP あたり 1 時間 50 件) | `routes/admin-ui.php` `throttle:50,60` |
+| 最小権限 IAM (Sonnet 4.6 系のみ) | `infra/cdk/lib/constructs/admin-api.ts` |
+| 人間レビュー必須 (= LLM は判断者ではない) | `ConferenceDraft` DTO + 既存 Create フォーム経由保存 |
+
+### 観測性 (CloudWatch ログ)
+
+抽出ごとに構造化ログを `Log::info` / `Log::warning` で出力:
+
+- 成功時: `source_url` / `provider` / `model_id` / `elapsed_ms` / `input_tokens` / `output_tokens` / `total_tokens`
+- 失敗時: `exception_type` / `exception_message` を追加
+- Controller 経由の outcome: `filled_fields` / `null_fields` / `category_count` (= LLM 抽出精度の評価素材)
+
+Bref が stderr を CloudWatch Logs に転送するため、本番環境では CloudWatch Logs Insights で
+コスト推移 / 失敗率 / 精度を後から評価できる。
+
+### 想定コスト
+
+Sonnet 4.6 + Prompt Caching:
+- 1 件 ≈ $0.038 (約 ¥6)
+- 月 50 件想定: 約 ¥300
+- 月 500 件 (上限相当): 約 ¥3,000
+
+LLM 呼び出しは admin の URL 入力 → クリック (= 1 操作 1 件) のみで発生する。
+Rate Limit (50/h) でコスト runaway を防ぐ。
+
 ## カンファレンスの Draft / Published 状態 (Phase 0.5)
 
 カンファレンスは 2 つのライフサイクル状態を持つ (Issue #41 で導入):

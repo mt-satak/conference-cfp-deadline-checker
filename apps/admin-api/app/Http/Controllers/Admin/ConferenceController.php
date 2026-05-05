@@ -26,6 +26,7 @@ use App\Http\Requests\Conferences\UpdateConferenceRequest;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -321,16 +322,48 @@ class ConferenceController extends Controller
         try {
             $draft = $useCase->execute($url);
         } catch (HtmlFetchFailedException $e) {
+            Log::warning('extract-from-url ui: html fetch failed', [
+                'channel' => 'llm.extraction.ui',
+                'source_url' => $url,
+                'exception_type' => $e::class,
+            ]);
+
             return redirect()
                 ->route('admin.conferences.create')
                 ->with('error', "URL からの取り込みに失敗しました: {$e->getMessage()}");
         } catch (LlmExtractionFailedException $e) {
+            Log::warning('extract-from-url ui: llm extraction failed', [
+                'channel' => 'llm.extraction.ui',
+                'source_url' => $url,
+                'exception_type' => $e::class,
+            ]);
+
             return redirect()
                 ->route('admin.conferences.create')
                 ->with('error', "URL からの取り込み (LLM 抽出) に失敗しました: {$e->getMessage()}");
         }
 
         $formInput = $this->draftToFormInput($draft, $categoryRepository);
+
+        // 観測ログ: どのフィールドが LLM で埋まり、どれが null かを記録
+        // (= 後で精度評価する材料に使う、Phase 3 PR-4)
+        $filledFields = [];
+        $nullFields = [];
+        foreach ($formInput as $key => $value) {
+            if ($value === null || $value === '' || $value === []) {
+                $nullFields[] = $key;
+            } else {
+                $filledFields[] = $key;
+            }
+        }
+        $categories = $formInput['categories'];
+        Log::info('extract-from-url ui: succeeded', [
+            'channel' => 'llm.extraction.ui',
+            'source_url' => $url,
+            'filled_fields' => $filledFields,
+            'null_fields' => $nullFields,
+            'category_count' => is_array($categories) ? count($categories) : 0,
+        ]);
 
         return redirect()
             ->route('admin.conferences.create')

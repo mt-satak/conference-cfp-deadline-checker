@@ -8,6 +8,7 @@ use App\Application\Conferences\Extraction\LlmExtractionFailedException;
 use App\Domain\Conferences\ConferenceFormat;
 use Aws\BedrockRuntime\BedrockRuntimeClient;
 use Aws\BedrockRuntime\Exception\BedrockRuntimeException;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
@@ -41,6 +42,8 @@ class BedrockConferenceDraftExtractor implements ConferenceDraftExtractor
 
     public function extract(string $sourceUrl, string $html): ConferenceDraft
     {
+        $startedAt = microtime(true);
+
         try {
             $response = $this->client->converse([
                 'modelId' => $this->modelId,
@@ -69,15 +72,60 @@ class BedrockConferenceDraftExtractor implements ConferenceDraftExtractor
                 ],
             ]);
         } catch (BedrockRuntimeException $e) {
+            $this->logFailure($sourceUrl, $startedAt, $e);
             throw LlmExtractionFailedException::modelError($sourceUrl, $e->getMessage());
         } catch (Throwable $e) {
+            $this->logFailure($sourceUrl, $startedAt, $e);
             throw LlmExtractionFailedException::modelError($sourceUrl, $e->getMessage());
         }
 
         /** @var array<string, mixed> $responseArray */
         $responseArray = $response->toArray();
 
+        $this->logSuccess($sourceUrl, $startedAt, $responseArray);
+
         return $this->mapResponseToDraft($sourceUrl, $responseArray);
+    }
+
+    /**
+     * 成功時の構造化ログ (Issue #40 Phase 3 PR-4 観測性)。
+     * Bref が stderr を CloudWatch に転送するため、Lambda 環境では自動的に
+     * CloudWatch Logs に流れて精度評価のフィードバックループ素材になる。
+     *
+     * @param  array<string, mixed>  $response
+     */
+    private function logSuccess(string $sourceUrl, float $startedAt, array $response): void
+    {
+        $usage = is_array($response['usage'] ?? null) ? $response['usage'] : [];
+
+        Log::info('conference draft extraction succeeded', [
+            'channel' => 'llm.extraction',
+            'source_url' => $sourceUrl,
+            'provider' => 'bedrock',
+            'model_id' => $this->modelId,
+            'elapsed_ms' => $this->elapsedMs($startedAt),
+            'input_tokens' => is_int($usage['inputTokens'] ?? null) ? $usage['inputTokens'] : null,
+            'output_tokens' => is_int($usage['outputTokens'] ?? null) ? $usage['outputTokens'] : null,
+            'total_tokens' => is_int($usage['totalTokens'] ?? null) ? $usage['totalTokens'] : null,
+        ]);
+    }
+
+    private function logFailure(string $sourceUrl, float $startedAt, Throwable $e): void
+    {
+        Log::warning('conference draft extraction failed', [
+            'channel' => 'llm.extraction',
+            'source_url' => $sourceUrl,
+            'provider' => 'bedrock',
+            'model_id' => $this->modelId,
+            'elapsed_ms' => $this->elapsedMs($startedAt),
+            'exception_type' => $e::class,
+            'exception_message' => $e->getMessage(),
+        ]);
+    }
+
+    private function elapsedMs(float $startedAt): int
+    {
+        return (int) round((microtime(true) - $startedAt) * 1000);
     }
 
     /**
