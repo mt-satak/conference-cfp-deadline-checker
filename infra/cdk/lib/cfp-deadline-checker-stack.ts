@@ -34,6 +34,14 @@ export interface CfpDeadlineCheckerStackProps extends cdk.StackProps {
   readonly zoneName?: string;
   readonly certificateArn?: string;
   readonly alertEmail?: string;
+  /**
+   * Lambda@Edge ARN を直接指定する場合 (= crossRegionReferences をバイパス)。
+   * 通常は EdgeStack の Custom::CrossRegionExportReader で SSM 経由解決するが、
+   * Lambda@Edge のバージョン更新時に CFN が古い dynamic reference を pin してしまい
+   * stack update が詰まる既知のバグ (= aws-cdk#29009) があるため、その回避用に
+   * deploy 時に context で一時的に直値を渡せるようにする。
+   */
+  readonly basicAuthFunctionVersionArnDirect?: string;
 }
 
 /**
@@ -64,10 +72,19 @@ export class CfpDeadlineCheckerStack extends cdk.Stack {
 
     // 静的サイト + 管理画面ルーティング。
     // /admin/* は AdminApi の Function URL に Lambda@Edge 経由でルーティング。
+    // Lambda@Edge ARN は通常 EdgeStack から crossRegionReferences で取得 (= props.basicAuthFunctionVersionArn)。
+    // ただし aws-cdk#29009 の既知バグで Lambda 更新時に CFN が古い SSM dynamic ref を pin
+    // してしまい stack update が詰まることがあるため、その回避手段として
+    // basicAuthFunctionVersionArnDirect が渡された場合は SSM 経由でなく直値を使う。
+    // 直値モードでは ExportsReader Custom Resource が template から消えるため、CFN の
+    // 古い参照も同時に解放される。回復後は context を外して通常モードに戻す。
+    const basicAuthArn =
+      props?.basicAuthFunctionVersionArnDirect ?? props?.basicAuthFunctionVersionArn;
+
     const staticSite = new StaticSite(this, 'StaticSite', {
       webAclArn: props?.webAclArn,
       adminFunctionUrl: adminApi.functionUrl,
-      basicAuthFunctionVersionArn: props?.basicAuthFunctionVersionArn,
+      basicAuthFunctionVersionArn: basicAuthArn,
       domainName: props?.domainName,
       certificateArn: props?.certificateArn,
     });

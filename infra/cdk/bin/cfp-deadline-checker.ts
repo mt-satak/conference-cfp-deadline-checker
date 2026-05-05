@@ -40,6 +40,16 @@ const rootDomain = app.node.tryGetContext('rootDomain') as string | undefined;
 // 受信者側で確認リンクをクリックするまで通知は届かない。
 const alertEmail = app.node.tryGetContext('alertEmail') as string | undefined;
 
+// ── Lambda@Edge ARN 直接指定 (= aws-cdk#29009 回避用、通常 deploy では未指定) ──
+// crossRegionReferences の SSM dynamic reference に CFN が pin した古い timestamp が
+// 解決できなくなった場合のリカバリ用。一時的に直値を渡して deploy すると、
+// ExportsReader Custom Resource が template から消え、stack の古い参照が解放される。
+// 利用後は context なしの通常 deploy で crossRegionReferences が再構築される。
+// 例:
+//   pnpm cdk deploy CfpDeadlineCheckerStack \
+//     --context basicAuthArnDirect=arn:aws:lambda:us-east-1:<acct>:function:<name>:<version>
+const basicAuthArnDirect = app.node.tryGetContext('basicAuthArnDirect') as string | undefined;
+
 // ── EdgeStack: us-east-1 にデプロイ ──
 // CloudFront に紐付く Lambda@Edge / WAF / Secrets Manager / ACM 証明書 /
 // Route 53 Hosted Zone は仕様上 us-east-1 必須。crossRegionReferences を
@@ -64,6 +74,7 @@ const mainStack = new CfpDeadlineCheckerStack(app, 'CfpDeadlineCheckerStack', {
   crossRegionReferences: true,
   webAclArn: edgeStack.webAclArn,
   basicAuthFunctionVersionArn: edgeStack.basicAuthFunctionVersion.functionArn,
+  basicAuthFunctionVersionArnDirect: basicAuthArnDirect,
   domainName,
   hostedZoneId: edgeStack.hostedZoneId,
   zoneName: edgeStack.zoneName,
