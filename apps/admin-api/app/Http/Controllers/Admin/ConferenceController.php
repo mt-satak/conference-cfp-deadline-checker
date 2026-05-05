@@ -6,9 +6,14 @@ use App\Application\Categories\ListCategoriesUseCase;
 use App\Application\Conferences\CreateConferenceInput;
 use App\Application\Conferences\CreateConferenceUseCase;
 use App\Application\Conferences\DeleteConferenceUseCase;
+use App\Application\Conferences\Extraction\ConferenceDraft;
+use App\Application\Conferences\Extraction\ExtractConferenceDraftUseCase;
+use App\Application\Conferences\Extraction\HtmlFetchFailedException;
+use App\Application\Conferences\Extraction\LlmExtractionFailedException;
 use App\Application\Conferences\GetConferenceUseCase;
 use App\Application\Conferences\ListConferencesUseCase;
 use App\Application\Conferences\UpdateConferenceUseCase;
+use App\Domain\Categories\CategoryRepository;
 use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceFormat;
 use App\Domain\Conferences\ConferenceNotFoundException;
@@ -21,6 +26,7 @@ use App\Http\Requests\Conferences\UpdateConferenceRequest;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 /**
  * 管理画面のカンファレンス管理 UI (Blade SSR)。
@@ -267,5 +273,102 @@ class ConferenceController extends Controller
         }
 
         return $missing;
+    }
+
+    /**
+     * POST /admin/conferences/extract-from-url — 公式 URL から ConferenceDraft を
+     * LLM 抽出して Create 画面に prefill する (Issue #40 Phase 3 PR-3)。
+     *
+     * 流れ:
+     * 1. URL バリデーション (HTTPS のみ、URL 形式)
+     * 2. ExtractConferenceDraftUseCase が HtmlFetcher → LLM で抽出
+     * 3. ConferenceDraft → form 入力 array に変換 (categorySlugs → categoryIds 解決)
+     * 4. create にリダイレクト + withInput で old() 復元される
+     *
+     * 例外処理:
+     * - HtmlFetchFailedException / LlmExtractionFailedException は error フラッシュで
+     *   create 画面に戻す (UI で修正・再試行 or 手動入力にフォールバック)
+     *
+     * Rate Limit: routes/admin-ui.php の throttle middleware で 1 admin あたり 1 時間 50 件
+     * (= cost runaway 防止、project memory project_no_api_keys_policy.md の運用ガード)
+     */
+    public function extractFromUrl(
+        Request $request,
+        ExtractConferenceDraftUseCase $useCase,
+        CategoryRepository $categoryRepository,
+    ): RedirectResponse {
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'url' => ['required', 'string', 'url', 'starts_with:https://', 'max:2000'],
+            ],
+            [
+                'url.starts_with' => 'URL は https:// で始める必要があります',
+                'url.url' => 'URL の形式が不正です',
+            ],
+        );
+        if ($validator->fails()) {
+            return redirect()
+                ->route('admin.conferences.create')
+                ->withErrors($validator)
+                ->withInput();
+        }
+
+        /** @var array{url: string} $validated */
+        $validated = $validator->validated();
+        $url = $validated['url'];
+
+        try {
+            $draft = $useCase->execute($url);
+        } catch (HtmlFetchFailedException $e) {
+            return redirect()
+                ->route('admin.conferences.create')
+                ->with('error', "URL からの取り込みに失敗しました: {$e->getMessage()}");
+        } catch (LlmExtractionFailedException $e) {
+            return redirect()
+                ->route('admin.conferences.create')
+                ->with('error', "URL からの取り込み (LLM 抽出) に失敗しました: {$e->getMessage()}");
+        }
+
+        $formInput = $this->draftToFormInput($draft, $categoryRepository);
+
+        return redirect()
+            ->route('admin.conferences.create')
+            ->withInput($formInput)
+            ->with('status', "{$url} から情報を取り込みました。内容を確認・修正して保存してください。");
+    }
+
+    /**
+     * ConferenceDraft → create フォーム用の入力 array に変換する。
+     * categorySlugs は CategoryRepository::findBySlug() で UUID 配列に解決する。
+     * 解決できない slug は除外 (= LLM 推測値の defensive 扱い)。
+     *
+     * @return array<string, mixed>
+     */
+    private function draftToFormInput(ConferenceDraft $draft, CategoryRepository $repo): array
+    {
+        $categoryIds = [];
+        foreach ($draft->categorySlugs as $slug) {
+            $category = $repo->findBySlug($slug);
+            if ($category !== null) {
+                $categoryIds[] = $category->categoryId;
+            }
+        }
+
+        return [
+            'name' => $draft->name,
+            'trackName' => $draft->trackName,
+            'officialUrl' => $draft->officialUrl,
+            'cfpUrl' => $draft->cfpUrl,
+            'eventStartDate' => $draft->eventStartDate,
+            'eventEndDate' => $draft->eventEndDate,
+            'venue' => $draft->venue,
+            'format' => $draft->format?->value,
+            'cfpStartDate' => $draft->cfpStartDate,
+            'cfpEndDate' => $draft->cfpEndDate,
+            'categories' => $categoryIds,
+            'description' => $draft->description,
+            'themeColor' => $draft->themeColor,
+        ];
     }
 }
