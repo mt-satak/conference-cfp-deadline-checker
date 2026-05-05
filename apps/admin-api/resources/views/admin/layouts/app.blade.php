@@ -23,16 +23,25 @@
                    class="{{ request()->routeIs('admin.conferences.*') ? 'font-semibold text-blue-700' : 'text-gray-600 hover:text-gray-900' }}">
                     カンファレンス
                 </a>
-                {{-- Categories / Build は後続 PR で追加 --}}
+                <a href="{{ route('admin.categories.index') }}"
+                   class="{{ request()->routeIs('admin.categories.*') ? 'font-semibold text-blue-700' : 'text-gray-600 hover:text-gray-900' }}">
+                    カテゴリ
+                </a>
+                {{-- Build は後続 PR で追加 --}}
             </nav>
         </div>
     </header>
 
     <main class="mx-auto max-w-6xl px-4 py-6">
-        {{-- フラッシュメッセージ枠 (CRUD 成功時に使用予定) --}}
+        {{-- フラッシュメッセージ枠 (CRUD 成功時 / 失敗時) --}}
         @if (session('status'))
             <div class="mb-4 rounded border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-800">
                 {{ session('status') }}
+            </div>
+        @endif
+        @if (session('error'))
+            <div class="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+                {{ session('error') }}
             </div>
         @endif
 
