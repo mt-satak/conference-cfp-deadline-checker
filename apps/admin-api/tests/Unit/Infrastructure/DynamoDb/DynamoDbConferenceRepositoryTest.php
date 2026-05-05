@@ -2,6 +2,7 @@
 
 use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceFormat;
+use App\Domain\Conferences\ConferenceStatus;
 use App\Infrastructure\DynamoDb\DynamoDbConferenceRepository;
 use Aws\DynamoDb\DynamoDbClient;
 use Aws\DynamoDb\Marshaler;
@@ -320,4 +321,136 @@ it('countByCategoryId は Count 属性が無ければ 0 を返す', function () 
 
     // When/Then
     expect($repository->countByCategoryId('cat-x'))->toBe(0);
+});
+
+it('save は Conference の status を DynamoDB アイテムに含める', function () {
+    // Given: Draft 状態の Conference + 引数を補足するモック
+    [$client, $repository] = makeMockedRepo();
+    $conference = new Conference(
+        conferenceId: 'draft-1',
+        name: 'Draft カンファ',
+        trackName: null,
+        officialUrl: 'https://draft.example.com',
+        cfpUrl: 'https://draft.example.com/cfp',
+        eventStartDate: '2026-12-01',
+        eventEndDate: '2026-12-01',
+        venue: 'TBD',
+        format: ConferenceFormat::Offline,
+        cfpStartDate: null,
+        cfpEndDate: '2026-10-01',
+        categories: [],
+        description: null,
+        themeColor: null,
+        createdAt: '2026-04-15T10:30:00+09:00',
+        updatedAt: '2026-04-15T10:30:00+09:00',
+        status: ConferenceStatus::Draft,
+    );
+    $captured = null;
+    $client->shouldReceive('putItem')
+        ->once()
+        ->with(Mockery::on(function ($args) use (&$captured) {
+            $captured = $args;
+
+            return true;
+        }))
+        ->andReturn(new Result([]));
+
+    // When
+    $repository->save($conference);
+
+    // Then: status='draft' が DynamoDB アイテムに含まれる
+    /** @var array<string, mixed> $captured */
+    expect($captured)->not->toBeNull();
+    $item = (new Marshaler)->unmarshalItem($captured['Item']);
+    expect($item['status'])->toBe('draft');
+});
+
+it('findById は status 属性のあるアイテムを Conference の status に反映する', function () {
+    // Given: status='draft' 付きアイテムを返す GetItem モック
+    [$client, $repository] = makeMockedRepo();
+    $item = makeMarshalledItem([
+        'conferenceId' => 'has-status',
+        'name' => 'Has Status',
+        'officialUrl' => 'https://has-status.example.com',
+        'cfpUrl' => 'https://has-status.example.com/cfp',
+        'eventStartDate' => '2026-09-19',
+        'eventEndDate' => '2026-09-20',
+        'venue' => '東京',
+        'format' => 'offline',
+        'cfpEndDate' => '2026-07-15',
+        'categories' => ['1d4f2a83-6b48-4f1c-9c8a-7e2b3d4f5a02'],
+        'createdAt' => '2026-04-15T10:30:00+09:00',
+        'updatedAt' => '2026-04-15T10:30:00+09:00',
+        'status' => 'draft',
+    ]);
+    $client->shouldReceive('getItem')
+        ->once()
+        ->andReturn(new Result(['Item' => $item]));
+
+    // When
+    $result = $repository->findById('has-status');
+
+    // Then: status が Draft として復元される
+    expect($result)->toBeInstanceOf(Conference::class);
+    expect($result->status)->toBe(ConferenceStatus::Draft);
+});
+
+it('findById は status 属性が欠落したアイテムを Published として復元する (後方互換)', function () {
+    // Given: status 属性のないレガシーアイテム (Phase 0.5 導入前のデータ想定)
+    [$client, $repository] = makeMockedRepo();
+    $item = makeMarshalledItem([
+        'conferenceId' => 'legacy-1',
+        'name' => 'Legacy Pre-Draft',
+        'officialUrl' => 'https://legacy.example.com',
+        'cfpUrl' => 'https://legacy.example.com/cfp',
+        'eventStartDate' => '2026-09-19',
+        'eventEndDate' => '2026-09-20',
+        'venue' => '東京',
+        'format' => 'offline',
+        'cfpEndDate' => '2026-07-15',
+        'categories' => ['1d4f2a83-6b48-4f1c-9c8a-7e2b3d4f5a02'],
+        'createdAt' => '2026-04-15T10:30:00+09:00',
+        'updatedAt' => '2026-04-15T10:30:00+09:00',
+        // status 属性はキー自体が無い
+    ]);
+    $client->shouldReceive('getItem')
+        ->once()
+        ->andReturn(new Result(['Item' => $item]));
+
+    // When
+    $result = $repository->findById('legacy-1');
+
+    // Then: status は Published として復元される (= 既存データへの後方互換)
+    expect($result)->toBeInstanceOf(Conference::class);
+    expect($result->status)->toBe(ConferenceStatus::Published);
+});
+
+it('findById は status に未知の文字列があったら Published で fail-safe 復元する', function () {
+    // Given: status='archived' のような未知値を持つアイテム
+    [$client, $repository] = makeMockedRepo();
+    $item = makeMarshalledItem([
+        'conferenceId' => 'unknown-status',
+        'name' => 'Unknown Status',
+        'officialUrl' => 'https://x.example.com',
+        'cfpUrl' => 'https://x.example.com/cfp',
+        'eventStartDate' => '2026-09-19',
+        'eventEndDate' => '2026-09-20',
+        'venue' => '東京',
+        'format' => 'offline',
+        'cfpEndDate' => '2026-07-15',
+        'categories' => ['1d4f2a83-6b48-4f1c-9c8a-7e2b3d4f5a02'],
+        'createdAt' => '2026-04-15T10:30:00+09:00',
+        'updatedAt' => '2026-04-15T10:30:00+09:00',
+        'status' => 'archived', // 未知値
+    ]);
+    $client->shouldReceive('getItem')
+        ->once()
+        ->andReturn(new Result(['Item' => $item]));
+
+    // When
+    $result = $repository->findById('unknown-status');
+
+    // Then: 未知値も Published に丸めて復元される (= 例外ではなく安全側に倒す)
+    expect($result)->toBeInstanceOf(Conference::class);
+    expect($result->status)->toBe(ConferenceStatus::Published);
 });

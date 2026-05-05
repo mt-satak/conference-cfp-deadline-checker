@@ -2,6 +2,7 @@
 
 use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceFormat;
+use App\Domain\Conferences\ConferenceStatus;
 
 /**
  * Conference value object および ConferenceFormat enum のユニットテスト。
@@ -105,4 +106,56 @@ it('ConferenceFormat::from() で文字列から enum を取得できる', functi
 it('ConferenceFormat::tryFrom() は不正値で null を返す', function () {
     // When / Then: 列挙にない値は null を返す (例外を投げない)
     expect(ConferenceFormat::tryFrom('unknown'))->toBeNull();
+});
+
+it('ConferenceStatus enum は draft / published の 2 ケースを持つ', function () {
+    // When / Then: 2 ケース全てが期待値の文字列で公開され、件数も 2 である
+    expect(ConferenceStatus::Draft->value)->toBe('draft');
+    expect(ConferenceStatus::Published->value)->toBe('published');
+    expect(ConferenceStatus::cases())->toHaveCount(2);
+});
+
+it('ConferenceStatus::from() で文字列から enum を取得できる', function () {
+    // When / Then: 各文字列値が対応する enum ケースに変換される
+    expect(ConferenceStatus::from('draft'))->toBe(ConferenceStatus::Draft);
+    expect(ConferenceStatus::from('published'))->toBe(ConferenceStatus::Published);
+});
+
+it('ConferenceStatus::tryFrom() は不正値で null を返す', function () {
+    // When / Then: 列挙にない値は null を返す (例外を投げない)
+    expect(ConferenceStatus::tryFrom('archived'))->toBeNull();
+});
+
+it('Conference は status を指定して構築でき、プロパティとして公開する', function () {
+    // When: status を指定して Conference を構築する
+    $conference = new Conference(
+        conferenceId: '770e8400-e29b-41d4-a716-446655440002',
+        name: 'Draft カンファ',
+        trackName: null,
+        officialUrl: 'https://draft.example.com',
+        cfpUrl: 'https://draft.example.com/cfp',
+        eventStartDate: '2026-12-01',
+        eventEndDate: '2026-12-01',
+        venue: 'TBD',
+        format: ConferenceFormat::Offline,
+        cfpStartDate: null,
+        cfpEndDate: '2026-10-01',
+        categories: ['1d4f2a83-6b48-4f1c-9c8a-7e2b3d4f5a02'],
+        description: null,
+        themeColor: null,
+        createdAt: '2026-04-15T10:30:00+09:00',
+        updatedAt: '2026-04-15T10:30:00+09:00',
+        status: ConferenceStatus::Draft,
+    );
+
+    // Then: status が指定値で公開されている
+    expect($conference->status)->toBe(ConferenceStatus::Draft);
+});
+
+it('Conference は status を省略すると published がデフォルトで適用される', function () {
+    // Given/When: status 引数なしで構築 (= 既存 16 callers との後方互換性確認)
+    $conference = makeConference();
+
+    // Then: status は Published (= 既存挙動)
+    expect($conference->status)->toBe(ConferenceStatus::Published);
 });
