@@ -39,6 +39,20 @@ function bindListCategoriesUseCaseStub(array $categories): void
     app()->instance(ListCategoriesUseCase::class, $listMock);
 }
 
+it('Create 画面に「URL から取り込む」入力欄が表示される (Phase 3 PR-3)', function () {
+    // Given: カテゴリなし
+    bindListCategoriesUseCaseStub([]);
+
+    // When
+    $response = $this->get('/admin/conferences/create');
+
+    // Then: URL 入力欄と "取り込む" ボタンが描画される
+    $response->assertStatus(200);
+    $response->assertSee('URL から取り込む', false);
+    $response->assertSee('action="http://127.0.0.1:8080/admin/conferences/extract-from-url"', false);
+    $response->assertSee('name="url"', false);
+});
+
 it('GET /admin/conferences/create はフォームを 200 で返す', function () {
     // Given: カテゴリ 2 件 (フォームの選択肢として表示される)
     bindListCategoriesUseCaseStub([

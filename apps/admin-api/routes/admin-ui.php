@@ -27,6 +27,11 @@ Route::put('/conferences/{id}', [ConferenceController::class, 'update'])->name('
 Route::delete('/conferences/{id}', [ConferenceController::class, 'destroy'])->name('admin.conferences.destroy');
 // Draft → Published 昇格専用 (Phase 0.5 / Issue #41 PR-3)
 Route::post('/conferences/{id}/publish', [ConferenceController::class, 'publish'])->name('admin.conferences.publish');
+// LLM URL 抽出 (Issue #40 Phase 3 PR-3): 1 admin あたり 1 時間 50 リクエストに制限し
+// LLM コスト runaway を防ぐ。Laravel 標準 throttle:50,60 (= 50 req / 60 min / IP 単位) を使う。
+Route::post('/conferences/extract-from-url', [ConferenceController::class, 'extractFromUrl'])
+    ->middleware('throttle:50,60')
+    ->name('admin.conferences.extract-from-url');
 
 // ── Categories ──
 Route::get('/categories', [CategoryController::class, 'index'])->name('admin.categories.index');
