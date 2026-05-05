@@ -40,7 +40,7 @@ export interface CfpDeadlineCheckerStackProps extends cdk.StackProps {
  * メインスタック
  *
  * ap-northeast-1 にデプロイされる。以下のリソースを内包:
- * - DynamoDB 3 テーブル
+ * - DynamoDB 2 テーブル (conferences / categories)
  * - 管理 API Lambda (Bref + PHP-FPM)
  * - 静的サイト + 管理画面ルーティング (S3 + CloudFront)
  * - 独自ドメイン使用時の Route 53 エイリアスレコード
@@ -56,11 +56,10 @@ export class CfpDeadlineCheckerStack extends cdk.Stack {
 
     const dataTables = new DataTables(this, 'DataTables');
 
-    // 管理 API Lambda。DynamoDB 3 テーブルへの最小権限を持つ。
+    // 管理 API Lambda。DynamoDB 2 テーブルへの最小権限を持つ。
     const adminApi = new AdminApi(this, 'AdminApi', {
       conferences: dataTables.conferences,
       categories: dataTables.categories,
-      donations: dataTables.donations,
     });
 
     // 静的サイト + 管理画面ルーティング。
@@ -118,11 +117,6 @@ export class CfpDeadlineCheckerStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'CategoriesTableName', {
       value: dataTables.categories.tableName,
       description: 'DynamoDB categories table name',
-    });
-
-    new cdk.CfnOutput(this, 'DonationsTableName', {
-      value: dataTables.donations.tableName,
-      description: 'DynamoDB donations table name',
     });
 
     new cdk.CfnOutput(this, 'AdminApiFunctionName', {

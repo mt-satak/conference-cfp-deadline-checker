@@ -8,7 +8,6 @@ Conference CfP Deadline Checker のデータスキーマ確定版。
 |---|---|---|
 | `conferences` | カンファレンス情報（CfP 期限を含む） | 50〜200 件 |
 | `categories` | タグ・カテゴリのマスタ | 30〜50 件 |
-| `donations` | カンパ受領履歴（管理画面で手動登録） | 数十〜数百件/年 |
 
 すべて **DynamoDB オンデマンドモード**で運用する。
 
@@ -150,68 +149,6 @@ Sort Key は持たない（複数 CfP トラックは独立したアイテムと
 
 [data/seeds/categories.json](./seeds/categories.json) を参照。34 件のシード。
 
-## 4. テーブル: `donations`
-
-### 4.1 キー定義
-
-| キー種別 | 属性 | 型 | 説明 |
-|---|---|---|---|
-| Partition Key | `donationId` | String | UUID v4 |
-
-### 4.2 属性定義
-
-| 属性 | 型 | 必須 | 説明 |
-|---|---|---|---|
-| `donationId` | String | ✓ | UUID v4 |
-| `receivedAt` | String | ✓ | 受領日時（ISO 8601 datetime、JST） |
-| `amount` | Number | ✓ | 金額（JPY、整数） |
-| `source` | String | ✓ | 受領経路（例: `"Stripe"`, `"BOOTH"`, `"BuyMeACoffee"`） |
-| `donorName` | String | - | 寄付者名（任意・将来 Phase 3 で要再検討） |
-| `note` | String | - | 備考 |
-| `gsi1pk` | String | ✓ | 固定値 `"DONATION"`（GSI 用） |
-| `gsi1sk` | String | ✓ | `receivedAt` と同値（GSI 用） |
-| `createdAt` | String | ✓ | レコード作成日時 |
-| `updatedAt` | String | ✓ | レコード更新日時 |
-
-### 4.3 バリデーションルール
-
-| ルール | 内容 |
-|---|---|
-| 金額 | `amount > 0`、整数 |
-| `source` | 文字列の自由入力だが管理画面でプリセット選択を推奨 |
-| 個人情報 | `donorName` を保存する場合、Phase 3 着手時にプライバシーポリシー記載 |
-
-### 4.4 GSI
-
-| GSI 名 | PK | SK | 用途 |
-|---|---|---|---|
-| `gsi1` | `gsi1pk` (固定 `"DONATION"`) | `gsi1sk` (`receivedAt`) | 期間範囲集計 |
-
-### 4.5 アクセスパターン
-
-| 用途 | クエリ |
-|---|---|
-| 月次 / 年次集計 | `Query gsi1 WHERE gsi1pk = "DONATION" AND gsi1sk BETWEEN :from AND :to` |
-| 管理画面の登録 | `PutItem` |
-| 管理画面の編集・削除 | `GetItem` / `DeleteItem` by `donationId` |
-
-### 4.6 サンプルアイテム
-
-```json
-{
-  "donationId": "abc12345-6789-4def-9012-3456789abcde",
-  "receivedAt": "2026-04-20T15:30:00+09:00",
-  "amount": 1000,
-  "source": "Stripe",
-  "donorName": null,
-  "note": "Twitter経由",
-  "gsi1pk": "DONATION",
-  "gsi1sk": "2026-04-20T15:30:00+09:00",
-  "createdAt": "2026-04-20T16:00:00+09:00",
-  "updatedAt": "2026-04-20T16:00:00+09:00"
-}
-```
-
 ## 5. 共通設定
 
 ### 5.1 暗号化
@@ -233,7 +170,7 @@ Sort Key は持たない（複数 CfP トラックは独立したアイテムと
 
 | 環境 | テーブル名規則 |
 |---|---|
-| 本番 | `cfp-conferences-prod`, `cfp-categories-prod`, `cfp-donations-prod` |
+| 本番 | `cfp-conferences-prod`, `cfp-categories-prod` |
 | 開発（ローカル） | DynamoDB Local コンテナを利用、テーブル名は同じでも別エンドポイント |
 
 ## 6. 削除運用
@@ -242,7 +179,6 @@ Sort Key は持たない（複数 CfP トラックは独立したアイテムと
 |---|---|
 | `conferences` | TTL による自動削除（CfP 締切翌日 00:00 JST 以降）。手動削除も可 |
 | `categories` | 手動削除のみ。削除前に該当 `categoryId` を参照する `conferences` がないことを管理画面で確認 |
-| `donations` | 集計実績の保全のため自動削除しない。手動削除のみ |
 
 ## 7. 変更履歴管理
 
