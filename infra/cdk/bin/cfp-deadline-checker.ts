@@ -73,8 +73,12 @@ const mainStack = new CfpDeadlineCheckerStack(app, 'CfpDeadlineCheckerStack', {
   },
   crossRegionReferences: true,
   webAclArn: edgeStack.webAclArn,
-  basicAuthFunctionVersionArn: edgeStack.basicAuthFunctionVersion.functionArn,
-  basicAuthFunctionVersionArnDirect: basicAuthArnDirect,
+  // basicAuthArnDirect が指定されている場合は edgeStack の token を参照しないことで
+  // ExportsReader Custom Resource 生成自体を抑止する。token を参照すると CDK は
+  // crossRegionReferences の参照を template に出してしまうため、`??` の右側を遅延評価
+  // するために short-circuit を活用する。
+  basicAuthFunctionVersionArn:
+    basicAuthArnDirect ?? edgeStack.basicAuthFunctionVersion.functionArn,
   domainName,
   hostedZoneId: edgeStack.hostedZoneId,
   zoneName: edgeStack.zoneName,
