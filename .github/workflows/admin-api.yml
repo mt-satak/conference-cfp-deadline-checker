@@ -105,11 +105,23 @@ jobs:
       # ── テスト + カバレッジ計測 ──
       # phpunit.xml の <coverage pathCoverage="true"> を有効にしている前提で
       # Pest が C1 (Branch Coverage) を計測する。
+      #
+      # `--parallel` (Pest 4 内蔵 / ParaTest ベース) でテストをマルチプロセス並列化
+      # (Issue #80)。xdebug coverage の instrumentation オーバーヘッド (5〜10x) のうち
+      # CPU bound 部分を並列で吸収する。ローカル計測で 158s → 33s (約 4.8 倍高速化) を
+      # 確認。Integration テストは DynamoDB Local が CI 上に存在しないため自動 skip され、
+      # 並列実行で競合する stateful なケースは現状なし。
+      #
+      # `--passthru-php="-d memory_limit=512M"` は ParaTest が起動する **worker
+      # process** に memory_limit を伝播させるための指定。これが無いと worker 側は
+      # PHP default (128MB) で xdebug coverage の memory 消費に耐えきれず OOM する。
       - name: Pest + coverage
         env:
           XDEBUG_MODE: coverage
         run: |
           php -d memory_limit=512M vendor/bin/pest \
+            --parallel \
+            --passthru-php="-d memory_limit=512M" \
             --coverage-html=storage/coverage/html \
             --coverage-text=storage/coverage/coverage.txt \
             --coverage-clover=storage/coverage/clover.xml
