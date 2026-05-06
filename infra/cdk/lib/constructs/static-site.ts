@@ -1,4 +1,4 @@
-import { Duration, RemovalPolicy } from 'aws-cdk-lib';
+import { Duration, RemovalPolicy, Stack } from 'aws-cdk-lib';
 import {
   Certificate,
   type ICertificate,
@@ -22,7 +22,8 @@ import {
   FunctionUrlOrigin,
   S3BucketOrigin,
 } from 'aws-cdk-lib/aws-cloudfront-origins';
-import { type IFunctionUrl } from 'aws-cdk-lib/aws-lambda';
+import { ServicePrincipal } from 'aws-cdk-lib/aws-iam';
+import { type IFunction, type IFunctionUrl } from 'aws-cdk-lib/aws-lambda';
 import { Version } from 'aws-cdk-lib/aws-lambda';
 import { BlockPublicAccess, Bucket, BucketEncryption } from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
@@ -38,6 +39,12 @@ import { Construct } from 'constructs';
  *   管理 API Lambda の Function URL。指定すると /admin/* パスが
  *   この URL をオリジンとして使う動的ビヘイビアを追加する。
  *
+ * adminFunction:
+ *   管理 API Lambda の Function 本体。CloudFront OAC for Lambda Function URL
+ *   は `lambda:InvokeFunctionUrl` だけでなく `lambda:InvokeFunction` の
+ *   Resource Policy も要求するため、明示的に Permission を付与する目的で受ける。
+ *   adminFunctionUrl と同時指定する想定。
+ *
  * basicAuthFunctionVersionArn:
  *   us-east-1 の Lambda@Edge (Basic 認証) Version ARN。指定すると
  *   /admin/* のビヘイビアに Viewer Request トリガーとして関連付ける。
@@ -51,6 +58,7 @@ import { Construct } from 'constructs';
 export interface StaticSiteProps {
   readonly webAclArn?: string;
   readonly adminFunctionUrl?: IFunctionUrl;
+  readonly adminFunction?: IFunction;
   readonly basicAuthFunctionVersionArn?: string;
   readonly domainName?: string;
   readonly certificateArn?: string;
@@ -210,5 +218,20 @@ export class StaticSite extends Construct {
         },
       ],
     });
+
+    // ── CloudFront → Lambda Function URL の InvokeFunction 権限 ──
+    // FunctionUrlOrigin.withOriginAccessControl は内部で `lambda:InvokeFunctionUrl`
+    // の Permission を自動生成するが、AWS の OAC for Lambda Function URL の仕様では
+    // `lambda:InvokeFunction` も Resource Policy で許可する必要がある。
+    // これが無いと Function URL が SigV4 を持つ CloudFront からの呼び出しを 403 で
+    // 拒否する (公式 docs `Restrict access to an AWS Lambda function URL origin` 参照)。
+    if (props.adminFunction) {
+      const stack = Stack.of(this);
+      props.adminFunction.addPermission('CloudFrontInvokeFunction', {
+        principal: new ServicePrincipal('cloudfront.amazonaws.com'),
+        action: 'lambda:InvokeFunction',
+        sourceArn: `arn:${stack.partition}:cloudfront::${stack.account}:distribution/${this.distribution.distributionId}`,
+      });
+    }
   }
 }

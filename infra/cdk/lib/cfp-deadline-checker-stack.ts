@@ -76,6 +76,7 @@ export class CfpDeadlineCheckerStack extends cdk.Stack {
     const staticSite = new StaticSite(this, 'StaticSite', {
       webAclArn: props?.webAclArn,
       adminFunctionUrl: adminApi.functionUrl,
+      adminFunction: adminApi.function,
       basicAuthFunctionVersionArn: props?.basicAuthFunctionVersionArn,
       domainName: props?.domainName,
       certificateArn: props?.certificateArn,
