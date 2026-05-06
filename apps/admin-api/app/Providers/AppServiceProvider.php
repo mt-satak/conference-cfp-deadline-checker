@@ -76,40 +76,58 @@ class AppServiceProvider extends ServiceProvider
     /**
      * DynamoDB クライアントをシングルトンとして登録する。
      *
-     * - 本番: Lambda 実行ロールの認証情報 (key / secret は空、SDK が自動取得)
+     * - 本番: Lambda 実行ロールの認証情報 (SDK のデフォルトチェーンが動的に取得)
      * - 開発: AWS_DYNAMODB_ENDPOINT を指定すると DynamoDB Local に接続
-     *         (ダミー認証情報を渡す)
+     *         (必要なら credentials も渡す)
      *
      * env() は config/dynamodb.php 内のみで使用する (Larastan 推奨)。
      */
     private function registerDynamoDbClient(): void
     {
         $this->app->singleton(DynamoDbClient::class, function (): DynamoDbClient {
-            $region = config('dynamodb.region');
-            $config = [
-                'version' => 'latest',
-                'region' => is_string($region) ? $region : 'ap-northeast-1',
-            ];
-
-            // AWS_ACCESS_KEY_ID と AWS_SECRET_ACCESS_KEY が両方設定されている時のみ
-            // 明示的に credentials を渡す。空 / 未設定の場合は SDK のデフォルトチェーン
-            // (Lambda 実行ロール / 環境変数 / IAM ロール 等) に委ねる。
-            $accessKey = config('dynamodb.credentials.key');
-            $secretKey = config('dynamodb.credentials.secret');
-            if (is_string($accessKey) && $accessKey !== '' && is_string($secretKey) && $secretKey !== '') {
-                $config['credentials'] = [
-                    'key' => $accessKey,
-                    'secret' => $secretKey,
-                ];
-            }
-
-            $endpoint = config('dynamodb.endpoint');
-            if (is_string($endpoint) && $endpoint !== '') {
-                $config['endpoint'] = $endpoint;
-            }
-
-            return new DynamoDbClient($config);
+            return new DynamoDbClient($this->buildDynamoDbConfig());
         });
+    }
+
+    /**
+     * DynamoDbClient 用の AWS SDK config 配列を組み立てる (Issue #72)。
+     *
+     * credentials を渡すのは endpoint 設定時 (= DynamoDB Local) のみに限定。
+     * 本番環境では渡さず SDK のデフォルトチェーンに委ねる。
+     *
+     * 理由: Bref 起動時の `php artisan config:cache` で env() の値が固定化される。
+     * Lambda は AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY を実行ロールから自動注入
+     * するが、これを config:cache 経由で固定化すると ~30-60 分後の credentials
+     * rotate で `UnrecognizedClientException` (security token invalid) になる。
+     * config 経由で credentials を渡さなければ、SDK が起動毎に env から動的に
+     * 読み取り、rotate に追随できる (= 同じ環境変数を SDK 側が直接見る挙動)。
+     *
+     * @return array<string, mixed>
+     */
+    protected function buildDynamoDbConfig(): array
+    {
+        $region = config('dynamodb.region');
+        $config = [
+            'version' => 'latest',
+            'region' => is_string($region) && $region !== '' ? $region : 'ap-northeast-1',
+        ];
+
+        $endpoint = config('dynamodb.endpoint');
+        if (! is_string($endpoint) || $endpoint === '') {
+            return $config;
+        }
+
+        $config['endpoint'] = $endpoint;
+        $accessKey = config('dynamodb.credentials.key');
+        $secretKey = config('dynamodb.credentials.secret');
+        if (is_string($accessKey) && $accessKey !== '' && is_string($secretKey) && $secretKey !== '') {
+            $config['credentials'] = [
+                'key' => $accessKey,
+                'secret' => $secretKey,
+            ];
+        }
+
+        return $config;
     }
 
     /**
