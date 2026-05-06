@@ -140,15 +140,24 @@ export class StaticSite extends Construct {
     // ── /admin/* 用 ビヘイビア定義 (条件付き) ──
     // 管理 API の Function URL と Lambda@Edge の Version ARN が両方渡されたら
     // 動的ビヘイビアを構築する。片方欠けている場合は構成不全のため何もしない。
+    //
+    // 追加で `/build/*` も AdminApi にルーティングする。これは Laravel の
+    // `@vite` ディレクティブが生成する CSS/JS の URL (例: `/build/assets/app-xxx.css`) が
+    // `/admin/*` にマッチせず、デフォルトの S3 オリジンへ行って 403 になるのを防ぐため。
+    // Bref FPM は public/build/* を静的配信するので、AdminApi 側で何も実装せずに
+    // Vite ビルド成果物が配信される。CSS/JS は機密情報ではないので Basic 認証
+    // (Lambda@Edge) は付けず、CDN キャッシュも有効化する。
+    const adminFunctionUrl = props.adminFunctionUrl;
+    const basicAuthVersionArn = props.basicAuthFunctionVersionArn;
     const additionalBehaviors: Record<string, BehaviorOptions> | undefined =
-      props.adminFunctionUrl && props.basicAuthFunctionVersionArn
+      adminFunctionUrl && basicAuthVersionArn
         ? {
             'admin/*': {
               // Lambda Function URL を OAC 経由のオリジンとして登録。
               // CloudFront のリクエスト署名を CloudFront 側で行うことで、
               // Function URL の直接ヒットを 403 でブロックできる。
               origin: FunctionUrlOrigin.withOriginAccessControl(
-                props.adminFunctionUrl,
+                adminFunctionUrl,
               ),
               // 動的レスポンスのため CloudFront ではキャッシュしない
               cachePolicy: CachePolicy.CACHING_DISABLED,
@@ -165,11 +174,30 @@ export class StaticSite extends Construct {
                   functionVersion: Version.fromVersionArn(
                     this,
                     'ImportedBasicAuthVersion',
-                    props.basicAuthFunctionVersionArn,
+                    basicAuthVersionArn,
                   ),
                   eventType: LambdaEdgeEventType.VIEWER_REQUEST,
                 },
               ],
+            },
+            'build/*': {
+              // Vite が生成する静的アセット (CSS/JS) を AdminApi 経由で配信。
+              // Bref FPM が public/build/* を直接返すため Laravel routing には
+              // 入らない。
+              origin: FunctionUrlOrigin.withOriginAccessControl(
+                adminFunctionUrl,
+              ),
+              // ファイル名に hash が含まれる Vite の成果物は immutable なので CDN
+              // キャッシュ有効化で問題なし。
+              cachePolicy: CachePolicy.CACHING_OPTIMIZED,
+              originRequestPolicy:
+                OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+              viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+              allowedMethods: AllowedMethods.ALLOW_GET_HEAD,
+              compress: true,
+              responseHeadersPolicy: securityHeaders,
+              // Basic 認証は付けない: CSS/JS は機密情報ではなく、admin UI 本体は
+              // /admin/* で守られているため。
             },
           }
         : undefined;
