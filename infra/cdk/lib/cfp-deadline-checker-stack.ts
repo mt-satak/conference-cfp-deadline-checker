@@ -82,6 +82,23 @@ export class CfpDeadlineCheckerStack extends cdk.Stack {
       certificateArn: props?.certificateArn,
     });
 
+    // ── Laravel APP_URL (Issue #67) ──
+    // CloudFront → Lambda Function URL 転送では SigV4 の都合で Host ヘッダが
+    // Function URL ドメインに書き換わる。Laravel が生成する asset/route URL は
+    // Host 由来なので、そのままだと CSS/JS/ナビゲーション全てが Function URL を指し、
+    // ブラウザから直アクセスすると AWS_IAM 認証で 403 になる。
+    // AppServiceProvider::boot() の URL::forceRootUrl() を有効化するため、
+    // CloudFront のドメイン (custom domain があればそれ、無ければ distributionDomainName)
+    // を APP_URL として注入する。
+    // distribution 構築後に addEnvironment で後付けすることで AdminApi → StaticSite の
+    // 循環参照を避ける。
+    adminApi.function.addEnvironment(
+      'APP_URL',
+      props?.domainName
+        ? `https://${props.domainName}`
+        : `https://${staticSite.distribution.distributionDomainName}`,
+    );
+
     // 運用観測 (CloudWatch アラーム + SNS 通知トピック)。
     // alertEmail が指定されていればメール購読まで自動セットアップする。
     const operations = new Operations(this, 'Operations', {

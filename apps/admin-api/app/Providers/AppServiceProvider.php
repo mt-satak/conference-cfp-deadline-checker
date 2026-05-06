@@ -26,6 +26,7 @@ use Aws\DynamoDb\DynamoDbClient;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\ClientInterface;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -47,7 +48,29 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        $this->forceUrlSchemeIfHttps();
+    }
+
+    /**
+     * APP_URL が https で始まる場合、UrlGenerator の root URL とスキームを APP_URL
+     * 基準で強制する。
+     *
+     * Issue #67: CloudFront → Lambda Function URL 経由のリクエストでは Host ヘッダが
+     * Function URL ドメインに書き換わる (SigV4 の都合)。Laravel のデフォルトは
+     * Host ヘッダから URL を生成するため、生成 URL がすべて Function URL ドメインを
+     * 指してしまい、ブラウザから直アクセスすると AWS_IAM 認証で 403 になる。
+     *
+     * http (= ローカル開発) の場合は何もしない。
+     */
+    private function forceUrlSchemeIfHttps(): void
+    {
+        $appUrl = config('app.url');
+        if (! is_string($appUrl) || ! str_starts_with($appUrl, 'https://')) {
+            return;
+        }
+
+        URL::forceRootUrl($appUrl);
+        URL::forceScheme('https');
     }
 
     /**
