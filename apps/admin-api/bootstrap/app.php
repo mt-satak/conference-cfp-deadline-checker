@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\AdminApiExceptionRenderer;
+use App\Http\Middleware\CloudFrontSecretMiddleware;
 use App\Http\Middleware\VerifyOrigin;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -21,13 +22,15 @@ return Application::configure(basePath: dirname(__DIR__))
         // メソッドにのみ適用される (Origin / Referer ヘッダ検証)。
         then: function (): void {
             // /admin/api: バックエンド API (JSON 応答)
-            Route::middleware(['web', VerifyOrigin::class])
+            // CloudFrontSecretMiddleware (Issue #77) を最初に置き Function URL 直アクセスを 403 で弾く。
+            Route::middleware([CloudFrontSecretMiddleware::class, 'web', VerifyOrigin::class])
                 ->prefix('admin/api')
                 ->group(__DIR__.'/../routes/admin-api.php');
 
             // /admin: 管理画面 UI (Blade SSR)。Issue #9 で Blade SSR 採用が確定済。
             // CSRF / Origin 検証は VerifyOrigin で行う (form 送信用)。
-            Route::middleware(['web', VerifyOrigin::class])
+            // CloudFrontSecretMiddleware (Issue #77) を最初に置き Function URL 直アクセスを 403 で弾く。
+            Route::middleware([CloudFrontSecretMiddleware::class, 'web', VerifyOrigin::class])
                 ->prefix('admin')
                 ->group(__DIR__.'/../routes/admin-ui.php');
         },

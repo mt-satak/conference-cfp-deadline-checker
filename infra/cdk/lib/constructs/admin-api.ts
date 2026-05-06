@@ -36,6 +36,18 @@ export interface AdminApiProps {
    * なるため、bin/ 側で文字列として確定したものを props で受け取る方式にする。
    */
   readonly appUrl: string;
+  /**
+   * CloudFront Custom Origin Header `X-CloudFront-Secret` の値 (Issue #77)。
+   *
+   * Lambda Function URL の AuthType を NONE に切り替えたため、CloudFront 経由か
+   * 直アクセスかを判別するための secret。Lambda 環境変数 `CLOUDFRONT_ORIGIN_SECRET`
+   * として渡され、Laravel の CloudFrontSecretMiddleware が検証する。
+   *
+   * StaticSite 側でも同じ secret を CloudFront → Function URL の Custom Origin
+   * Header に仕込む必要があるため、MainStack で Secret を 1 つ生成して両方に
+   * 渡す形を採る。
+   */
+  readonly cloudfrontOriginSecret: string;
 }
 
 /**
@@ -208,6 +220,10 @@ export class AdminApi extends Construct {
         // ブラウザから見た本来の URL (CloudFront ドメイン)。
         // AppServiceProvider::boot() で URL::forceRootUrl() の引数として使われる。
         APP_URL: props.appUrl,
+        // CloudFront Custom Origin Header の secret (Issue #77)。
+        // Function URL の AuthType=NONE に切り替えたため、CloudFront 経由か
+        // 直アクセスかを CloudFrontSecretMiddleware で判別する材料。
+        CLOUDFRONT_ORIGIN_SECRET: props.cloudfrontOriginSecret,
       },
       description: 'Admin API for Conference CfP Deadline Checker',
     });
@@ -236,13 +252,21 @@ export class AdminApi extends Construct {
       }),
     );
 
-    // Function URL を AWS_IAM 認証で発行。
-    // CloudFront 側で OAC (Origin Access Control) を設定することで、
-    // CloudFront 経由のリクエストだけが署名付きで関数 URL を呼び出せるようになる。
-    // 直接 Function URL を叩いても 403 になるため、Lambda@Edge の Basic 認証を
-    // バイパスされるリスクを排除できる。
+    // Function URL を AuthType=NONE で発行 (Issue #77)。
+    //
+    // 当初は AuthType=AWS_IAM + CloudFront OAC で運用していたが、CloudFront OAC
+    // と Lambda Function URL を POST リクエストで組み合わせると SigV4 署名検証が
+    // mismatch して 403 になる既知の互換性問題があり、GET は動くが POST が壊れて
+    // 機能不全だった (Issue #75 で Lambda@Edge での Authorization 削除を試した
+    // が解決せず)。
+    //
+    // 代替策: AuthType=NONE で OAC を撤廃し、CloudFront → Function URL の通信に
+    // Custom Origin Header `X-CloudFront-Secret: <props.cloudfrontOriginSecret>`
+    // を仕込む。Laravel の CloudFrontSecretMiddleware がこの header を検証し、
+    // Function URL 直アクセスを 403 で弾く (= secret を知らない外部攻撃者は
+    // 直接 Function URL を叩いても admin routes には到達できない)。
     this.functionUrl = this.function.addFunctionUrl({
-      authType: FunctionUrlAuthType.AWS_IAM,
+      authType: FunctionUrlAuthType.NONE,
     });
   }
 }
