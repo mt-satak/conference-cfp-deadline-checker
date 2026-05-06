@@ -55,19 +55,24 @@ async function getExpectedAuthHeader() {
 }
 
 /**
- * Lambda@Edge エントリポイント
- * - 認証成功時: リクエストをそのままオリジンへ転送
- * - 認証失敗時: 401 を返し、ブラウザに Basic 認証ダイアログを表示させる
+ * Authorization ヘッダの検証結果から CloudFront viewer-request の応答を組み立てる。
+ *
+ * 認証成功時: 元の request をそのまま返す。ただし `authorization` ヘッダは削除する。
+ *   理由 (Issue #75):
+ *   CloudFront OAC + Lambda Function URL の SigV4 署名は、CloudFront が SigV4 を
+ *   `Authorization` ヘッダに書き込む形で動作する。viewer (ブラウザ) の Basic 認証の
+ *   `Authorization: Basic ...` ヘッダが残ったまま origin へ転送されると、POST + body
+ *   ありリクエストで CloudFront 側の SigV4 計算と Function URL 側の検証で署名 mismatch
+ *   が発生し 403 になる (GET は body なしで寛容なため動作)。Lambda@Edge で認証成功
+ *   時点で削除しておくことで CloudFront が SigV4 をクリーンに上書きできる。
+ *
+ * 認証失敗時: 401 を返し、ブラウザに Basic 認証ダイアログを表示させる。
+ *
+ * @param {object} request CloudFront viewer-request の request オブジェクト
+ * @param {string | undefined} providedAuth viewer から送られた Authorization ヘッダ値
+ * @param {string} expectedAuth 期待する Basic 認証ヘッダ文字列
  */
-export const handler = async (event) => {
-  const request = event.Records[0].cf.request;
-  const headers = request.headers;
-
-  const expectedAuth = await getExpectedAuthHeader();
-
-  // CloudFront Lambda@Edge ではヘッダが [{key, value}] 配列形式で渡される
-  const providedAuth = headers.authorization?.[0]?.value;
-
+export function buildResponse(request, providedAuth, expectedAuth) {
   if (providedAuth !== expectedAuth) {
     return {
       status: '401',
@@ -85,5 +90,20 @@ export const handler = async (event) => {
     };
   }
 
+  // OAC SigV4 衝突を避けるため認証成功後は Authorization を削除する (Issue #75)
+  delete request.headers.authorization;
   return request;
+}
+
+/**
+ * Lambda@Edge エントリポイント
+ * - 認証成功時: Authorization を削除した request をオリジンへ転送
+ * - 認証失敗時: 401 を返す
+ */
+export const handler = async (event) => {
+  const request = event.Records[0].cf.request;
+  const expectedAuth = await getExpectedAuthHeader();
+  // CloudFront Lambda@Edge ではヘッダが [{key, value}] 配列形式で渡される
+  const providedAuth = request.headers.authorization?.[0]?.value;
+  return buildResponse(request, providedAuth, expectedAuth);
 };
