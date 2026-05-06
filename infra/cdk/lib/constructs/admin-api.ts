@@ -23,6 +23,19 @@ import { Construct } from 'constructs';
 export interface AdminApiProps {
   readonly conferences: Table;
   readonly categories: Table;
+  /**
+   * Laravel APP_URL (Issue #67)。
+   *
+   * AppServiceProvider::boot() の `URL::forceRootUrl()` の引数に渡す。
+   * https で始まる文字列を渡すと URL Generator が APP_URL ベースで URL を
+   * 生成するようになり、CloudFront → Lambda Function URL 転送で Host が
+   * 書き換わっても CSS/JS/ナビゲーションが正しく解決される。
+   *
+   * StaticSiteDistribution.distributionDomainName を CFN ref で参照すると
+   * AdminApi → Distribution → AdminApiFunctionUrl → AdminApi の循環参照に
+   * なるため、bin/ 側で文字列として確定したものを props で受け取る方式にする。
+   */
+  readonly appUrl: string;
 }
 
 /**
@@ -192,6 +205,9 @@ export class AdminApi extends Construct {
         LLM_PROVIDER: 'bedrock',
         LLM_MODEL: 'jp.anthropic.claude-sonnet-4-6',
         LLM_REGION: region,
+        // ブラウザから見た本来の URL (CloudFront ドメイン)。
+        // AppServiceProvider::boot() で URL::forceRootUrl() の引数として使われる。
+        APP_URL: props.appUrl,
       },
       description: 'Admin API for Conference CfP Deadline Checker',
     });

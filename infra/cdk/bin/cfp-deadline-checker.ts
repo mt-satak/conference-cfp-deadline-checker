@@ -35,6 +35,22 @@ const existingOidcProviderArn = app.node.tryGetContext('existingOidcProviderArn'
 const domainName = app.node.tryGetContext('domainName') as string | undefined;
 const rootDomain = app.node.tryGetContext('rootDomain') as string | undefined;
 
+// ── Laravel APP_URL (Issue #67) ──
+// CloudFront → Lambda Function URL 転送では Host が書き換わるため、Laravel に
+// 「ブラウザから見た本来の URL」を環境変数で教える必要がある。
+// 優先順位:
+//   1. props.domainName (custom domain): `https://${domainName}`
+//   2. context appUrl (`pnpm cdk deploy --context appUrl=https://...`)
+//   3. デフォルト: 既知の CloudFront default domain (本番運用環境のもの)
+//
+// `staticSite.distribution.distributionDomainName` を CFN ref で参照すると
+// AdminApi → Distribution → AdminApiFunctionUrl → AdminApi の循環参照に
+// なるため、ここで synth 時に文字列として確定する。
+const appUrlContext = app.node.tryGetContext('appUrl') as string | undefined;
+const adminApiAppUrl = domainName
+  ? `https://${domainName}`
+  : (appUrlContext ?? 'https://d1fz1i6glcp2yn.cloudfront.net');
+
 // ── 運用アラーム通知先 (任意) ──
 // 例: pnpm cdk deploy --context alertEmail=ops@example.com
 // 受信者側で確認リンクをクリックするまで通知は届かない。
@@ -84,6 +100,7 @@ const mainStack = new CfpDeadlineCheckerStack(app, 'CfpDeadlineCheckerStack', {
   zoneName: edgeStack.zoneName,
   certificateArn: edgeStack.certificateArn,
   alertEmail,
+  appUrl: adminApiAppUrl,
   description: 'Conference CfP Deadline Checker - main stack',
 });
 
