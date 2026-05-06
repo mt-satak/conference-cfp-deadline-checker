@@ -43,6 +43,19 @@ export interface CfpDeadlineCheckerStackProps extends cdk.StackProps {
   readonly zoneName?: string;
   readonly certificateArn?: string;
   readonly alertEmail?: string;
+  /**
+   * Laravel APP_URL (Issue #67)。
+   *
+   * CloudFront → Lambda Function URL 転送では Host が Function URL ドメインに
+   * 書き換わるため、Laravel に「ブラウザから見た本来の URL」を環境変数で教える必要が
+   * ある。この値は AdminApi の Lambda 環境変数 `APP_URL` に直接渡され、
+   * AppServiceProvider::boot() で `URL::forceRootUrl()` の引数になる。
+   *
+   * `staticSite.distribution.distributionDomainName` を参照すると AdminApi →
+   * Distribution → AdminApiFunctionUrl → AdminApi の CFN 循環参照になる
+   * (PR #68 で実害発覚) ため、bin/ 側で文字列として確定して渡す。
+   */
+  readonly appUrl: string;
 }
 
 /**
@@ -59,51 +72,36 @@ export class CfpDeadlineCheckerStack extends cdk.Stack {
   constructor(
     scope: Construct,
     id: string,
-    props?: CfpDeadlineCheckerStackProps,
+    props: CfpDeadlineCheckerStackProps,
   ) {
     super(scope, id, props);
 
     const dataTables = new DataTables(this, 'DataTables');
 
     // 管理 API Lambda。DynamoDB 2 テーブルへの最小権限を持つ。
+    // appUrl は bin/ 側で確定済みの文字列を受け取る (Issue #67)。
     const adminApi = new AdminApi(this, 'AdminApi', {
       conferences: dataTables.conferences,
       categories: dataTables.categories,
+      appUrl: props.appUrl,
     });
 
     // 静的サイト + 管理画面ルーティング。
     // /admin/* は AdminApi の Function URL に Lambda@Edge 経由でルーティング。
     const staticSite = new StaticSite(this, 'StaticSite', {
-      webAclArn: props?.webAclArn,
+      webAclArn: props.webAclArn,
       adminFunctionUrl: adminApi.functionUrl,
       adminFunction: adminApi.function,
-      basicAuthFunctionVersionArn: props?.basicAuthFunctionVersionArn,
-      domainName: props?.domainName,
-      certificateArn: props?.certificateArn,
+      basicAuthFunctionVersionArn: props.basicAuthFunctionVersionArn,
+      domainName: props.domainName,
+      certificateArn: props.certificateArn,
     });
-
-    // ── Laravel APP_URL (Issue #67) ──
-    // CloudFront → Lambda Function URL 転送では SigV4 の都合で Host ヘッダが
-    // Function URL ドメインに書き換わる。Laravel が生成する asset/route URL は
-    // Host 由来なので、そのままだと CSS/JS/ナビゲーション全てが Function URL を指し、
-    // ブラウザから直アクセスすると AWS_IAM 認証で 403 になる。
-    // AppServiceProvider::boot() の URL::forceRootUrl() を有効化するため、
-    // CloudFront のドメイン (custom domain があればそれ、無ければ distributionDomainName)
-    // を APP_URL として注入する。
-    // distribution 構築後に addEnvironment で後付けすることで AdminApi → StaticSite の
-    // 循環参照を避ける。
-    adminApi.function.addEnvironment(
-      'APP_URL',
-      props?.domainName
-        ? `https://${props.domainName}`
-        : `https://${staticSite.distribution.distributionDomainName}`,
-    );
 
     // 運用観測 (CloudWatch アラーム + SNS 通知トピック)。
     // alertEmail が指定されていればメール購読まで自動セットアップする。
     const operations = new Operations(this, 'Operations', {
       adminApiFunction: adminApi.function,
-      alertEmail: props?.alertEmail,
+      alertEmail: props.alertEmail,
     });
 
     // ── 独自ドメインのエイリアスレコード (任意) ──
@@ -111,7 +109,7 @@ export class CfpDeadlineCheckerStack extends cdk.Stack {
     // CloudFront を指す A レコード (ALIAS) を作成する。
     // hostedZoneId と zoneName は EdgeStack で生成された値を crossRegionReferences
     // 経由で受け取り、HostedZone.fromHostedZoneAttributes で参照する。
-    if (props?.domainName && props?.hostedZoneId && props?.zoneName) {
+    if (props.domainName && props.hostedZoneId && props.zoneName) {
       const hostedZone = HostedZone.fromHostedZoneAttributes(
         this,
         'ImportedHostedZone',
