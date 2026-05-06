@@ -11,6 +11,7 @@ import {
   LayerVersion,
   Runtime,
 } from 'aws-cdk-lib/aws-lambda';
+import { Secret } from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
 
 /**
@@ -55,6 +56,21 @@ export class AdminApi extends Construct {
     super(scope, id);
 
     const region = Stack.of(this).region;
+
+    // ── Laravel APP_KEY 用 Secrets Manager シークレット ──
+    // Laravel は暗号化用 32 byte key (base64 prefix 付き) を APP_KEY 環境変数で
+    // 要求する。コードに直接書かず Secrets Manager で管理することでローテーション
+    // とアクセス監査を可能にする。
+    // generateSecretString で 32 文字のランダム key を生成し、Lambda 環境変数では
+    // `base64:<key>` 形式に組み立てて渡す (Laravel が要求する形式)。
+    const appKeySecret = new Secret(this, 'AppKeySecret', {
+      secretName: 'cfp/admin-api-app-key',
+      description: 'Laravel APP_KEY for admin-api Lambda',
+      generateSecretString: {
+        passwordLength: 32,
+        excludePunctuation: true,
+      },
+    });
 
     // Bref の統合 PHP レイヤー (公開アカウント ID 873528684822 は Bref のもの)。
     // 旧アカウント 534081306603 は廃止済み: 取得しようとすると Lambda 側で
@@ -140,6 +156,19 @@ export class AdminApi extends Construct {
         //   - 'console': Symfony/Laravel artisan/console コマンド
         BREF_RUNTIME: 'fpm',
         BREF_LOOP_MAX: '250',
+        // ── Laravel ランタイム環境変数 ──
+        // .env はバンドルされないため (誤コミット防止)、本番では Lambda 環境変数
+        // ですべて渡す。
+        // APP_KEY は Secrets Manager で管理する 32 文字のランダム値に Laravel が
+        // 要求する `base64:` プレフィックスを CDK 側で付与して渡す。
+        APP_KEY: `base64:${appKeySecret.secretValue.unsafeUnwrap()}`,
+        APP_ENV: 'production',
+        APP_DEBUG: 'false',
+        // Lambda の filesystem は read-only (`/tmp` 以外) なので、file 系の
+        // session/cache driver は使わず array に倒す。永続化が必要になったら
+        // DynamoDB driver に切り替える。
+        SESSION_DRIVER: 'array',
+        CACHE_STORE: 'array',
         // 管理 API が参照する DynamoDB テーブル名 (Lambda 実行時に解決)
         DYNAMODB_CONFERENCES_TABLE: props.conferences.tableName,
         DYNAMODB_CATEGORIES_TABLE: props.categories.tableName,
