@@ -117,8 +117,12 @@ export class AdminApi extends Construct {
             // ローカル DB ファイル
             'database/database.sqlite',
             // dev 用 node 関連 (Vite / Tailwind 等、Lambda では使わない)
+            // node_modules はランタイム不要。
+            // public/build は Vite で生成された manifest.json + assets で、Blade
+            // テンプレートの `@vite` ディレクティブが解決時に参照するため Lambda
+            // にも含める (= exclude しない)。デプロイ前に `npm run build` 必須。
+            // public/hot は Vite dev server 起動中のみ作られるマーカーで本番不要。
             'node_modules/**',
-            'public/build/**',
             'public/hot',
             // Composer / git 内部
             'composer.lock',
