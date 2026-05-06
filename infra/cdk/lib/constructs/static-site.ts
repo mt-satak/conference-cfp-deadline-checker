@@ -1,3 +1,4 @@
+import * as path from 'node:path';
 import { Duration, RemovalPolicy, Stack } from 'aws-cdk-lib';
 import {
   Certificate,
@@ -26,6 +27,7 @@ import { ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { type IFunction, type IFunctionUrl } from 'aws-cdk-lib/aws-lambda';
 import { Version } from 'aws-cdk-lib/aws-lambda';
 import { BlockPublicAccess, Bucket, BucketEncryption } from 'aws-cdk-lib/aws-s3';
+import { BucketDeployment, Source } from 'aws-cdk-lib/aws-s3-deployment';
 import { Construct } from 'constructs';
 
 /**
@@ -141,23 +143,22 @@ export class StaticSite extends Construct {
     // 管理 API の Function URL と Lambda@Edge の Version ARN が両方渡されたら
     // 動的ビヘイビアを構築する。片方欠けている場合は構成不全のため何もしない。
     //
-    // 追加で `/build/*` も AdminApi にルーティングする。これは Laravel の
-    // `@vite` ディレクティブが生成する CSS/JS の URL (例: `/build/assets/app-xxx.css`) が
-    // `/admin/*` にマッチせず、デフォルトの S3 オリジンへ行って 403 になるのを防ぐため。
-    // Bref FPM は public/build/* を静的配信するので、AdminApi 側で何も実装せずに
-    // Vite ビルド成果物が配信される。CSS/JS は機密情報ではないので Basic 認証
-    // (Lambda@Edge) は付けず、CDN キャッシュも有効化する。
-    const adminFunctionUrl = props.adminFunctionUrl;
-    const basicAuthVersionArn = props.basicAuthFunctionVersionArn;
+    // Vite が生成する `/build/*` の CSS/JS は **Lambda 経由で配信しない**。
+    // Bref FPM は静的ファイルを配信せず Laravel routing に丸ごと流すため、
+    // public/build/* に対応する route が無ければ 404。CloudFront errorResponses
+    // で 404 → /404.html (S3) へリダイレクトされ S3 AccessDenied になる
+    // (PR #70 でこれを試したが上記理由で動かなかった)。
+    // 代わりに BucketDeployment で apps/admin-api/public/build/ を S3 に
+    // アップロードし、CloudFront default behavior (S3) から配信する方式を採用。
     const additionalBehaviors: Record<string, BehaviorOptions> | undefined =
-      adminFunctionUrl && basicAuthVersionArn
+      props.adminFunctionUrl && props.basicAuthFunctionVersionArn
         ? {
             'admin/*': {
               // Lambda Function URL を OAC 経由のオリジンとして登録。
               // CloudFront のリクエスト署名を CloudFront 側で行うことで、
               // Function URL の直接ヒットを 403 でブロックできる。
               origin: FunctionUrlOrigin.withOriginAccessControl(
-                adminFunctionUrl,
+                props.adminFunctionUrl,
               ),
               // 動的レスポンスのため CloudFront ではキャッシュしない
               cachePolicy: CachePolicy.CACHING_DISABLED,
@@ -174,30 +175,11 @@ export class StaticSite extends Construct {
                   functionVersion: Version.fromVersionArn(
                     this,
                     'ImportedBasicAuthVersion',
-                    basicAuthVersionArn,
+                    props.basicAuthFunctionVersionArn,
                   ),
                   eventType: LambdaEdgeEventType.VIEWER_REQUEST,
                 },
               ],
-            },
-            'build/*': {
-              // Vite が生成する静的アセット (CSS/JS) を AdminApi 経由で配信。
-              // Bref FPM が public/build/* を直接返すため Laravel routing には
-              // 入らない。
-              origin: FunctionUrlOrigin.withOriginAccessControl(
-                adminFunctionUrl,
-              ),
-              // ファイル名に hash が含まれる Vite の成果物は immutable なので CDN
-              // キャッシュ有効化で問題なし。
-              cachePolicy: CachePolicy.CACHING_OPTIMIZED,
-              originRequestPolicy:
-                OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
-              viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-              allowedMethods: AllowedMethods.ALLOW_GET_HEAD,
-              compress: true,
-              responseHeadersPolicy: securityHeaders,
-              // Basic 認証は付けない: CSS/JS は機密情報ではなく、admin UI 本体は
-              // /admin/* で守られているため。
             },
           }
         : undefined;
@@ -261,5 +243,36 @@ export class StaticSite extends Construct {
         sourceArn: `arn:${stack.partition}:cloudfront::${stack.account}:distribution/${this.distribution.distributionId}`,
       });
     }
+
+    // ── Vite ビルド成果物 (apps/admin-api/public/build/) を S3 に配置 (Issue #67) ──
+    // Laravel @vite が生成する CSS/JS の URL `/build/assets/app-*.{css,js}` を
+    // CloudFront default behavior (S3) から配信するための同期。
+    // Bref FPM は静的ファイルを配信しないため Lambda 経由には載せられない。
+    // ファイル名 hash で immutable なので prune: false で既存 (404.html 等) は
+    // 残す。デプロイ前に `cd apps/admin-api && npm install && npm run build`
+    // で public/build/ を生成しておくこと (CI/CD 化は Issue #19 Phase 2 で対応予定)。
+    new BucketDeployment(this, 'AdminViteBuildDeployment', {
+      sources: [
+        Source.asset(
+          path.join(
+            __dirname,
+            '..',
+            '..',
+            '..',
+            '..',
+            'apps',
+            'admin-api',
+            'public',
+            'build',
+          ),
+        ),
+      ],
+      destinationBucket: this.bucket,
+      destinationKeyPrefix: 'build',
+      prune: false,
+      // CloudFront edge cache を即時更新するため /build/* を invalidation 対象にする
+      distribution: this.distribution,
+      distributionPaths: ['/build/*'],
+    });
   }
 }
