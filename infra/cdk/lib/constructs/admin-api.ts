@@ -199,10 +199,14 @@ export class AdminApi extends Construct {
         APP_KEY: appKeySecret.secretValue.unsafeUnwrap(),
         APP_ENV: 'production',
         APP_DEBUG: 'false',
-        // Lambda の filesystem は read-only (`/tmp` 以外) なので、file 系の
-        // session/cache driver は使わず array に倒す。永続化が必要になったら
-        // DynamoDB driver に切り替える。
-        SESSION_DRIVER: 'array',
+        // Lambda の filesystem は read-only (`/tmp` 以外) なので file 系 driver は使わない。
+        // SESSION は cookie driver (signed + encrypted cookie に session 全体を格納) を採用。
+        // - array driver は in-memory のため Lambda 別インスタンス間で session/CSRF が共有
+        //   できず、POST フォーム送信が 419 (CSRF mismatch) になる (Issue #81)。
+        // - cookie driver なら APP_KEY で暗号化された cookie に乗るので Lambda 側ストレージ不要。
+        // - session に大きなデータを入れない前提 (cookie 4 KB 上限)。本 admin UI は CSRF token
+        //   と軽微な flash messages のみで問題なし。
+        SESSION_DRIVER: 'cookie',
         CACHE_STORE: 'array',
         // 管理 API が参照する DynamoDB テーブル名 (Lambda 実行時に解決)
         DYNAMODB_CONFERENCES_TABLE: props.conferences.tableName,
