@@ -133,6 +133,12 @@ export class AdminApi extends Construct {
       memorySize: 1024,
       environment: {
         // Bref の標準環境変数
+        // Bref v3 では BREF_RUNTIME を明示しないと bootstrap.php が失敗する。
+        // Laravel + PHP-FPM (Web) は 'fpm' を指定する。値の選択肢:
+        //   - 'function': 単純な PHP 関数ハンドラ
+        //   - 'fpm': PHP-FPM (Laravel/Symfony 等の Web フレームワーク)
+        //   - 'console': Symfony/Laravel artisan/console コマンド
+        BREF_RUNTIME: 'fpm',
         BREF_LOOP_MAX: '250',
         // 管理 API が参照する DynamoDB テーブル名 (Lambda 実行時に解決)
         DYNAMODB_CONFERENCES_TABLE: props.conferences.tableName,
