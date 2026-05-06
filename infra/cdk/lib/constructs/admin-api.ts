@@ -58,14 +58,20 @@ export class AdminApi extends Construct {
     const region = Stack.of(this).region;
 
     // ── Laravel APP_KEY 用 Secrets Manager シークレット ──
-    // Laravel は暗号化用 32 byte key (base64 prefix 付き) を APP_KEY 環境変数で
-    // 要求する。コードに直接書かず Secrets Manager で管理することでローテーション
-    // とアクセス監査を可能にする。
-    // generateSecretString で 32 文字のランダム key を生成し、Lambda 環境変数では
-    // `base64:<key>` 形式に組み立てて渡す (Laravel が要求する形式)。
+    // Laravel は暗号化用に 32 byte (256 bit) key を APP_KEY 環境変数で要求する
+    // (Encrypter::supported() 内で `mb_strlen($key, '8bit') === 32` を validation)。
+    // コードに直接書かず Secrets Manager で管理することでローテーションとアクセス
+    // 監査を可能にする。
+    //
+    // 値の形式について:
+    //   `excludePunctuation: true` で生成される 32 文字は ASCII 英数字のみのため
+    //   1 文字 = 1 byte、生 32 byte として APP_KEY に渡せる。Laravel docs 推奨の
+    //   `base64:<encoded>` 形式は使わない。`base64:` prefix 付きで 32 文字の
+    //   random string を渡すと Laravel が base64_decode して 24 byte になり、
+    //   `Unsupported cipher or incorrect key length` で起動失敗する。
     const appKeySecret = new Secret(this, 'AppKeySecret', {
       secretName: 'cfp/admin-api-app-key',
-      description: 'Laravel APP_KEY for admin-api Lambda',
+      description: 'Laravel APP_KEY for admin-api Lambda (raw 32-byte ASCII)',
       generateSecretString: {
         passwordLength: 32,
         excludePunctuation: true,
@@ -159,9 +165,9 @@ export class AdminApi extends Construct {
         // ── Laravel ランタイム環境変数 ──
         // .env はバンドルされないため (誤コミット防止)、本番では Lambda 環境変数
         // ですべて渡す。
-        // APP_KEY は Secrets Manager で管理する 32 文字のランダム値に Laravel が
-        // 要求する `base64:` プレフィックスを CDK 側で付与して渡す。
-        APP_KEY: `base64:${appKeySecret.secretValue.unsafeUnwrap()}`,
+        // APP_KEY は Secrets Manager で管理する 32 文字 (= 32 byte) の ASCII 英数字を
+        // 生のまま渡す (`base64:` prefix なし)。詳細は AppKeySecret 定義のコメント参照。
+        APP_KEY: appKeySecret.secretValue.unsafeUnwrap(),
         APP_ENV: 'production',
         APP_DEBUG: 'false',
         // Lambda の filesystem は read-only (`/tmp` 以外) なので、file 系の
