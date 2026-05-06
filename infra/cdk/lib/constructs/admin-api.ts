@@ -256,6 +256,24 @@ export class AdminApi extends Construct {
       }),
     );
 
+    // ── AWS Marketplace 自動 subscribe 権限 (Issue #83) ──
+    // 新 Bedrock の仕様で foundation model 初回 invoke 時に Marketplace 経由で自動
+    // subscribe が走る。そのため Lambda 実行ロールに最小限の Marketplace 権限が必要。
+    // subscribe は AWS アカウント単位で永続するため、1 回成功すれば実用上は不要だが、
+    // 新モデル追加時に再度必要になるため付けっぱなしで運用する。
+    // Resource: * は subscribe 対象 product ARN を事前に予測できない仕様上の制約。
+    // Subscribe action は serverless foundation model の従量課金モデルでは追加リスクなし。
+    this.function.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: [
+          'aws-marketplace:ViewSubscriptions',
+          'aws-marketplace:Subscribe',
+        ],
+        resources: ['*'],
+      }),
+    );
+
     // Function URL を AuthType=NONE で発行 (Issue #77)。
     //
     // 当初は AuthType=AWS_IAM + CloudFront OAC で運用していたが、CloudFront OAC
