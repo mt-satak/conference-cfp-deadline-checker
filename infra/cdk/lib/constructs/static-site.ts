@@ -150,10 +150,17 @@ export class StaticSite extends Construct {
     // (PR #70 でこれを試したが上記理由で動かなかった)。
     // 代わりに BucketDeployment で apps/admin-api/public/build/ を S3 に
     // アップロードし、CloudFront default behavior (S3) から配信する方式を採用。
+    // Path pattern は `admin*` (= 末尾 wildcard) を採用。`admin/*` だと `*` が
+    // `/` の後の文字を要求するため `/admin` (末尾スラッシュなし) にマッチせず、
+    // Laravel の `route('admin.home')` が出力する `/admin` が default behavior
+    // (S3) に流れて 403 になっていた (Issue #67 のダッシュボードリンク問題)。
+    // `admin*` は `/admin`, `/admin/`, `/admin/foo` すべてをマッチする。
+    // 副作用として `/admina`, `/admin-foo` 等もマッチするが、本プロジェクトでは
+    // `admin` で始まる無関係 URL は使わないため実害なし。
     const additionalBehaviors: Record<string, BehaviorOptions> | undefined =
       props.adminFunctionUrl && props.basicAuthFunctionVersionArn
         ? {
-            'admin/*': {
+            'admin*': {
               // Lambda Function URL を OAC 経由のオリジンとして登録。
               // CloudFront のリクエスト署名を CloudFront 側で行うことで、
               // Function URL の直接ヒットを 403 でブロックできる。
