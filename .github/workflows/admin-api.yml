@@ -56,11 +56,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup PHP 8.5 + xdebug (coverage 用)
+      - name: Setup PHP 8.5
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.5'
-          coverage: xdebug
+          # CI ではカバレッジ計測しないので xdebug は不要 (Issue #80 D 案)。
+          # ローカルの pre-push hook では引き続き xdebug + serial 実行で C1 計測する。
+          coverage: none
           tools: composer:v2
           extensions: mbstring, openssl, json
         env:
@@ -102,32 +104,18 @@ jobs:
       - name: PHPStan level max
         run: vendor/bin/phpstan analyse --memory-limit=1G --no-progress
 
-      # ── テスト + カバレッジ計測 ──
-      # phpunit.xml の <coverage pathCoverage="true"> を有効にしている前提で
-      # Pest が C1 (Branch Coverage) を計測する。
-      - name: Pest + coverage
-        env:
-          XDEBUG_MODE: coverage
-        run: |
-          php -d memory_limit=512M vendor/bin/pest \
-            --coverage-html=storage/coverage/html \
-            --coverage-text=storage/coverage/coverage.txt \
-            --coverage-clover=storage/coverage/clover.xml
-
-      # ── 層別 C1 閾値判定 ──
-      # docs/test-strategy.md §2 の閾値表に従い、層別に PASS/FAIL を判定。
-      - name: Coverage gate (層別 C1)
-        run: php scripts/check-coverage.php storage/coverage/clover.xml
-
-      # ── 失敗時のレポート保全 ──
-      # PR で「どの分岐がカバーされていないか」を確認するためにアーティファクト化。
-      - name: Upload coverage report (always)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: admin-api-coverage-${{ github.run_id }}
-          path: apps/admin-api/storage/coverage/
-          retention-days: 7
+      # ── テスト実行 (Issue #80 D 案) ──
+      # Pest を `--parallel` (Pest 4 内蔵 / ParaTest ベース) で実行。テストの
+      # 動作確認のみで coverage は計測しない (= `--no-coverage`)。
+      #
+      # 経緯: 当初は xdebug coverage で層別 C1 ゲートを CI で判定していたが、
+      # Pest --parallel と xdebug coverage の組み合わせで worker 間の
+      # compound branch カウントが変動し複数クラスの閾値割れが頻発したため、
+      # CI からは coverage 関連を全て撤去し pre-push hook (= serial 実行) に集約。
+      # CI でのテスト pass 確認は維持されるため Dependabot 等の自動 PR でも
+      # 機能リグレッション検出は担保される。
+      - name: Pest (no coverage)
+        run: vendor/bin/pest --parallel --no-coverage
 
   deploy:
     name: CDK deploy (main only)
