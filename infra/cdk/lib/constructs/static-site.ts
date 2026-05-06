@@ -64,6 +64,15 @@ export interface StaticSiteProps {
   readonly basicAuthFunctionVersionArn?: string;
   readonly domainName?: string;
   readonly certificateArn?: string;
+  /**
+   * CloudFront → Lambda Function URL に付与する Custom Origin Header の secret 値 (Issue #77)。
+   *
+   * Function URL の AuthType=NONE に切り替えたため、CloudFront 経由か直アクセスかを
+   * 判別する材料として `X-CloudFront-Secret: <secret>` を Origin に仕込む。
+   * AdminApi 側にも同じ secret を Lambda 環境変数 (`CLOUDFRONT_ORIGIN_SECRET`) で
+   * 渡し、CloudFrontSecretMiddleware がこのヘッダを検証する。
+   */
+  readonly cloudfrontOriginSecret: string;
 }
 
 /**
@@ -86,7 +95,7 @@ export class StaticSite extends Construct {
   public readonly bucket: Bucket;
   public readonly distribution: Distribution;
 
-  constructor(scope: Construct, id: string, props: StaticSiteProps = {}) {
+  constructor(scope: Construct, id: string, props: StaticSiteProps) {
     super(scope, id);
 
     // ── S3 バケット ──
@@ -161,12 +170,15 @@ export class StaticSite extends Construct {
       props.adminFunctionUrl && props.basicAuthFunctionVersionArn
         ? {
             'admin*': {
-              // Lambda Function URL を OAC 経由のオリジンとして登録。
-              // CloudFront のリクエスト署名を CloudFront 側で行うことで、
-              // Function URL の直接ヒットを 403 でブロックできる。
-              origin: FunctionUrlOrigin.withOriginAccessControl(
-                props.adminFunctionUrl,
-              ),
+              // Lambda Function URL を OAC なしの Origin として登録 (Issue #77)。
+              // OAC + POST の SigV4 mismatch 問題を回避するため Custom Origin
+              // Header `X-CloudFront-Secret` を CloudFront 側から付与し、
+              // Laravel CloudFrontSecretMiddleware で検証する方式に変更。
+              origin: new FunctionUrlOrigin(props.adminFunctionUrl, {
+                customHeaders: {
+                  'X-CloudFront-Secret': props.cloudfrontOriginSecret,
+                },
+              }),
               // 動的レスポンスのため CloudFront ではキャッシュしない
               cachePolicy: CachePolicy.CACHING_DISABLED,
               // Host を除く全ヘッダ・クエリ・Cookie をオリジンへ転送
@@ -236,20 +248,13 @@ export class StaticSite extends Construct {
       ],
     });
 
-    // ── CloudFront → Lambda Function URL の InvokeFunction 権限 ──
-    // FunctionUrlOrigin.withOriginAccessControl は内部で `lambda:InvokeFunctionUrl`
-    // の Permission を自動生成するが、AWS の OAC for Lambda Function URL の仕様では
-    // `lambda:InvokeFunction` も Resource Policy で許可する必要がある。
-    // これが無いと Function URL が SigV4 を持つ CloudFront からの呼び出しを 403 で
-    // 拒否する (公式 docs `Restrict access to an AWS Lambda function URL origin` 参照)。
-    if (props.adminFunction) {
-      const stack = Stack.of(this);
-      props.adminFunction.addPermission('CloudFrontInvokeFunction', {
-        principal: new ServicePrincipal('cloudfront.amazonaws.com'),
-        action: 'lambda:InvokeFunction',
-        sourceArn: `arn:${stack.partition}:cloudfront::${stack.account}:distribution/${this.distribution.distributionId}`,
-      });
-    }
+    // ── Lambda Function URL のアクセス制御 (Issue #77) ──
+    // 当初は AuthType=AWS_IAM + OAC + InvokeFunction 権限の組み合わせだったが、
+    // OAC + POST の SigV4 mismatch 問題のため AuthType=NONE + Custom Origin Header
+    // 方式に切り替えた。AuthType=NONE なので `lambda:InvokeFunctionUrl` /
+    // `lambda:InvokeFunction` の Resource Policy は不要。
+    // 代わりに CloudFrontSecretMiddleware (Laravel 側) が Custom Origin Header を
+    // 検証することで Function URL 直アクセスを防ぐ。
 
     // ── Vite ビルド成果物 (apps/admin-api/public/build/) を S3 に配置 (Issue #67) ──
     // Laravel @vite が生成する CSS/JS の URL `/build/assets/app-*.{css,js}` を

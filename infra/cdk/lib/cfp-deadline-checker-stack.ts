@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { CloudFrontTarget } from 'aws-cdk-lib/aws-route53-targets';
 import { ARecord, HostedZone, RecordTarget } from 'aws-cdk-lib/aws-route53';
+import { Secret } from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
 import { AdminApi } from './constructs/admin-api';
 import { DataTables } from './constructs/data-tables';
@@ -78,12 +79,35 @@ export class CfpDeadlineCheckerStack extends cdk.Stack {
 
     const dataTables = new DataTables(this, 'DataTables');
 
+    // ── CloudFront Custom Origin Header 用 secret (Issue #77) ──
+    // Lambda Function URL の AuthType=NONE に切り替えたため、CloudFront 経由
+    // リクエストかどうかを判別する材料として `X-CloudFront-Secret: <random>` を
+    // CloudFront Origin に仕込み、Laravel の CloudFrontSecretMiddleware で検証する。
+    // AdminApi (Lambda 環境変数) と StaticSite (CloudFront Origin Custom Header)
+    // の両方で同じ値を参照する必要があるため、MainStack で 1 度生成して両方に渡す。
+    const cloudfrontOriginSecret = new Secret(
+      this,
+      'CloudFrontOriginSecret',
+      {
+        secretName: 'cfp/admin-cloudfront-origin-secret',
+        description:
+          'Custom origin header value for CloudFront → AdminApi Function URL (Issue #77)',
+        generateSecretString: {
+          passwordLength: 48,
+          excludePunctuation: true,
+        },
+      },
+    );
+    const cloudfrontOriginSecretValue =
+      cloudfrontOriginSecret.secretValue.unsafeUnwrap();
+
     // 管理 API Lambda。DynamoDB 2 テーブルへの最小権限を持つ。
     // appUrl は bin/ 側で確定済みの文字列を受け取る (Issue #67)。
     const adminApi = new AdminApi(this, 'AdminApi', {
       conferences: dataTables.conferences,
       categories: dataTables.categories,
       appUrl: props.appUrl,
+      cloudfrontOriginSecret: cloudfrontOriginSecretValue,
     });
 
     // 静的サイト + 管理画面ルーティング。
@@ -95,6 +119,7 @@ export class CfpDeadlineCheckerStack extends cdk.Stack {
       basicAuthFunctionVersionArn: props.basicAuthFunctionVersionArn,
       domainName: props.domainName,
       certificateArn: props.certificateArn,
+      cloudfrontOriginSecret: cloudfrontOriginSecretValue,
     });
 
     // 運用観測 (CloudWatch アラーム + SNS 通知トピック)。
