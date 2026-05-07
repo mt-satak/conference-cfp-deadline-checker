@@ -33,6 +33,14 @@ return Application::configure(basePath: dirname(__DIR__))
             Route::middleware([CloudFrontSecretMiddleware::class, 'web', VerifyOrigin::class])
                 ->prefix('admin')
                 ->group(__DIR__.'/../routes/admin-ui.php');
+
+            // /api/public: 公開フロント (Astro) 向け read-only API (Issue #91 / Phase 4.1)。
+            // 認証なしで誰でも GET 可能だが、CloudFrontSecretMiddleware で
+            // Function URL 直アクセスを防ぐ。web group (session / CSRF / Origin 検証) は
+            // read-only stateless API には不要。
+            Route::middleware([CloudFrontSecretMiddleware::class])
+                ->prefix('api/public')
+                ->group(__DIR__.'/../routes/public-api.php');
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
