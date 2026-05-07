@@ -23,10 +23,20 @@ import { Construct } from 'constructs';
  *   - domainName: 実際にサイトを配信するホスト名 (例: "cfp.example.com")
  *   両方が指定されている場合のみ Route 53 Hosted Zone と
  *   ACM 証明書を生成する。未指定時は DNS リソースは作成しない。
+ *
+ * existingHostedZoneId / existingCertificateArn (Phase 6.0 / Issue #119):
+ *   Route 53 console でドメインを購入した場合、Route 53 が hosted zone を
+ *   自動作成し、ACM 証明書も別途 console で発行されている。これらの既存
+ *   リソースを CDK で新規作成せず参照する経路。
+ *   - existingHostedZoneId: Route 53 で自動作成された hosted zone の ID
+ *   - existingCertificateArn: ACM (us-east-1) で発行済みの証明書 ARN
+ *   いずれも指定された場合のみ既存参照モード、未指定なら新規作成。
  */
 export interface EdgeStackProps extends cdk.StackProps {
   readonly domainName?: string;
   readonly rootDomain?: string;
+  readonly existingHostedZoneId?: string;
+  readonly existingCertificateArn?: string;
 }
 
 /**
@@ -210,36 +220,61 @@ export class EdgeStack extends cdk.Stack {
     // Hosted Zone は AWS アカウントレベルでグローバルだが、CDK 上は
     // 何らかのスタックに所属させる必要があるため、us-east-1 の EdgeStack に置く。
     // ACM 証明書は CloudFront 用なので必ず us-east-1 必須。
+    //
+    // Phase 6.0 (Issue #119): Route 53 console からドメインを購入した場合、
+    // Route 53 が hosted zone を自動作成しているため、existingHostedZoneId が
+    // 指定されたら fromHostedZoneAttributes で既存参照モードに切り替える。
+    // ACM 証明書も同様に existingCertificateArn が指定されたら既存参照モード。
     if (props?.domainName && props?.rootDomain) {
-      this.hostedZone = new HostedZone(this, 'HostedZone', {
-        zoneName: props.rootDomain,
-        comment: `Hosted zone for ${props.rootDomain}`,
-      });
+      if (props?.existingHostedZoneId) {
+        this.hostedZone = HostedZone.fromHostedZoneAttributes(
+          this,
+          'ImportedHostedZone',
+          {
+            hostedZoneId: props.existingHostedZoneId,
+            zoneName: props.rootDomain,
+          },
+        );
+      } else {
+        this.hostedZone = new HostedZone(this, 'HostedZone', {
+          zoneName: props.rootDomain,
+          comment: `Hosted zone for ${props.rootDomain}`,
+        });
+      }
       this.hostedZoneId = this.hostedZone.hostedZoneId;
       this.zoneName = this.hostedZone.zoneName;
 
       // ACM 証明書 (CloudFront 用なので us-east-1 で発行)
-      // DNS 検証で自動発行・自動更新される。
-      const certificate = new Certificate(this, 'Certificate', {
-        domainName: props.domainName,
-        validation: CertificateValidation.fromDns(this.hostedZone),
-      });
-      this.certificateArn = certificate.certificateArn;
+      // existingCertificateArn が指定されていればその ARN を採用、
+      // なければ DNS 検証で自動発行・自動更新する Certificate を新規作成。
+      if (props?.existingCertificateArn) {
+        this.certificateArn = props.existingCertificateArn;
+      } else {
+        const certificate = new Certificate(this, 'Certificate', {
+          domainName: props.domainName,
+          validation: CertificateValidation.fromDns(this.hostedZone),
+        });
+        this.certificateArn = certificate.certificateArn;
 
-      new cdk.CfnOutput(this, 'HostedZoneId', {
-        value: this.hostedZone.hostedZoneId,
-        description: 'Route 53 hosted zone ID',
-      });
+        new cdk.CfnOutput(this, 'CertificateArn', {
+          value: certificate.certificateArn,
+          description: 'ACM certificate ARN for CloudFront',
+        });
+      }
 
-      new cdk.CfnOutput(this, 'HostedZoneNameServers', {
-        value: cdk.Fn.join(',', this.hostedZone.hostedZoneNameServers ?? []),
-        description: 'Route 53 hosted zone name servers (configure at registrar)',
-      });
+      // hosted zone Outputs は新規作成時のみ (= NS 値が必要なのは新規作成時のみ)。
+      // 既存参照時は Route 53 が NS を自動設定済みなので不要。
+      if (!props?.existingHostedZoneId) {
+        new cdk.CfnOutput(this, 'HostedZoneId', {
+          value: this.hostedZone.hostedZoneId,
+          description: 'Route 53 hosted zone ID',
+        });
 
-      new cdk.CfnOutput(this, 'CertificateArn', {
-        value: certificate.certificateArn,
-        description: 'ACM certificate ARN for CloudFront',
-      });
+        new cdk.CfnOutput(this, 'HostedZoneNameServers', {
+          value: cdk.Fn.join(',', this.hostedZone.hostedZoneNameServers ?? []),
+          description: 'Route 53 hosted zone name servers (configure at registrar)',
+        });
+      }
     }
 
     new cdk.CfnOutput(this, 'BasicAuthFunctionVersionArn', {

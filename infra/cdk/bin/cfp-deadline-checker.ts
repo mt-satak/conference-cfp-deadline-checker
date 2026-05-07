@@ -35,6 +35,21 @@ const existingOidcProviderArn = app.node.tryGetContext('existingOidcProviderArn'
 const domainName = app.node.tryGetContext('domainName') as string | undefined;
 const rootDomain = app.node.tryGetContext('rootDomain') as string | undefined;
 
+// ── 既存ドメインリソース参照モード (Phase 6.0 / Issue #119) ──
+// Route 53 console でドメインを購入した場合、Route 53 が hosted zone を
+// 自動作成し、ACM 証明書も別途 console で発行している前提。CDK で新規作成せず
+// 既存リソースを参照する経路。
+//   pnpm cdk deploy \
+//     --context customDomainHostedZoneId=Z068674386S4F3UC1CEQ \
+//     --context customDomainCertificateArn=arn:aws:acm:us-east-1:...:certificate/...
+// 値は cdk.json の context にも書ける (= deploy.yml から context 引数なしでも動く)。
+const customDomainHostedZoneId = app.node.tryGetContext(
+  'customDomainHostedZoneId',
+) as string | undefined;
+const customDomainCertificateArn = app.node.tryGetContext(
+  'customDomainCertificateArn',
+) as string | undefined;
+
 // ── Laravel APP_URL (Issue #67) ──
 // CloudFront → Lambda Function URL 転送では Host が書き換わるため、Laravel に
 // 「ブラウザから見た本来の URL」を環境変数で教える必要がある。
@@ -76,6 +91,8 @@ const edgeStack = new EdgeStack(app, 'CfpDeadlineCheckerEdgeStack', {
   crossRegionReferences: true,
   domainName,
   rootDomain,
+  existingHostedZoneId: customDomainHostedZoneId,
+  existingCertificateArn: customDomainCertificateArn,
   description:
     'Edge resources (Lambda@Edge / WAF / Secrets / ACM / Route53) for CFP Deadline Checker',
 });
