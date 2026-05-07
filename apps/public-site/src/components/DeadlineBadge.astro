@@ -1,0 +1,33 @@
+---
+import type { DeadlineLabelStatus } from '../lib/deadlineLabel';
+
+/**
+ * CfP 締切バッジ (Issue #86 / Phase 2)。
+ *
+ * `deadlineLabel()` の結果を視覚的に色分けして表示する。
+ *  - open    : グレー / 通常
+ *  - urgent  : オレンジ / 強調
+ *  - closed  : ライトグレー / 落ち着いた色 (= 既に応募できないためフォーカスを外す)
+ *  - unknown : ボーダーのみ
+ */
+interface Props {
+    text: string;
+    status: DeadlineLabelStatus;
+}
+
+const { text, status } = Astro.props;
+
+const classByStatus: Record<DeadlineLabelStatus, string> = {
+    open: 'bg-emerald-100 text-emerald-800 ring-1 ring-inset ring-emerald-200',
+    urgent: 'bg-orange-100 text-orange-800 ring-1 ring-inset ring-orange-300',
+    closed: 'bg-gray-100 text-gray-500 ring-1 ring-inset ring-gray-200',
+    unknown: 'bg-white text-gray-600 ring-1 ring-inset ring-gray-300',
+};
+---
+
+<span
+    class={`inline-flex items-center rounded-full px-3 py-0.5 text-xs font-semibold ${classByStatus[status]}`}
+    aria-label={`CfP 締切: ${text}`}
+>
+    {text}
+</span>
