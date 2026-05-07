@@ -239,6 +239,17 @@ export class AdminApi extends Construct {
         // - session に大きなデータを入れない前提 (cookie 4 KB 上限)。本 admin UI は CSRF token
         //   と軽微な flash messages のみで問題なし。
         SESSION_DRIVER: 'cookie',
+        // ── Session cookie セキュリティ強化 (Issue #130 / 公開前最終チェック) ──
+        // - SESSION_SECURE_COOKIE=true: cookie に Secure 属性を付与し HTTPS 経路のみで送信。
+        //   本 admin UI は CloudFront 経由の HTTPS のみで利用される (HTTP は CloudFront で
+        //   HTTPS にリダイレクト) ため、Secure 属性は必ず付ける。
+        //   未指定だと config/session.php のデフォルトに依存 (= null = リクエストの
+        //   secure 状態に追従) で、誤って HTTP 経路に流出するリスクが残る。
+        // - SESSION_SAME_SITE=strict: admin UI は同一オリジンからの遷移のみで使う前提
+        //   (= 外部からの遷移は Basic 認証で弾かれる) なので strict で CSRF 防御を最大化。
+        //   既存の VerifyOrigin middleware と二重防御。
+        SESSION_SECURE_COOKIE: 'true',
+        SESSION_SAME_SITE: 'strict',
         CACHE_STORE: 'array',
         // 管理 API が参照する DynamoDB テーブル名 (Lambda 実行時に解決)
         DYNAMODB_CONFERENCES_TABLE: props.conferences.tableName,
