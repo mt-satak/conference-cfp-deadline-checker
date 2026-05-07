@@ -1,14 +1,20 @@
 import { describe, it, expect } from 'vitest';
+import type { Category } from '../types/category';
 import { mapApiToConference, type ApiConference } from './conferencesApi';
 
 /**
  * 公開 API レスポンス → 公開フロント Conference 型へのマッピングテスト
- * (Issue #91 / Phase 4.3)。
+ * (Issue #91 / Phase 4.3, #95 / Phase 4.4)。
  *
  * - admin-api の Conference shape (UUID conferenceId / status / createdAt 等を持つ) から
  *   公開フロント側で使うフィールドだけを抽出する純粋関数
- * - categories は本フェーズでは空配列で固定 (Phase 4.4 で UUID → name 解決を実装予定)
+ * - categories は Category 一覧を使って UUID → slug に解決する (Phase 4.4)
  */
+
+const categoryFixtures: readonly Category[] = [
+    { id: '1d4f2a83-6b48-4f1c-9c8a-7e2b3d4f5a02', slug: 'php', name: 'PHP' },
+    { id: '2e5a3b94-7c59-4a2d-8d9b-8f3c4e5a6b03', slug: 'web', name: 'Web' },
+];
 
 function makeApiConference(overrides: Partial<ApiConference> = {}): ApiConference {
     return {
@@ -35,11 +41,11 @@ function makeApiConference(overrides: Partial<ApiConference> = {}): ApiConferenc
 
 describe('mapApiToConference', () => {
     it('conferenceId を id にマッピングし、必要フィールドだけ抽出する', () => {
-        // Given: published Conference 1 件
+        // Given
         const api = makeApiConference();
 
         // When
-        const result = mapApiToConference(api);
+        const result = mapApiToConference(api, categoryFixtures);
 
         // Then
         expect(result.id).toBe('550e8400-e29b-41d4-a716-446655440000');
@@ -53,8 +59,8 @@ describe('mapApiToConference', () => {
         expect(result.description).toBe('説明');
     });
 
-    it('categories は本フェーズでは空配列で固定する (Phase 4.4 で UUID → name 解決予定)', () => {
-        // Given: API 側は UUID 配列を返すが、現状は表示できないため空にする
+    it('categories の UUID 配列を Category 一覧を使って slug 配列に解決する', () => {
+        // Given: API は 2 つの UUID を返す
         const api = makeApiConference({
             categories: [
                 '1d4f2a83-6b48-4f1c-9c8a-7e2b3d4f5a02',
@@ -63,10 +69,26 @@ describe('mapApiToConference', () => {
         });
 
         // When
-        const result = mapApiToConference(api);
+        const result = mapApiToConference(api, categoryFixtures);
+
+        // Then: slug 配列に解決
+        expect(result.categories).toEqual(['php', 'web']);
+    });
+
+    it('Category 一覧に存在しない UUID は categories から除外される', () => {
+        // Given: 存在しない UUID 含む
+        const api = makeApiConference({
+            categories: [
+                '1d4f2a83-6b48-4f1c-9c8a-7e2b3d4f5a02', // php (存在)
+                '99999999-9999-9999-9999-999999999999', // 存在しない
+            ],
+        });
+
+        // When
+        const result = mapApiToConference(api, categoryFixtures);
 
         // Then
-        expect(result.categories).toEqual([]);
+        expect(result.categories).toEqual(['php']);
     });
 
     it('null 値を持つフィールド (eventStartDate / venue / format / cfpEndDate / description) はそのまま null', () => {
@@ -81,7 +103,7 @@ describe('mapApiToConference', () => {
         });
 
         // When
-        const result = mapApiToConference(api);
+        const result = mapApiToConference(api, categoryFixtures);
 
         // Then
         expect(result.eventStartDate).toBeNull();
