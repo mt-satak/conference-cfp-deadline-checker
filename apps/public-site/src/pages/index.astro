@@ -1,6 +1,8 @@
 ---
 import '../styles/global.css';
 import { mockConferences } from '../data/conferences.mock';
+import { formatJstDate } from '../lib/dates';
+import { deadlineLabel } from '../lib/deadlineLabel';
 import ConferenceCard from '../components/ConferenceCard.astro';
 
 /**
@@ -12,9 +14,18 @@ import ConferenceCard from '../components/ConferenceCard.astro';
  *
  * Phase 4 で mock を admin-api の公開 API に置換する (= ファイル import を fetch
  * に変えるだけで描画は変わらない設計)。
+ *
+ * 表示フィルタ:
+ * 「あと N 日」がサイトの目玉要素なので、まだ応募可能な open/urgent ステータス
+ * のカンファレンスのみ一覧に出す。締切終了 (closed) / 締切未定 (unknown) は
+ * 一覧から除外する (= ユーザーがアクションを取れないため)。
  */
 const today = new Date();
-const conferences = mockConferences;
+const todayJst = formatJstDate(today);
+const conferences = mockConferences.filter((c) => {
+    const { status } = deadlineLabel(c.cfpEndDate, today);
+    return status === 'open' || status === 'urgent';
+});
 ---
 
 <html lang="ja">
@@ -31,7 +42,7 @@ const conferences = mockConferences;
         <header class="border-b border-gray-200 bg-white">
             <div class="mx-auto max-w-5xl px-4 py-6 sm:py-8">
                 <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">
-                    CfP Deadline Checker
+                    CfP Checker
                 </h1>
                 <p class="mt-1 text-sm text-gray-600">
                     国内テックカンファレンスの CfP (Call for Proposals) 締切まとめ
@@ -57,7 +68,7 @@ const conferences = mockConferences;
         <footer class="border-t border-gray-200 bg-white">
             <div class="mx-auto max-w-5xl px-4 py-6 text-xs text-gray-500">
                 <p>
-                    最終更新: {today.toISOString().slice(0, 10)} (UTC)
+                    最終更新: {todayJst} (JST)
                 </p>
             </div>
         </footer>

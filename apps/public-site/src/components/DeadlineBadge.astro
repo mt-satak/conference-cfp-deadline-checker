@@ -2,13 +2,15 @@
 import type { DeadlineLabelStatus } from '../lib/deadlineLabel';
 
 /**
- * CfP 締切バッジ (Issue #86 / Phase 2)。
+ * CfP 締切バッジ (Issue #86 / Phase 2)。サイトの目玉要素として大きく目立たせる。
  *
  * `deadlineLabel()` の結果を視覚的に色分けして表示する。
- *  - open    : グレー / 通常
- *  - urgent  : オレンジ / 強調
- *  - closed  : ライトグレー / 落ち着いた色 (= 既に応募できないためフォーカスを外す)
- *  - unknown : ボーダーのみ
+ *  - open    : エメラルド / 余裕あり
+ *  - urgent  : オレンジ / 強調 (締切間近、本サイトで最も重要な状態)
+ *  - closed  : ライトグレー (= 既に応募できないためフォーカスを外す)
+ *  - unknown : ボーダーのみ (締切未定)
+ *
+ * 「あと N 日」の数字部分は特に大きく表示してアテンションを集める。
  */
 interface Props {
     text: string;
@@ -17,17 +19,32 @@ interface Props {
 
 const { text, status } = Astro.props;
 
+// 「あと N 日」(open/urgent) はサイトの目玉要素なので solid な濃い背景 + 白文字で
+// はっきり強調する。closed/unknown は応募できないためフォーカスを外す。
 const classByStatus: Record<DeadlineLabelStatus, string> = {
-    open: 'bg-emerald-100 text-emerald-800 ring-1 ring-inset ring-emerald-200',
-    urgent: 'bg-orange-100 text-orange-800 ring-1 ring-inset ring-orange-300',
+    open: 'bg-emerald-600 text-white ring-1 ring-inset ring-emerald-700',
+    urgent: 'bg-orange-500 text-white ring-1 ring-inset ring-orange-600',
     closed: 'bg-gray-100 text-gray-500 ring-1 ring-inset ring-gray-200',
     unknown: 'bg-white text-gray-600 ring-1 ring-inset ring-gray-300',
 };
+
+// "あと N 日" 形式から数字を抽出して大きく表示する。
+// 「本日締切」「締切終了」「締切未定」は数字無しなのでそのまま表示。
+const countdownMatch = text.match(/^あと\s*(\d+)\s*日$/);
+const remainingDays = countdownMatch?.[1] ?? null;
 ---
 
-<span
-    class={`inline-flex items-center rounded-full px-3 py-0.5 text-xs font-semibold ${classByStatus[status]}`}
+<div
+    class={`inline-flex items-baseline gap-2 rounded-lg px-4 py-2 font-semibold ${classByStatus[status]}`}
     aria-label={`CfP 締切: ${text}`}
 >
-    {text}
-</span>
+    {remainingDays !== null ? (
+        <>
+            <span class="text-sm">あと</span>
+            <span class="text-4xl font-extrabold leading-none tracking-tight">{remainingDays}</span>
+            <span class="text-sm">日</span>
+        </>
+    ) : (
+        <span class="text-base">{text}</span>
+    )}
+</div>

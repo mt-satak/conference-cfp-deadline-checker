@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { daysUntilDeadline } from './dates';
+import { daysUntilDeadline, formatJstDate } from './dates';
 
 /**
  * CfP 締切までの残り日数計算 (Issue #86 / Phase 1 → Phase 2 で利用)。
@@ -58,5 +58,40 @@ describe('daysUntilDeadline', () => {
 
     // Then: UTC 日付ベースで 1 日後
     expect(result).toBe(1);
+  });
+});
+
+describe('formatJstDate', () => {
+  it('UTC 0 時 (= JST 9 時) を JST に変換すると同日付を返す', () => {
+    // Given: UTC 2026-05-07 00:00 = JST 09:00
+    const date = new Date('2026-05-07T00:00:00Z');
+
+    // When
+    const result = formatJstDate(date);
+
+    // Then
+    expect(result).toBe('2026-05-07');
+  });
+
+  it('UTC で日が変わる前 (15:00 UTC) は JST では翌日になっている', () => {
+    // Given: UTC 2026-05-07 15:00 = JST 2026-05-08 00:00
+    const date = new Date('2026-05-07T15:00:00Z');
+
+    // When
+    const result = formatJstDate(date);
+
+    // Then
+    expect(result).toBe('2026-05-08');
+  });
+
+  it('YYYY-MM-DD のゼロ埋め形式で返す', () => {
+    // Given: JST 1 月 1 日
+    const date = new Date('2026-01-01T00:00:00Z'); // JST 09:00 同日
+
+    // When
+    const result = formatJstDate(date);
+
+    // Then
+    expect(result).toBe('2026-01-01');
   });
 });
