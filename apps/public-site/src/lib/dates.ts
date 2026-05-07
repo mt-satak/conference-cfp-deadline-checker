@@ -33,3 +33,21 @@ export function daysUntilDeadline(deadline: string, today: Date): number {
   const msPerDay = 24 * 60 * 60 * 1000;
   return Math.round((deadlineUtc - todayUtc) / msPerDay);
 }
+
+/**
+ * Date を JST (Asia/Tokyo) の YYYY-MM-DD 文字列にフォーマットする。
+ *
+ * 公開フロント (Issue #86 / Phase 2) は日本国内のユーザーが対象なので、
+ * 表示の日付/時刻は JST に揃える。Intl.DateTimeFormat を使えば runtime の
+ * timezone に依存せず JST に明示変換できる。
+ */
+export function formatJstDate(date: Date): string {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  // en-CA ロケールは ISO 8601 互換の YYYY-MM-DD を返す (ja-JP は YYYY/MM/DD)
+  return formatter.format(date);
+}
