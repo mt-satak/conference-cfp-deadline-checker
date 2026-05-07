@@ -1,0 +1,81 @@
+# public-site CI / CD ワークフロー (Issue #86)
+#
+# ジョブ構成:
+#   check : Vitest --no-coverage / astro check (typecheck) / astro build
+#           (PR + push 時に実行、AWS 認証不要)
+#
+# パスフィルタ:
+#   apps/public-site / packages / 本ファイル のいずれかに変更が無い場合は
+#   ワークフロー自体が起動しない (= admin-api 単独の変更等は素通し)
+#
+# カバレッジ計測の方針 (Issue #80 D 案 / admin-api と同運用):
+#   CI ではカバレッジ計測しない (pest --no-coverage 相当の `pnpm test` を使う)。
+#   ローカル開発時は pre-push hook が `pnpm test:coverage` で計測 + 閾値判定する。
+#   テスト本体は CI でも実行されるため Dependabot 等の自動 PR でも機能リグレッション
+#   検出は担保される。
+
+name: public-site
+
+on:
+  pull_request:
+    paths:
+      - 'apps/public-site/**'
+      - 'packages/**'
+      - '.github/workflows/public-site.yml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/public-site/**'
+      - 'packages/**'
+      - '.github/workflows/public-site.yml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+
+permissions:
+  contents: read
+
+# 同一ブランチの古い run はキャンセル (PR feedback の応答性向上)
+concurrency:
+  group: public-site-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  check:
+    name: Typecheck / Vitest / Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/public-site
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm/action-setup は package.json の `packageManager` field を優先する
+      # ため `version` 入力は付けない (両方指定すると ERR_PNPM_BAD_PM_VERSION)
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies (workspace root)
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+
+      # ── 型チェック (astro check) ──
+      # .astro / .ts ファイルを astro 公式の checker で検証。tsconfig.strict 前提。
+      - name: Typecheck (astro check)
+        run: pnpm typecheck
+
+      # ── テスト (Vitest --no-coverage) ──
+      # CI では coverage 計測なし。ローカル pre-push hook で別途計測する。
+      - name: Vitest (no coverage)
+        run: pnpm test
+
+      # ── ビルド検証 ──
+      # SSG として astro build が通ることを確認。dist/ 出力を検証。
+      - name: Astro build
+        run: pnpm build

@@ -1,87 +1,114 @@
 #!/usr/bin/env bash
 # プロジェクト pre-push フック
 #
-# push 前にバックエンド (admin-api) の以下 2 ゲートを実行する:
-#   1. PHPStan (level max, ベースライン外の新規違反のみ報告)
-#   2. テスト + カバレッジ計測 (層別 C1 閾値判定)
+# push 前に各アプリのゲートを実行する:
+#   admin-api : Pint / PHPStan / Pest + 層別 C1 カバレッジ
+#   public-site: astro check (typecheck) / Vitest + coverage
 #
-# 静的解析を先に走らせ、型不整合があれば即 fail する (テストより速いため)。
+# CI は速度優先で coverage を取らないため、coverage 検知は本フックが最終ガード。
 #
 # 有効化: ルートの `pnpm install` (postinstall で自動設定) または
 #         手動で `git config core.hooksPath .githooks`
 #
 # 緊急時バイパス:
-#   SKIP_PHPSTAN=1 git push        PHPStan のみスキップ
-#   SKIP_COVERAGE_CHECK=1 git push  カバレッジゲートのみスキップ
-#   いずれも非推奨、CI でも弾かれる想定
+#   SKIP_PINT=1                      Pint ゲートのみスキップ (admin-api)
+#   SKIP_PHPSTAN=1                   PHPStan ゲートのみスキップ (admin-api)
+#   SKIP_COVERAGE_CHECK=1            admin-api カバレッジゲートのみスキップ
+#   SKIP_PUBLIC_SITE=1               public-site ゲート全体をスキップ
+#   いずれも非推奨、commit message にバイパス理由を残すこと
 
 set -euo pipefail
 
-# プロジェクトルートに移動 (フック実行時は repo root が cwd だが念のため)
 cd "$(git rev-parse --show-toplevel)"
 
-# admin-api 配下のファイルが変更されているかを軽く判定
-# (admin-api を一切触らない push でもカバレッジを回すのは無駄なため)
+# 引数 (git pre-push hook の標準: $1=remote name, $2=remote URL)
 remote="${1:-origin}"
 url="${2:-}"
 
-# stdin から push 対象 ref を取得し、admin-api 関連変更があるかをチェック
-needs_check=0
-while read -r local_ref local_sha remote_ref remote_sha; do
-    if [[ -z "$local_ref" ]]; then
-        continue
-    fi
-    # 新規ブランチ push (remote_sha が全 0) は origin/main をベースに判定
-    if [[ "$remote_sha" =~ ^0+$ ]]; then
-        base=$(git merge-base "$local_sha" origin/main 2>/dev/null || git merge-base "$local_sha" origin/master 2>/dev/null || echo "")
-        if [[ -z "$base" ]]; then
-            # ベースが取れない (初回 push 等) は安全側に倒してカバレッジを実行
-            needs_check=1
-        elif git diff --name-only "$base" "$local_sha" -- apps/admin-api packages docker | grep -q .; then
-            needs_check=1
-        fi
-    else
-        if git diff --name-only "$remote_sha" "$local_sha" -- apps/admin-api packages docker | grep -q .; then
-            needs_check=1
-        fi
-    fi
+# ── 変更検出ロジック ──
+# stdin から push 対象 ref を取得し、指定パスに変更があるかを判定するヘルパ。
+# 標準入力は 1 度しか読めないため、最初に全行を配列に取り込む。
+push_refs=()
+while read -r line; do
+    push_refs+=("$line")
 done
 
-if [[ "$needs_check" == "0" ]]; then
+has_changes_in() {
+    local paths=("$@")
+    for ref_line in "${push_refs[@]}"; do
+        if [[ -z "$ref_line" ]]; then
+            continue
+        fi
+        # shellcheck disable=SC2086
+        read -r local_ref local_sha remote_ref remote_sha <<<"$ref_line"
+        if [[ -z "${local_ref:-}" ]]; then
+            continue
+        fi
+        if [[ "${remote_sha:-}" =~ ^0+$ ]]; then
+            # 新規ブランチ push: origin/main をベースに判定。ベース不明時は安全側に倒す
+            base=$(git merge-base "$local_sha" origin/main 2>/dev/null || git merge-base "$local_sha" origin/master 2>/dev/null || echo "")
+            if [[ -z "$base" ]]; then
+                return 0
+            elif git diff --name-only "$base" "$local_sha" -- "${paths[@]}" | grep -q .; then
+                return 0
+            fi
+        else
+            if git diff --name-only "$remote_sha" "$local_sha" -- "${paths[@]}" | grep -q .; then
+                return 0
+            fi
+        fi
+    done
+    return 1
+}
+
+# ────────────────────────────────────────────────────────────────────
+# admin-api ゲート
+# ────────────────────────────────────────────────────────────────────
+if has_changes_in apps/admin-api packages docker; then
+    if [[ "${SKIP_PINT:-0}" == "1" ]]; then
+        echo "⚠️  SKIP_PINT=1 により Pint ゲートをスキップしました"
+    else
+        echo "▶ admin-api Pint (--test) を実行します"
+        make api-lint
+        echo "✅ Pint ゲート通過"
+    fi
+
+    if [[ "${SKIP_PHPSTAN:-0}" == "1" ]]; then
+        echo "⚠️  SKIP_PHPSTAN=1 により PHPStan ゲートをスキップしました"
+    else
+        echo "▶ admin-api PHPStan level max を実行します"
+        make api-phpstan
+        echo "✅ PHPStan ゲート通過"
+    fi
+
+    if [[ "${SKIP_COVERAGE_CHECK:-0}" == "1" ]]; then
+        echo "⚠️  SKIP_COVERAGE_CHECK=1 により admin-api カバレッジゲートをスキップしました"
+    else
+        echo "▶ admin-api テスト + カバレッジ計測を実行します (xdebug 必須)"
+        make api-test-coverage
+        echo "▶ admin-api 層別 C1 閾値判定"
+        make api-coverage-check
+        echo "✅ admin-api カバレッジゲート通過"
+    fi
+else
     echo "✅ admin-api / packages / docker に変更が無いため admin-api ゲートをスキップ"
-    exit 0
 fi
 
-# ── ゲート 1/3: Lint (Pint --test) ──
-# CI と同じ dry-run モードで違反を検出する。違反は `make api-lint-fix` で
-# (もしくは pnpm api:lint:fix で) 一括自動修正できる。
-if [[ "${SKIP_PINT:-0}" == "1" ]]; then
-    echo "⚠️  SKIP_PINT=1 により Pint ゲートをスキップしました"
+# ────────────────────────────────────────────────────────────────────
+# public-site ゲート (Issue #86)
+# ────────────────────────────────────────────────────────────────────
+if [[ "${SKIP_PUBLIC_SITE:-0}" == "1" ]]; then
+    echo "⚠️  SKIP_PUBLIC_SITE=1 により public-site ゲートをスキップしました"
+elif has_changes_in apps/public-site packages package.json pnpm-lock.yaml; then
+    echo "▶ public-site typecheck (astro check) を実行します"
+    pnpm --filter apps-public-site typecheck
+    echo "✅ public-site typecheck 通過"
+
+    echo "▶ public-site テスト + カバレッジ計測 (Vitest --coverage) を実行します"
+    pnpm --filter apps-public-site test:coverage
+    echo "✅ public-site カバレッジゲート通過"
 else
-    echo "▶ admin-api Pint (--test) を実行します"
-    make api-lint
-    echo "✅ Pint ゲート通過"
+    echo "✅ apps/public-site に変更が無いため public-site ゲートをスキップ"
 fi
 
-# ── ゲート 2/3: PHPStan (level max) ──
-if [[ "${SKIP_PHPSTAN:-0}" == "1" ]]; then
-    echo "⚠️  SKIP_PHPSTAN=1 により PHPStan ゲートをスキップしました"
-else
-    echo "▶ admin-api PHPStan level max を実行します"
-    make api-phpstan
-    echo "✅ PHPStan ゲート通過"
-fi
-
-# ── ゲート 3/3: テスト + カバレッジ ──
-if [[ "${SKIP_COVERAGE_CHECK:-0}" == "1" ]]; then
-    echo "⚠️  SKIP_COVERAGE_CHECK=1 によりカバレッジゲートをスキップしました"
-    exit 0
-fi
-
-echo "▶ admin-api テスト + カバレッジ計測を実行します (xdebug 必須)"
-make api-test-coverage
-
-echo "▶ 層別 C1 閾値判定"
-make api-coverage-check
-
-echo "✅ カバレッジゲート通過、push を続行します"
+echo "✅ すべてのゲート通過、push を続行します"
