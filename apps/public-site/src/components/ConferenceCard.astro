@@ -76,8 +76,13 @@ const formatLabel = conference.format ? formatLabelMap[conference.format] : null
         {conference.categories.length > 0 && (
             <ul class="flex flex-wrap gap-1.5">
                 {conference.categories.map((cat) => (
-                    <li class="rounded bg-gray-50 px-2 py-0.5 text-xs text-gray-600 ring-1 ring-inset ring-gray-200">
-                        {cat}
+                    <li>
+                        <a
+                            href={`/categories/${cat}/`}
+                            class="inline-block rounded bg-gray-50 px-2 py-0.5 text-xs text-gray-600 ring-1 ring-inset ring-gray-200 hover:bg-emerald-50 hover:text-emerald-800 hover:ring-emerald-200 transition"
+                        >
+                            {cat}
+                        </a>
                     </li>
                 ))}
             </ul>
