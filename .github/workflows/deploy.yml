@@ -32,6 +32,16 @@ on:
   # 手動再デプロイ用。Phase 5.3 で admin UI から repository_dispatch を投げる
   # 経路を追加する想定。現時点では UI から発火するルートは未実装。
   workflow_dispatch:
+  # ── 毎日 JST 0:00 自動再ビルド (応急処置) ──
+  # 公開フロント (Astro SSG) は build 時刻基準で「あと N 日」を計算するため、
+  # 再ビルドしないと日付が更新されない。schedule cron で deploy.yml を起動して
+  # 毎日 00:00 JST に再ビルド + deploy する。
+  # cron 式は UTC 基準なので JST 0:00 = UTC 15:00 (前日)。
+  # GitHub Actions の schedule は仕様上 5-10 分の遅延があるため、
+  # 0:00-0:10 頃はまだ古い表示が見える残課題あり (= 根本解決は Issue #134
+  # クライアント側再計算で対応予定)。
+  schedule:
+    - cron: '0 15 * * *'
 
 # OIDC で AWS にアクセスするため id-token: write 必須。
 permissions:
