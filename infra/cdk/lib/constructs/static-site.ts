@@ -9,6 +9,9 @@ import {
   type BehaviorOptions,
   CachePolicy,
   Distribution,
+  Function as CfFunction,
+  FunctionCode,
+  FunctionEventType,
   HeadersFrameOption,
   HeadersReferrerPolicy,
   HttpVersion,
@@ -241,6 +244,30 @@ export class StaticSite extends Construct {
       );
     }
 
+    // ── CloudFront Function: ディレクトリ → index.html リライト (Issue #98 / Phase 5.1) ──
+    // S3 OAC は path 末尾 `/` を `index.html` に補完しない仕様のため、
+    // `/categories/` 等のディレクトリ URL が 403 になる。viewer-request で URI を
+    // 書き換えて S3 上の `<path>/index.html` を返すようにする。
+    //
+    // Astro は SSG で `<dir>/index.html` を生成するため、本変換でディープリンクが
+    // 全て解決する (例: /categories/php/ → /categories/php/index.html)。
+    const indexRewriteFn = new CfFunction(this, 'IndexRewriteFunction', {
+      comment: 'Append index.html for directory-style URIs (e.g. /categories/ → /categories/index.html)',
+      code: FunctionCode.fromInline(`
+function handler(event) {
+    var request = event.request;
+    var uri = request.uri;
+    if (uri.endsWith('/')) {
+        request.uri += 'index.html';
+    } else if (!uri.includes('.')) {
+        // 拡張子なし (= /categories/php 等の trailing slash 無し) も index.html を補完
+        request.uri += '/index.html';
+    }
+    return request;
+}
+`),
+    });
+
     // ── CloudFront Distribution ──
     // 既定動作は S3 オリジンへのアクセスで、HTTP は HTTPS にリダイレクト。
     // WAF WebACL が指定されていれば Distribution に関連付ける。
@@ -256,6 +283,12 @@ export class StaticSite extends Construct {
         cachePolicy: CachePolicy.CACHING_OPTIMIZED,
         responseHeadersPolicy: securityHeaders,
         compress: true,
+        functionAssociations: [
+          {
+            function: indexRewriteFn,
+            eventType: FunctionEventType.VIEWER_REQUEST,
+          },
+        ],
       },
       additionalBehaviors,
       defaultRootObject: 'index.html',
