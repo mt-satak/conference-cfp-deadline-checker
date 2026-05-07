@@ -65,20 +65,24 @@ const { categories } = Astro.props;
 
 <script>
     /**
-     * Modal の open / close を担当。Astro は SSG で 1 度だけ HTML を吐くため、
-     * DOMContentLoaded 後に listener を 1 回だけ仕込む形で十分。
+     * Modal の open / close を担当。
      * - #category-filter-open ボタン: showModal()
      * - #category-filter-close ボタン: close()
      * - backdrop クリック時: close() (UX 慣習)
      * - Esc キーは <dialog> ネイティブで close されるため独自処理不要
+     *
+     * Astro の <script> は type="module" でバンドルされ defer 相当の実行順になる。
+     * これは「DOM 構築完了後」に実行されることを意味し、DOMContentLoaded は
+     * すでに発火済み = listener が呼ばれないため、直接 querySelector で要素を
+     * 取って handler を仕込む。dev server (vite) は HMR の都合で実行タイミングが
+     * 異なり DOMContentLoaded 待ちでも偶然動いてしまうため、本番ビルドのみで
+     * 顕在化する典型的な dev/prod 差異だった。
      */
-    document.addEventListener('DOMContentLoaded', () => {
-        const modal = document.getElementById('category-filter-modal') as HTMLDialogElement | null;
-        const openBtn = document.getElementById('category-filter-open');
-        const closeBtn = document.getElementById('category-filter-close');
+    const modal = document.getElementById('category-filter-modal') as HTMLDialogElement | null;
+    const openBtn = document.getElementById('category-filter-open');
+    const closeBtn = document.getElementById('category-filter-close');
 
-        if (!modal || !openBtn || !closeBtn) return;
-
+    if (modal && openBtn && closeBtn) {
         openBtn.addEventListener('click', () => modal.showModal());
         closeBtn.addEventListener('click', () => modal.close());
 
@@ -89,5 +93,5 @@ const { categories } = Astro.props;
                 modal.close();
             }
         });
-    });
+    }
 </script>
