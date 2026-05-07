@@ -200,6 +200,30 @@ export class StaticSite extends Construct {
                 },
               ],
             },
+            // /api/public/*: 公開フロント (Astro) 向け read-only API (Issue #91 / Phase 4.2)
+            'api/public*': {
+              // 同じ AdminApi Function URL を Origin として共有。CloudFrontSecretMiddleware
+              // で Function URL 直アクセスを防ぐ点も /admin/* と同じ。
+              origin: new FunctionUrlOrigin(props.adminFunctionUrl, {
+                customHeaders: {
+                  'X-CloudFront-Secret': props.cloudfrontOriginSecret,
+                },
+              }),
+              // 公開 read-only API は CDN キャッシュ可能 (= 同一データを複数の build /
+              // ブラウザに配信)。CACHING_OPTIMIZED は default 24h キャッシュ。
+              // admin UI でデータ更新後は CloudFront invalidation か rebuild trigger で
+              // キャッシュをクリアする運用 (Phase 5 で整備)。
+              cachePolicy: CachePolicy.CACHING_OPTIMIZED,
+              originRequestPolicy:
+                OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+              viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+              // GET / HEAD のみ許可 (= read-only)
+              allowedMethods: AllowedMethods.ALLOW_GET_HEAD,
+              compress: true,
+              responseHeadersPolicy: securityHeaders,
+              // Lambda@Edge basic auth は付けない (= 公開 API なので誰でも GET 可能)。
+              // Function URL 直アクセス防御は CloudFrontSecretMiddleware が担当。
+            },
           }
         : undefined;
 
