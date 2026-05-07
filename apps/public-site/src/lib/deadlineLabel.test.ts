@@ -20,7 +20,7 @@ describe('deadlineLabel', () => {
         expect(result.status).toBe<DeadlineLabelStatus>('open');
     });
 
-    it('CfP 終了日が今日と同じ日の場合「本日締切」と urgent ステータスを返す', () => {
+    it('CfP 終了日が今日と同じ日の場合「本日締切」と today ステータスを返す (urgent と区別、UI で赤色表示)', () => {
         // Given: 当日
         const today = new Date('2026-05-07T08:00:00Z');
 
@@ -29,7 +29,7 @@ describe('deadlineLabel', () => {
 
         // Then
         expect(result.text).toBe('本日締切');
-        expect(result.status).toBe<DeadlineLabelStatus>('urgent');
+        expect(result.status).toBe<DeadlineLabelStatus>('today');
     });
 
     it('CfP 終了日が今日より過去の場合「締切終了」と closed ステータスを返す', () => {

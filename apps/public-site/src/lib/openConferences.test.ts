@@ -27,11 +27,11 @@ function makeConference(id: string, cfpEndDate: string | null): Conference {
 describe('filterOpenConferences', () => {
     const today = new Date('2026-05-07T00:00:00Z');
 
-    it('open / urgent ステータスのカンファレンスは残し、closed / unknown は除外する', () => {
+    it('open / urgent / today ステータスのカンファレンスは残し、closed / unknown は除外する', () => {
         // Given:
         const open = makeConference('open', '2026-06-30'); // 54 日後 = open
         const urgent = makeConference('urgent', '2026-05-10'); // 3 日後 = urgent
-        const today_deadline = makeConference('today', '2026-05-07'); // 当日 = urgent
+        const today_deadline = makeConference('today', '2026-05-07'); // 当日 = today
         const closed = makeConference('closed', '2026-05-01'); // 過去 = closed
         const unknown = makeConference('unknown', null); // 締切未定 = unknown
 

@@ -69,4 +69,19 @@ export const mockConferences: readonly Conference[] = [
         description: '日本最大の Ruby 国際カンファレンス。CfP 締切は未定 (公式発表待ち)。',
         categories: ['ruby'],
     },
+    {
+        // ローカル UI 確認用: today ステータス (= 本日締切バッジ赤色) を再現するためのデータ。
+        // cfpEndDate は本日 (2026-05-07) に固定。日付が変わると urgent → closed と
+        // ステータスがずれるので、本日締切バッジを確認したいときは値を更新する。
+        id: '550e8400-e29b-41d4-a716-446655440006',
+        name: 'Today Conf 2026 (テスト用)',
+        officialUrl: 'https://example.com/today-conf-2026/',
+        eventStartDate: '2026-08-01',
+        eventEndDate: '2026-08-02',
+        venue: 'テスト会場',
+        format: 'hybrid',
+        cfpEndDate: '2026-05-07',
+        description: 'ローカル開発で「本日締切」UI を確認するためのモックデータ。実在しないカンファレンス。',
+        categories: ['web'],
+    },
 ];
