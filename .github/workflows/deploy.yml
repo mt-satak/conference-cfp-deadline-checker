@@ -94,12 +94,23 @@ jobs:
       - name: pnpm install (workspace root)
         run: pnpm install --frozen-lockfile
 
-      # ── admin-api Vite ビルド ──
+      # ── admin-api Vite ビルド (npm 経由 / Issue #106) ──
       # apps/admin-api/public/build/ を生成する。CDK Stack はこのディレクトリを
       # asset として S3 にアップロードする (PR #99 / eb33f55 で組み込み済)。
-      # cdk.out のキャッシュ問題は CI ランナーが毎回クリーンなので発生しない。
-      - name: Build admin-api Vite assets
-        run: pnpm -C apps/admin-api run build
+      #
+      # ここだけ pnpm ではなく npm を使う。理由は workspace 全体で
+      # `pnpm.overrides.vite = "^7.3.2"` を設定しているのに対し、admin-api の
+      # `laravel-vite-plugin v3.1.0` は peerDependency で `vite ^8.0.0` を要求するため。
+      # pnpm 経由だと vite 7 が強制されて laravel-vite-plugin が機能せず、
+      # `Could not resolve entry module "index.html"` で fail する。
+      #
+      # Astro 6 が vite 7 必須なので overrides は外せない。Astro 側の vite 8 移行が
+      # できた時点で workspace を vite 8 に統一して npm 混在を解消する (将来 Issue)。
+      - name: Build admin-api Vite assets (npm — workspace overrides を bypass)
+        working-directory: apps/admin-api
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
 
       # ── public-site (Astro) ビルド ──
       # apps/public-site/dist/ を生成する。CDK Stack の BucketDeployment が
