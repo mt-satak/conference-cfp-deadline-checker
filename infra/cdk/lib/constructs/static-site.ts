@@ -310,5 +310,43 @@ export class StaticSite extends Construct {
       distribution: this.distribution,
       distributionPaths: ['/build/*'],
     });
+
+    // ── 公開フロント (Astro) の静的ビルド成果物を S3 root に配置 (Issue #98 / Phase 5.1) ──
+    // CloudFront default behavior (S3) から配信される。
+    // path 衝突確認:
+    //   /              → 公開フロント (本デプロイ)
+    //   /categories/*  → 公開フロント (本デプロイ)
+    //   /_astro/*      → Astro build assets (本デプロイ)
+    //   /admin/*       → admin UI Lambda
+    //   /api/public/*  → admin-api Lambda
+    //   /build/*       → admin Vite assets (上記 AdminViteBuildDeployment)
+    //   /404.html      → S3 errorResponses
+    //
+    // デプロイ前に必ず:
+    //   cd apps/public-site && PUBLIC_API_BASE_URL=https://<domain> pnpm build
+    // を実行して dist/ を生成しておくこと。CI/CD 化は Phase 5.2 で対応予定。
+    //
+    // prune: false で他の BucketDeployment が置いたファイル (= /build/*) を消さない。
+    // distributionPaths: ['/*'] で全 path を invalidate (= デフォルト 24h cache を強制更新)。
+    new BucketDeployment(this, 'PublicSiteDeployment', {
+      sources: [
+        Source.asset(
+          path.join(
+            __dirname,
+            '..',
+            '..',
+            '..',
+            '..',
+            'apps',
+            'public-site',
+            'dist',
+          ),
+        ),
+      ],
+      destinationBucket: this.bucket,
+      prune: false,
+      distribution: this.distribution,
+      distributionPaths: ['/*'],
+    });
   }
 }
