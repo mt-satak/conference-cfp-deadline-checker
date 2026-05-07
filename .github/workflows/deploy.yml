@@ -115,9 +115,14 @@ jobs:
       # ── public-site (Astro) ビルド ──
       # apps/public-site/dist/ を生成する。CDK Stack の BucketDeployment が
       # この dist/ を S3 ルートに配信する (Phase 5.1 / Issue #98)。
-      # 公開 API URL は CDK Stack 内の CloudFront 同居経路で解決するため
-      # ビルド時 env は不要 (= 同一オリジン /api/public/* 経由)。
+      #
+      # SSG ビルド時に loadConferences / loadCategories が API を fetch する。
+      # PUBLIC_API_BASE_URL が空だと mock fallback が走るため (Issue #108)、
+      # GitHub Variables に登録した CloudFront URL を build 環境に渡す。
+      # ドメイン移行時は Variables の値を書き換えるだけで切替完了。
       - name: Build public-site (Astro)
+        env:
+          PUBLIC_API_BASE_URL: ${{ vars.PUBLIC_API_BASE_URL }}
         run: pnpm -C apps/public-site run build
 
       # ── AWS OIDC で短期クレデンシャル取得 ──
