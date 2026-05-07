@@ -1,6 +1,6 @@
 ---
 import '../styles/global.css';
-import { mockConferences } from '../data/conferences.mock';
+import { loadConferences } from '../data/loadConferences';
 import { formatJstDate } from '../lib/dates';
 import { filterOpenConferences } from '../lib/openConferences';
 import { sortByDeadlineAsc } from '../lib/sortConferences';
@@ -23,7 +23,8 @@ import ConferenceCard from '../components/ConferenceCard.astro';
  */
 const today = new Date();
 const todayJst = formatJstDate(today);
-const conferences = sortByDeadlineAsc(filterOpenConferences(mockConferences, today));
+const allConferences = await loadConferences();
+const conferences = sortByDeadlineAsc(filterOpenConferences(allConferences, today));
 ---
 
 <html lang="ja">

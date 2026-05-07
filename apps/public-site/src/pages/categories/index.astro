@@ -1,6 +1,6 @@
 ---
 import '../../styles/global.css';
-import { mockConferences } from '../../data/conferences.mock';
+import { loadConferences } from '../../data/loadConferences';
 import { extractCategorySlugs, filterByCategory } from '../../lib/categories';
 import { filterOpenConferences } from '../../lib/openConferences';
 import { formatJstDate } from '../../lib/dates';
@@ -17,7 +17,8 @@ const today = new Date();
 const todayJst = formatJstDate(today);
 
 // 締切終了 / 未定のカンファレンスは一覧フローに乗せない方針 (Phase 2 のトップページと同じ)
-const openConferences = filterOpenConferences(mockConferences, today);
+const allConferences = await loadConferences();
+const openConferences = filterOpenConferences(allConferences, today);
 const categories = extractCategorySlugs(openConferences).map((slug) => ({
     slug,
     count: filterByCategory(openConferences, slug).length,

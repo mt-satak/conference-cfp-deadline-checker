@@ -1,6 +1,6 @@
 ---
 import '../../styles/global.css';
-import { mockConferences } from '../../data/conferences.mock';
+import { loadConferences } from '../../data/loadConferences';
 import { extractCategorySlugs, filterByCategory } from '../../lib/categories';
 import { filterOpenConferences } from '../../lib/openConferences';
 import { sortByDeadlineAsc } from '../../lib/sortConferences';
@@ -8,18 +8,21 @@ import { formatJstDate } from '../../lib/dates';
 import ConferenceCard from '../../components/ConferenceCard.astro';
 
 /**
- * カテゴリ別カンファレンス一覧ページ (Issue #86 / Phase 3)。
+ * カテゴリ別カンファレンス一覧ページ (Issue #86 / Phase 3 → 4.3)。
  *
  * SSG: `getStaticPaths` で全カテゴリ slug 分のページを事前生成する。
  *  - URL: `/categories/{slug}/`
  *  - 各ページに該当カテゴリの open/urgent カンファレンスを表示
  *
- * Phase 4 で mock を admin-api の公開 API に置換予定。
+ * Phase 4.3 で loadConferences() (env 未設定時は mock fallback) に切替済み。
+ * 公開 API 経由ではカテゴリ UUID が空配列に丸められるため (Phase 4.4 で解決予定)、
+ * 現状 fetch モードでは getStaticPaths 結果が空 = カテゴリページが生成されない。
  */
 
 export async function getStaticPaths() {
     const today = new Date();
-    const openConferences = filterOpenConferences(mockConferences, today);
+    const allConferences = await loadConferences();
+    const openConferences = filterOpenConferences(allConferences, today);
     return extractCategorySlugs(openConferences).map((slug) => ({
         params: { slug },
         props: { slug },
@@ -33,8 +36,9 @@ interface Props {
 const { slug } = Astro.props;
 const today = new Date();
 const todayJst = formatJstDate(today);
+const allConferences = await loadConferences();
 const conferences = sortByDeadlineAsc(
-    filterByCategory(filterOpenConferences(mockConferences, today), slug),
+    filterByCategory(filterOpenConferences(allConferences, today), slug),
 );
 ---
 
