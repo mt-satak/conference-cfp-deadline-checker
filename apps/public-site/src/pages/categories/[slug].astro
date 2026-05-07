@@ -58,8 +58,6 @@ const conferences = sortByDeadlineAsc(
                 <p class="text-xs text-gray-500">
                     <a href="/" class="hover:text-emerald-700 hover:underline">CfP Checker</a>
                     <span class="mx-1">/</span>
-                    <a href="/categories/" class="hover:text-emerald-700 hover:underline">カテゴリ</a>
-                    <span class="mx-1">/</span>
                     <span>{slug}</span>
                 </p>
                 <h1 class="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
@@ -72,9 +70,22 @@ const conferences = sortByDeadlineAsc(
         </header>
 
         <main class="mx-auto max-w-5xl px-4 py-6 sm:py-8">
-            <div class="mb-4 flex items-baseline justify-between gap-4">
-                <h2 class="text-lg font-semibold text-gray-900">該当カンファレンス</h2>
-                <span class="text-xs text-gray-500">{conferences.length} 件</span>
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-baseline gap-3">
+                    <h2 class="text-lg font-semibold text-gray-900">該当カンファレンス</h2>
+                    <span class="text-xs text-gray-500">{conferences.length} 件</span>
+                </div>
+                {/* 絞り込みを解除して全件表示 (= トップ) に戻すボタン。
+                    パンくずだけだと戻る動線が弱いのでセカンダリボタンとして明示。 */}
+                <a
+                    href="/"
+                    class="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:border-gray-400 hover:bg-gray-50 active:bg-gray-100 transition"
+                >
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                    全件表示に戻す
+                </a>
             </div>
 
             {conferences.length === 0 ? (
