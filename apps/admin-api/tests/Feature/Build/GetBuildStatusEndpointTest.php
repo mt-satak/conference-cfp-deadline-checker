@@ -10,7 +10,8 @@ use App\Domain\Build\BuildTriggerSource;
  * GET /admin/api/build/status (operationId: getBuildStatus) の Feature テスト。
  *
  *   - 200 OK: {"data": [<BuildStatus>], "meta": {"latestStatus": ...}}
- *   - 503 SERVICE_UNAVAILABLE: Amplify App ID 未構成
+ *   - 503 SERVICE_UNAVAILABLE: GitHub App 未構成 (app_id / installation_id /
+ *     private_key のいずれかが欠け)
  */
 it('GET /admin/api/build/status は 200 と data に BuildStatus 配列 + meta.latestStatus を返す', function () {
     // Given: UseCase が 2 件返すモック (新しい順)

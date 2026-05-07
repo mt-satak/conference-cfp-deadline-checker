@@ -9,7 +9,8 @@ namespace App\Domain\Build;
  * - jobId / status / startedAt は必須
  * - commitId / commitMessage はリポジトリ連携時のみ存在
  * - endedAt はビルド完了時のみ存在
- * - triggerSource は推定可能な場合のみ存在 (Amplify SDK には直接の値が無い)
+ * - triggerSource は推定可能な場合のみ存在 (Phase 5.3 以降は GitHub Actions の
+ *   workflow event 名から判定する)
  */
 final readonly class BuildStatus
 {
