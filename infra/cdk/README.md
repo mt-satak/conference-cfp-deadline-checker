@@ -341,3 +341,27 @@ pnpm cdk deploy CfpDeadlineCheckerStack
   [Warning at /CfpDeadlineCheckerStack/DataTables] DataTables env='dev' is enabled: tables will be DESTROYED on stack delete and deletionProtection is OFF.
   ```
 - 開発が落ち着いたら `env=dev` を外した状態で再 deploy して本番モードに戻すこと
+
+## デプロイ後 smoke test (Issue #29)
+
+`deploy.yml` の `cdk deploy` ステップ直後で **公開 URL に対して認証不要の 3 endpoint を叩く** smoke test が走る。致命的リグレッション (500 系 / routing 失敗 / CSP 設定ミス等) を早期検知するため。
+
+### 検証項目
+
+| # | リクエスト | 期待 |
+|---|---|---|
+| 1 | `GET https://cfp-checker.dev/` | 200 + HTML に `CfP Checker` を含む |
+| 2 | `GET https://cfp-checker.dev/api/public/categories` | 200 + JSON `.data` が array |
+| 3 | `GET https://cfp-checker.dev/api/public/conferences` | 200 + JSON `.data` が array |
+
+### 実装上の配慮
+
+- `curl --retry 5 --retry-delay 10 --retry-all-errors` で **CloudFront invalidation 完了と Lambda コールドスタートを吸収** (= deploy 直後の 502/503 を retry でカバー、最悪 50 秒待ち)
+- `--max-time 30` で 1 リクエストの上限を 30 秒に制限 (= リクエストハング検知)
+- 失敗時は `::error::` annotation で GitHub Actions の summary に表示
+
+### 対象外 (将来追加候補)
+
+- `/admin/api/health` は **Basic 認証必須** で OIDC Deploy Role に SecretsManager `GetSecretValue` 権限が無いため対象外。必要になったら CI Stack の Role に Secret ARN を限定した権限を追加する
+- JS 実行系 (= 今回の Modal バグのような ReferenceError 等) は curl では拾えない。e2e (Playwright 等) の導入は別 Issue 案件
+- 本番障害のリアルタイム検知 (= deploy と関係なくサービス劣化を検知) は CloudWatch Synthetics / 外形監視 SaaS の導入で対応
