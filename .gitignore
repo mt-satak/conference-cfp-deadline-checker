@@ -10,6 +10,11 @@ node_modules/
 .pnpm-store/
 .pnpm-debug.log*
 npm-debug.log*
+# このリポジトリは pnpm-lock.yaml を真の lockfile としているため npm の
+# package-lock.json はトラッキングしない (Issue #106: deploy.yml では admin-api
+# のみ workspace overrides を bypass するために npm install を走らせるが、
+# CI 環境ごとの一時ファイルとして扱う)。
+package-lock.json
 
 # Environment files
 .env
