@@ -1,0 +1,11 @@
+# https://cfp-checker.dev/ 公開フロント用 robots.txt (Issue #130 #4)
+#
+# - 公開フロント (/) と /categories/<slug>/ は積極的にクロールしてもらう
+# - /admin/* は Basic 認証で守られているが、念のため Disallow を明示
+# - sitemap は同ドメイン下の /sitemap.xml で動的生成 (Astro endpoint)
+
+User-agent: *
+Allow: /
+Disallow: /admin
+
+Sitemap: https://cfp-checker.dev/sitemap.xml
