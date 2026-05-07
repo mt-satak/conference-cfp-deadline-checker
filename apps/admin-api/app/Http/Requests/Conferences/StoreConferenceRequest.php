@@ -54,9 +54,11 @@ class StoreConferenceRequest extends FormRequest
             'format' => $this->publishedRequiredOrNullable($isPublished, [Rule::in(array_column(ConferenceFormat::cases(), 'value'))]),
             'cfpStartDate' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:cfpEndDate'],
             'cfpEndDate' => $this->publishedRequiredOrNullable($isPublished, ['date_format:Y-m-d', 'before_or_equal:eventStartDate']),
-            'categories' => $isPublished
-                ? ['required', 'array', 'min:1']
-                : ['sometimes', 'array'],
+            // Issue #121: Published / Draft どちらもカテゴリは任意 (0 件 OK)。
+            // 運用上「カテゴリ未確定でもとりあえず公開して CfP 開始情報を出したい」
+            // ケースに対応する。Conference Domain VO は categories: string[] で
+            // 0 件を許容済みなのでデータ整合性は保たれる。
+            'categories' => ['sometimes', 'array'],
             'categories.*' => ['string', 'uuid'],
             'description' => ['nullable', 'string', 'max:2000'],
             'themeColor' => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],

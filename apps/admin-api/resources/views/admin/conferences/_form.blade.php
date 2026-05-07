@@ -134,7 +134,7 @@
 
     {{-- categories (multi-select via checkbox) --}}
     <div>
-        <span class="mb-1 block text-sm font-medium">カテゴリ <span class="text-red-600" title="公開時は必須 (下書き保存は任意)">*</span> <span class="text-xs text-gray-500">(1 つ以上)</span></span>
+        <span class="mb-1 block text-sm font-medium">カテゴリ <span class="text-xs text-gray-500">(任意)</span></span>
         @if (count($categories) === 0)
             <p class="text-sm text-gray-500">登録されたカテゴリがありません</p>
         @else
