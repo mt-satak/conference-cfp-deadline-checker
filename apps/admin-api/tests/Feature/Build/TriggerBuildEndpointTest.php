@@ -12,7 +12,8 @@ beforeEach(function () {
  * POST /admin/api/build/trigger (operationId: triggerBuild) の Feature テスト。
  *
  *   - 202 Accepted: {"data": {requestedAt, message}}
- *   - 503 SERVICE_UNAVAILABLE: Amplify Webhook URL 未構成
+ *   - 503 SERVICE_UNAVAILABLE: GitHub App 未構成 (app_id / installation_id /
+ *     private_key のいずれかが欠け)
  */
 it('POST /admin/api/build/trigger は 202 と data に requestedAt + message を返す', function () {
     // Given: UseCase が受付時刻を返すモック
@@ -29,12 +30,12 @@ it('POST /admin/api/build/trigger は 202 と data に requestedAt + message を
     expect($response->json('data.message'))->toBeString();
 });
 
-it('POST /admin/api/build/trigger は webhook 未構成で 503 + SERVICE_UNAVAILABLE', function () {
+it('POST /admin/api/build/trigger は GitHub App 未構成で 503 + SERVICE_UNAVAILABLE', function () {
     // Given
     $useCase = Mockery::mock(TriggerBuildUseCase::class);
     $useCase->shouldReceive('execute')
         ->once()
-        ->andThrow(BuildServiceNotConfiguredException::webhookUrlMissing());
+        ->andThrow(BuildServiceNotConfiguredException::appIdMissing());
     app()->instance(TriggerBuildUseCase::class, $useCase);
 
     // When

@@ -16,12 +16,12 @@ use Illuminate\Http\RedirectResponse;
  * こちらは UI 用 (HTML を返す / リダイレクトする)。UseCase は API 側と共有。
  *
  * 例外マッピング:
- * - BuildServiceNotConfiguredException (Amplify 未構成):
+ * - BuildServiceNotConfiguredException (GitHub App 未構成):
  *     index ではエラー枠を表示しつつ画面自体は描画 (status 0 件で empty state)
  *     trigger ではエラーフラッシュを乗せて index にリダイレクト
  *
- * Amplify 未構成は API 側では 503 SERVICE_UNAVAILABLE だが UI では 200 で
- * 「設定が無いと使えません」を見せる。フロント着手前のため正常動作。
+ * GitHub App 未構成は API 側では 503 SERVICE_UNAVAILABLE だが UI では 200 で
+ * 「設定が無いと使えません」を見せる。Phase 5.3 で AWS Amplify から移行済。
  */
 class BuildController extends Controller
 {

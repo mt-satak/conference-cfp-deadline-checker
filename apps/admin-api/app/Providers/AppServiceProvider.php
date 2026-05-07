@@ -9,10 +9,12 @@ use App\Domain\Build\BuildTriggerer;
 use App\Domain\Categories\Category;
 use App\Domain\Categories\CategoryRepository;
 use App\Domain\Conferences\ConferenceRepository;
-use App\Infrastructure\Amplify\AmplifyBuildStatusReader;
-use App\Infrastructure\Amplify\AmplifyBuildTriggerer;
 use App\Infrastructure\DynamoDb\DynamoDbCategoryRepository;
 use App\Infrastructure\DynamoDb\DynamoDbConferenceRepository;
+use App\Infrastructure\GitHubApp\FirebaseGitHubAppClient;
+use App\Infrastructure\GitHubApp\GitHubActionsBuildStatusReader;
+use App\Infrastructure\GitHubApp\GitHubActionsBuildTriggerer;
+use App\Infrastructure\GitHubApp\GitHubAppClient;
 use App\Infrastructure\Http\DnsHostValidator;
 use App\Infrastructure\Http\DnsResolver;
 use App\Infrastructure\Http\HostValidator;
@@ -20,11 +22,8 @@ use App\Infrastructure\Http\LaravelHtmlFetcher;
 use App\Infrastructure\Http\PhpDnsResolver;
 use App\Infrastructure\LlmExtraction\BedrockConferenceDraftExtractor;
 use App\Infrastructure\LlmExtraction\MockConferenceDraftExtractor;
-use Aws\Amplify\AmplifyClient;
 use Aws\BedrockRuntime\BedrockRuntimeClient;
 use Aws\DynamoDb\DynamoDbClient;
-use GuzzleHttp\Client as GuzzleClient;
-use GuzzleHttp\ClientInterface;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -38,7 +37,6 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->registerDynamoDbClient();
         $this->registerRepositories();
-        $this->registerAmplifyClient();
         $this->registerBuildServices();
         $this->registerLlmExtractionServices();
     }
@@ -155,53 +153,56 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * AWS Amplify クライアントをシングルトンで登録する。
-     * env() は config/amplify.php 内のみで使用する (Larastan 推奨)。
+     * Build (静的サイト再ビルド) 系の Domain interface を GitHub Actions 実装に
+     * 紐付ける (Phase 5.3 / Issue #110)。
+     *
+     * AWS Amplify から GitHub Actions の workflow_dispatch 経路に切替済み。
+     * 認証は GitHub App (1 時間有効な installation token) を使う。
+     *
+     * GitHub App の 3 値 (app_id / installation_id / private_key) が未設定でも
+     * DI 自体は成功させ、実呼出時 (TriggerBuildUseCase / ListBuildStatusesUseCase)
+     * に BuildServiceNotConfiguredException を投げる設計 (HTTP 層で 503 整形)。
+     *
+     * env() は config/github_app.php 内のみで使用する (Larastan 推奨)。
      */
-    private function registerAmplifyClient(): void
+    private function registerBuildServices(): void
     {
-        $this->app->singleton(AmplifyClient::class, function (): AmplifyClient {
-            $region = config('amplify.region');
+        $this->app->singleton(GitHubAppClient::class, FirebaseGitHubAppClient::class);
 
-            return new AmplifyClient([
-                'version' => 'latest',
-                'region' => is_string($region) ? $region : 'ap-northeast-1',
-            ]);
+        $this->app->bind(BuildTriggerer::class, function (Application $app): GitHubActionsBuildTriggerer {
+            return new GitHubActionsBuildTriggerer(
+                client: $app->make(GitHubAppClient::class),
+                appId: $this->stringConfig('github_app.app_id'),
+                installationId: $this->stringConfig('github_app.installation_id'),
+                privateKey: $this->stringConfig('github_app.private_key'),
+                owner: $this->stringConfig('github_app.repo_owner') ?? 'mt-satak',
+                repo: $this->stringConfig('github_app.repo_name') ?? 'conference-cfp-deadline-checker',
+                workflowFileName: $this->stringConfig('github_app.workflow_file') ?? 'deploy.yml',
+                ref: $this->stringConfig('github_app.workflow_ref') ?? 'main',
+            );
+        });
+
+        $this->app->bind(BuildStatusReader::class, function (Application $app): GitHubActionsBuildStatusReader {
+            return new GitHubActionsBuildStatusReader(
+                client: $app->make(GitHubAppClient::class),
+                appId: $this->stringConfig('github_app.app_id'),
+                installationId: $this->stringConfig('github_app.installation_id'),
+                privateKey: $this->stringConfig('github_app.private_key'),
+                owner: $this->stringConfig('github_app.repo_owner') ?? 'mt-satak',
+                repo: $this->stringConfig('github_app.repo_name') ?? 'conference-cfp-deadline-checker',
+                workflowFileName: $this->stringConfig('github_app.workflow_file') ?? 'deploy.yml',
+            );
         });
     }
 
     /**
-     * Build (静的サイト再ビルド) 系の Domain interface を Amplify 実装に紐付ける。
-     *
-     * Amplify Webhook URL / App ID が未設定でも DI 自体は成功させ、
-     * 実呼出時 (TriggerBuildUseCase / ListBuildStatusesUseCase) に
-     * BuildServiceNotConfiguredException を投げる設計 (HTTP 層で 503 整形)。
+     * config の値を string|null に正規化する小道具 (binding コールバック用)。
      */
-    private function registerBuildServices(): void
+    private function stringConfig(string $key): ?string
     {
-        $this->app->bind(BuildTriggerer::class, function (Application $app): AmplifyBuildTriggerer {
-            $webhookUrl = config('amplify.webhook_url');
+        $value = config($key);
 
-            return new AmplifyBuildTriggerer(
-                $app->make(ClientInterface::class),
-                is_string($webhookUrl) && $webhookUrl !== '' ? $webhookUrl : null,
-            );
-        });
-
-        $this->app->bind(BuildStatusReader::class, function (Application $app): AmplifyBuildStatusReader {
-            $appId = config('amplify.app_id');
-            $branchName = config('amplify.branch_name');
-
-            return new AmplifyBuildStatusReader(
-                $app->make(AmplifyClient::class),
-                is_string($appId) && $appId !== '' ? $appId : null,
-                is_string($branchName) ? $branchName : 'main',
-            );
-        });
-
-        // Guzzle HTTP Client を ClientInterface 経由で解決可能にする
-        // (Build 以外でも将来 HTTP 連携が増えた場合に共有できる)
-        $this->app->singleton(ClientInterface::class, fn (): GuzzleClient => new GuzzleClient);
+        return is_string($value) && $value !== '' ? $value : null;
     }
 
     /**

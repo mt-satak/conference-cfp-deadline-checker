@@ -47,7 +47,8 @@ class AdminApiExceptionRenderer
             $e instanceof NotFoundHttpException => $this->renderNotFound(),
             // Domain 層の Conflict 例外 (重複・参照整合性違反) は 409 + CONFLICT
             $e instanceof CategoryConflictException => $this->renderConflict($e),
-            // Build サービス未構成 (Amplify Webhook URL / App ID が未設定) は 503
+            // Build サービス未構成 (GitHub App の app_id / installation_id /
+            // private_key のいずれかが未設定) は 503 SERVICE_UNAVAILABLE
             $e instanceof BuildServiceNotConfiguredException => $this->renderServiceUnavailable(),
             // CSRF (Laravel が TokenMismatchException → HttpException(419) に
             // 事前変換するパス) は判定の compound 条件を helper に切り出して
@@ -123,7 +124,8 @@ class AdminApiExceptionRenderer
     private function renderServiceUnavailable(): JsonResponse
     {
         // 503 SERVICE_UNAVAILABLE は OpenAPI 仕様の Build endpoint 503 ケースで使う。
-        // 主に Amplify アプリ未構成 (Webhook URL / App ID 未設定) を表現する。
+        // 主に GitHub App 未構成 (app_id / installation_id / private_key 未設定)
+        // を表現する。Phase 5.3 で AWS Amplify から GitHub Actions に移行済。
         return new JsonResponse([
             'error' => [
                 'code' => 'SERVICE_UNAVAILABLE',

@@ -5,8 +5,9 @@ namespace App\Domain\Build;
 /**
  * ビルドの起動を担う境界 (interface)。
  *
- * Application 層から Infrastructure 層 (AWS Amplify Webhook 等) を呼び出す契約。
- * 実装は外部サービス連携 (Amplify / 他 CI 等) に置き換え可能。
+ * Application 層から Infrastructure 層 (GitHub Actions workflow_dispatch 等) を
+ * 呼び出す契約。実装は外部サービス連携 (Phase 5.3 で AWS Amplify から GitHub
+ * Actions へ移行済) に置き換え可能。
  */
 interface BuildTriggerer
 {
