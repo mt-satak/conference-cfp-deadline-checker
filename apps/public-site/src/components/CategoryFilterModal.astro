@@ -63,35 +63,11 @@ const { categories } = Astro.props;
     </div>
 </dialog>
 
-<script>
-    /**
-     * Modal の open / close を担当。
-     * - #category-filter-open ボタン: showModal()
-     * - #category-filter-close ボタン: close()
-     * - backdrop クリック時: close() (UX 慣習)
-     * - Esc キーは <dialog> ネイティブで close されるため独自処理不要
-     *
-     * Astro の <script> は type="module" でバンドルされ defer 相当の実行順になる。
-     * これは「DOM 構築完了後」に実行されることを意味し、DOMContentLoaded は
-     * すでに発火済み = listener が呼ばれないため、直接 querySelector で要素を
-     * 取って handler を仕込む。dev server (vite) は HMR の都合で実行タイミングが
-     * 異なり DOMContentLoaded 待ちでも偶然動いてしまうため、本番ビルドのみで
-     * 顕在化する典型的な dev/prod 差異だった。
-     */
-    const modal = document.getElementById('category-filter-modal') as HTMLDialogElement | null;
-    const openBtn = document.getElementById('category-filter-open');
-    const closeBtn = document.getElementById('category-filter-close');
-
-    if (modal && openBtn && closeBtn) {
-        openBtn.addEventListener('click', () => modal.showModal());
-        closeBtn.addEventListener('click', () => modal.close());
-
-        // backdrop クリックで閉じる: dialog 自身の click event の target が dialog 自身
-        // のときのみ (= dialog 内コンテンツのクリックは無視) close する。
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                modal.close();
-            }
-        });
-    }
-</script>
+{/*
+  CSP script-src 'self' で inline script は禁止。Astro の <script> ブロックは
+  小さなコードを inline 化する最適化が効いて load 不能になるため、public/ 配下に
+  置いた純 JS を <script src="..."> で読み込む (Astro/vite の bundle を完全に
+  bypass、Issue #124 follow-up)。is:inline 属性で Astro の hoist/bundle を抑止し、
+  HTML として src 属性付き script タグをそのまま出力させる。
+*/}
+<script is:inline type="module" src="/scripts/category-filter-modal.js"></script>
