@@ -103,38 +103,6 @@ export class AdminApi extends Construct {
       },
     });
 
-    // ── GitHub App 認証用 Secrets Manager シークレット (Phase 5.3 / Issue #110) ──
-    // admin UI のビルドボタンから GitHub Actions deploy.yml を workflow_dispatch
-    // で起動するため、GitHub App の認証 3 値 (app_id, installation_id, private_key)
-    // を Secrets Manager に置く。長期 PAT を Lambda 上に置かないために GitHub App
-    // 経由で 1 時間有効な installation token を都度発行する設計
-    // (memory project_no_api_keys_policy.md の方針に整合)。
-    //
-    // この Secret は CDK 管理外 (= AWS console / CLI で事前作成、CDK は参照のみ)
-    // とする。理由:
-    //  - private_key は GitHub App 設定画面で発行された .pem ファイルの中身で、
-    //    CDK のコードに焼くと CloudFormation テンプレートに値が残ってしまう
-    //  - cdk destroy で誤って消えると GitHub App の private_key を再発行する手間が
-    //    かかる (rotate 手順との整合)
-    //
-    // 投入手順 (1 回限り、deploy 前):
-    //   aws secretsmanager create-secret \
-    //     --name cfp/admin-api-github-app \
-    //     --description "GitHub App credentials for admin-api Lambda" \
-    //     --secret-string '{"app_id":"...","installation_id":"...","private_key":"...(改行は \\n でエスケープ)"}'
-    //
-    // 値の更新 (rotate 時):
-    //   aws secretsmanager update-secret \
-    //     --secret-id cfp/admin-api-github-app \
-    //     --secret-string '{...}'
-    //
-    // 詳細手順は Issue #110 / PR で案内。
-    const githubAppSecret = Secret.fromSecretNameV2(
-      this,
-      'GitHubAppSecret',
-      'cfp/admin-api-github-app',
-    );
-
     // Bref の統合 PHP レイヤー (公開アカウント ID 873528684822 は Bref のもの)。
     // 旧アカウント 534081306603 は廃止済み: 取得しようとすると Lambda 側で
     // GetLayerVersion が 403 (no resource-based policy) で失敗する。
@@ -260,28 +228,6 @@ export class AdminApi extends Construct {
         // Function URL の AuthType=NONE に切り替えたため、CloudFront 経由か
         // 直アクセスかを CloudFrontSecretMiddleware で判別する材料。
         CLOUDFRONT_ORIGIN_SECRET: props.cloudfrontOriginSecret,
-        // ── GitHub App 認証用 env (Phase 5.3 / Issue #110) ──
-        // 3 値は Secrets Manager の `cfp/admin-api-github-app` シークレット
-        // (JSON 構造) から CFN deploy 時に展開される。`unsafeUnwrap()` を経由する
-        // が CFN テンプレートには `{{resolve:secretsmanager:...}}` 関数として残るため
-        // 実値はテンプレートに焼き込まれない。
-        //
-        // owner / repo / workflow_file / ref は plain な値 (= 漏洩リスクが無く
-        // パブリック情報) なので env に直接書く。これらが variation する場合は
-        // config/github_app.php の env 経由で local override 可能。
-        GITHUB_APP_ID: githubAppSecret
-          .secretValueFromJson('app_id')
-          .unsafeUnwrap(),
-        GITHUB_APP_INSTALLATION_ID: githubAppSecret
-          .secretValueFromJson('installation_id')
-          .unsafeUnwrap(),
-        GITHUB_APP_PRIVATE_KEY: githubAppSecret
-          .secretValueFromJson('private_key')
-          .unsafeUnwrap(),
-        GITHUB_APP_REPO_OWNER: 'mt-satak',
-        GITHUB_APP_REPO_NAME: 'conference-cfp-deadline-checker',
-        GITHUB_APP_WORKFLOW_FILE: 'deploy.yml',
-        GITHUB_APP_WORKFLOW_REF: 'main',
       },
       description: 'Admin API for Conference CfP Deadline Checker',
     });
