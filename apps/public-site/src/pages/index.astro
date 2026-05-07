@@ -5,6 +5,7 @@ import { formatJstDate } from '../lib/dates';
 import { filterOpenConferences } from '../lib/openConferences';
 import { sortByDeadlineAsc } from '../lib/sortConferences';
 import ConferenceCard from '../components/ConferenceCard.astro';
+import Footer from '../components/Footer.astro';
 
 /**
  * 公開フロントトップページ (Issue #86 / Phase 2 → Phase 3)。
@@ -34,7 +35,7 @@ const conferences = sortByDeadlineAsc(filterOpenConferences(allConferences, toda
         <link rel="icon" href="/favicon.ico" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="generator" content={Astro.generator} />
-        <title>CfP Deadline Checker — 国内テックカンファレンス CfP 締切まとめ</title>
+        <title>CfP Checker — 国内テックカンファレンス CfP 締切まとめ</title>
         <meta name="description" content="国内テックカンファレンスの CfP (Call for Proposals) 締切を一覧で確認できるサイト。" />
     </head>
     <body class="min-h-screen bg-gray-50 text-gray-900 antialiased">
@@ -72,12 +73,6 @@ const conferences = sortByDeadlineAsc(filterOpenConferences(allConferences, toda
             </ul>
         </main>
 
-        <footer class="border-t border-gray-200 bg-white">
-            <div class="mx-auto max-w-5xl px-4 py-6 text-xs text-gray-500">
-                <p>
-                    最終更新: {todayJst} (JST)
-                </p>
-            </div>
-        </footer>
+        <Footer todayJst={todayJst} />
     </body>
 </html>
