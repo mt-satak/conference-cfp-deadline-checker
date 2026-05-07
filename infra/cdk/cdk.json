@@ -73,6 +73,10 @@
     "@aws-cdk/core:cfnIncludeRejectComplexResourceUpdateCreatePolicyIntrinsics": true,
     "@aws-cdk/aws-lambda-nodejs:sdkV3ExcludeSmithyPackages": true,
     "@aws-cdk/aws-stepfunctions-tasks:fixRunEcsTaskPolicy": true,
-    "@aws-cdk/aws-ec2:bastionHostUseAmazonLinux2023ByDefault": true
+    "@aws-cdk/aws-ec2:bastionHostUseAmazonLinux2023ByDefault": true,
+    "domainName": "cfp-checker.dev",
+    "rootDomain": "cfp-checker.dev",
+    "customDomainHostedZoneId": "Z068674386S4F3UC1CEQ",
+    "customDomainCertificateArn": "arn:aws:acm:us-east-1:527623259532:certificate/ad52bc45-6fc6-4076-b3aa-73134392f1fa"
   }
 }
