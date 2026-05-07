@@ -1,18 +1,15 @@
-# admin-api CI / CD ワークフロー (Issue #19 Phase 2/3)
+# admin-api CI ワークフロー (Issue #19 → Issue #104 で CI のみに整理)
 #
 # ジョブ構成:
-#   check  : Pint lint / PHPStan level max / Pest + 層別カバレッジ判定
-#            (PR + push 時に実行、AWS 認証不要)
-#   deploy : check 成功後、main への push でのみ実行
-#            (OIDC で AssumeRole → CDK で admin-api Lambda + 関連リソース更新)
+#   check : Pint lint / PHPStan level max / Pest (no coverage)
+#           (PR + push 時に実行、AWS 認証不要)
+#
+# CD は deploy.yml に集約 (Issue #104 / Phase 5.2)。本ファイルは deploy 責務を持たない。
 #
 # パスフィルタ:
-#   apps/admin-api / packages / docker / infra/cdk / 本ファイル のいずれかに
-#   変更が無い場合はワークフロー自体が起動しない
-#   (= フロントエンド単独の変更等は素通し)
-#
-# Phase 1 で必要な GitHub Variables: AWS_DEPLOY_ROLE_ARN
-# (CfpDeadlineCheckerCiStack の output から取得した Role ARN)
+#   apps/admin-api / packages / docker / 本ファイル のいずれかに変更が無い場合は
+#   ワークフロー自体が起動しない (= フロントエンド単独の変更等は素通し)。
+#   infra/cdk は cdk.yml が独自に検査するためここでは扱わない。
 
 name: admin-api
 
@@ -22,7 +19,6 @@ on:
       - 'apps/admin-api/**'
       - 'packages/**'
       - 'docker/**'
-      - 'infra/cdk/**'
       - '.github/workflows/admin-api.yml'
   push:
     branches: [main]
@@ -30,13 +26,10 @@ on:
       - 'apps/admin-api/**'
       - 'packages/**'
       - 'docker/**'
-      - 'infra/cdk/**'
       - '.github/workflows/admin-api.yml'
 
-# OIDC 経由で AWS にアクセスするため id-token: write が必要 (deploy ジョブ用)。
-# contents: read は actions/checkout のため。
+# CI のみのため `id-token: write` は不要。
 permissions:
-  id-token: write
   contents: read
 
 # 同一ブランチの古い run はキャンセルする (PR feedback の応答性向上)。
@@ -116,87 +109,3 @@ jobs:
       # 機能リグレッション検出は担保される。
       - name: Pest (no coverage)
         run: vendor/bin/pest --parallel --no-coverage
-
-  deploy:
-    name: CDK deploy (main only)
-    needs: check
-    # main への push 時のみ実行 (PR では発火しない)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      # ── PHP セットアップ ──
-      # Lambda 配布物用の composer install (--no-dev) のため。
-      # xdebug は不要なので付けない。
-      - name: Setup PHP 8.5
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.5'
-          tools: composer:v2
-          extensions: mbstring, openssl, json
-
-      - name: Resolve composer cache directory
-        id: composer-cache
-        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
-
-      - name: Cache composer dependencies
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.composer-cache.outputs.dir }}
-          key: composer-${{ runner.os }}-${{ hashFiles('apps/admin-api/composer.lock') }}
-          restore-keys: |
-            composer-${{ runner.os }}-
-
-      # 本番 Lambda 用の vendor/ を作る (dev 依存 = pestphp/phpstan/pint 等を除外)。
-      - name: composer install --no-dev (Lambda 配布物用)
-        working-directory: apps/admin-api
-        run: composer install --no-dev --optimize-autoloader --no-progress --no-interaction
-
-      # ── Node + pnpm セットアップ (CDK 用) ──
-      # pnpm のバージョンは package.json の `packageManager` から自動解決される。
-      # action 側で version を指定すると packageManager と衝突するので渡さない。
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: 'pnpm'
-
-      - name: pnpm install (CDK 等)
-        run: pnpm install --frozen-lockfile
-
-      # ── AWS OIDC で短期クレデンシャル取得 ──
-      # Phase 1 で構築した GitHubActionsAdminApiDeployRole を assume する。
-      # Role ARN は GitHub Variables (リポジトリ Settings → Variables) に登録された
-      # AWS_DEPLOY_ROLE_ARN を参照。
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ap-northeast-1
-          role-session-name: github-actions-admin-api-deploy
-
-      # ── CDK deploy ──
-      # CfpDeadlineCheckerStack (ap-northeast-1) のみを対象とする。
-      # Edge / Ci スタックは別ライフサイクルとして手動 / 別ワークフローで管理。
-      # --require-approval never で IAM 等の変更プロンプトを抑止 (CI 前提のため)。
-      - name: CDK deploy (CfpDeadlineCheckerStack)
-        working-directory: infra/cdk
-        run: pnpm cdk deploy --require-approval never CfpDeadlineCheckerStack
-
-      # ── スモークテスト ──
-      # Function URL は AWS_IAM 認証なので外部から叩けない (CloudFront + Basic 認証
-      # を経由する設計)。ドメイン未設定の現時点では HTTP 経由のスモークが組めない。
-      # Phase 4 で smoke test を別 Issue として整理。
-      # ここでは "deploy が exit 0 で終わる" ことをもって成功とする。
-      # YAML の `run:` スカラー内に `#` を裸で書くと unquoted YAML 文字列の
-      # コメント開始と解釈され、shell に渡る前に切り捨てられる。block scalar (|)
-      # を使ってコマンド全文を保護する。本ステップは placeholder のため
-      # メッセージから問題のシャープも避けて素のテキストにする。
-      - name: Note about smoke test
-        run: |
-          echo "Smoke test deferred (Issue 19 Phase 4) -- Function URL is IAM-auth only."
