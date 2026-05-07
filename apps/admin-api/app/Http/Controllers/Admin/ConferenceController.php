@@ -269,9 +269,9 @@ class ConferenceController extends Controller
         if ($c->cfpEndDate === null) {
             $missing[] = 'cfpEndDate';
         }
-        if ($c->categories === []) {
-            $missing[] = 'categories';
-        }
+        // Issue #121: categories は publish の必須項目から除外。
+        // カテゴリ未確定でも公開できる運用に揃える (Conference Domain VO は
+        // categories: string[] で 0 件を許容済み)。
 
         return $missing;
     }

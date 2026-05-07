@@ -163,21 +163,47 @@ it('cfpEndDate > eventStartDate (整合性違反) は 422', function () {
     expect($fields)->toContain('cfpEndDate');
 });
 
-it('categories が空配列だと 422 (minItems: 1)', function () {
-    // Given: categories を空配列にした入力
+it('Published でも categories 空配列で 201 (Issue #121: カテゴリ任意化)', function () {
+    // Given: Published 状態で categories を空配列にした入力
     $payload = validCreatePayload();
     $payload['categories'] = [];
+    $captured = null;
     $useCase = Mockery::mock(CreateConferenceUseCase::class);
-    $useCase->shouldNotReceive('execute');
+    $useCase->shouldReceive('execute')
+        ->once()
+        ->with(Mockery::on(function (CreateConferenceInput $input) use (&$captured): bool {
+            $captured = $input;
+
+            return true;
+        }))
+        ->andReturn(new Conference(
+            conferenceId: 'cccccccc-dddd-4eee-8fff-000000000000',
+            name: $payload['name'],
+            trackName: null,
+            officialUrl: $payload['officialUrl'],
+            cfpUrl: $payload['cfpUrl'],
+            eventStartDate: $payload['eventStartDate'],
+            eventEndDate: $payload['eventEndDate'],
+            venue: $payload['venue'],
+            format: ConferenceFormat::from($payload['format']),
+            cfpStartDate: null,
+            cfpEndDate: $payload['cfpEndDate'],
+            categories: [],
+            description: null,
+            themeColor: null,
+            createdAt: '2026-05-04T10:00:00+09:00',
+            updatedAt: '2026-05-04T10:00:00+09:00',
+            status: ConferenceStatus::Published,
+        ));
     app()->instance(CreateConferenceUseCase::class, $useCase);
 
     // When: POST する
     $response = $this->postJson('/admin/api/conferences', $payload);
 
-    // Then: 422 で categories が details に含まれる
-    $response->assertStatus(422);
-    $fields = collect($response->json('error.details'))->pluck('field')->all();
-    expect($fields)->toContain('categories');
+    // Then: 201 で UseCase に categories=[] が伝わる
+    $response->assertStatus(201);
+    expect($captured)->toBeInstanceOf(CreateConferenceInput::class);
+    expect($captured->categories)->toBe([]);
 });
 
 it('status=draft + name + officialUrl のみで 201 (Phase 0.5: Draft の最小入力)', function () {
