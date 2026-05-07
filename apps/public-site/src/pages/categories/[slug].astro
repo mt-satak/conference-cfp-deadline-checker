@@ -1,0 +1,95 @@
+---
+import '../../styles/global.css';
+import { mockConferences } from '../../data/conferences.mock';
+import { extractCategorySlugs, filterByCategory } from '../../lib/categories';
+import { filterOpenConferences } from '../../lib/openConferences';
+import { sortByDeadlineAsc } from '../../lib/sortConferences';
+import { formatJstDate } from '../../lib/dates';
+import ConferenceCard from '../../components/ConferenceCard.astro';
+
+/**
+ * カテゴリ別カンファレンス一覧ページ (Issue #86 / Phase 3)。
+ *
+ * SSG: `getStaticPaths` で全カテゴリ slug 分のページを事前生成する。
+ *  - URL: `/categories/{slug}/`
+ *  - 各ページに該当カテゴリの open/urgent カンファレンスを表示
+ *
+ * Phase 4 で mock を admin-api の公開 API に置換予定。
+ */
+
+export async function getStaticPaths() {
+    const today = new Date();
+    const openConferences = filterOpenConferences(mockConferences, today);
+    return extractCategorySlugs(openConferences).map((slug) => ({
+        params: { slug },
+        props: { slug },
+    }));
+}
+
+interface Props {
+    slug: string;
+}
+
+const { slug } = Astro.props;
+const today = new Date();
+const todayJst = formatJstDate(today);
+const conferences = sortByDeadlineAsc(
+    filterByCategory(filterOpenConferences(mockConferences, today), slug),
+);
+---
+
+<html lang="ja">
+    <head>
+        <meta charset="utf-8" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" href="/favicon.ico" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="generator" content={Astro.generator} />
+        <title>{slug} — CfP Checker</title>
+        <meta name="description" content={`${slug} カテゴリの開催予定カンファレンス一覧`} />
+    </head>
+    <body class="min-h-screen bg-gray-50 text-gray-900 antialiased">
+        <header class="border-b border-gray-200 bg-white">
+            <div class="mx-auto max-w-5xl px-4 py-6 sm:py-8">
+                <p class="text-xs text-gray-500">
+                    <a href="/" class="hover:text-emerald-700 hover:underline">CfP Checker</a>
+                    <span class="mx-1">/</span>
+                    <a href="/categories/" class="hover:text-emerald-700 hover:underline">カテゴリ</a>
+                    <span class="mx-1">/</span>
+                    <span>{slug}</span>
+                </p>
+                <h1 class="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
+                    {slug}
+                </h1>
+                <p class="mt-1 text-sm text-gray-600">
+                    {slug} カテゴリのカンファレンス一覧
+                </p>
+            </div>
+        </header>
+
+        <main class="mx-auto max-w-5xl px-4 py-6 sm:py-8">
+            <div class="mb-4 flex items-baseline justify-between gap-4">
+                <h2 class="text-lg font-semibold text-gray-900">該当カンファレンス</h2>
+                <span class="text-xs text-gray-500">{conferences.length} 件</span>
+            </div>
+
+            {conferences.length === 0 ? (
+                <p class="text-sm text-gray-600">該当するカンファレンスはありません。</p>
+            ) : (
+                <ul class="grid gap-4 sm:grid-cols-2">
+                    {conferences.map((conference) => (
+                        <li>
+                            <ConferenceCard conference={conference} today={today} />
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </main>
+
+        <footer class="border-t border-gray-200 bg-white">
+            <div class="mx-auto max-w-5xl px-4 py-6 text-xs text-gray-500">
+                <p>最終更新: {todayJst} (JST)</p>
+            </div>
+        </footer>
+    </body>
+</html>

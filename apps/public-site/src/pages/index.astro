@@ -2,11 +2,12 @@
 import '../styles/global.css';
 import { mockConferences } from '../data/conferences.mock';
 import { formatJstDate } from '../lib/dates';
-import { deadlineLabel } from '../lib/deadlineLabel';
+import { filterOpenConferences } from '../lib/openConferences';
+import { sortByDeadlineAsc } from '../lib/sortConferences';
 import ConferenceCard from '../components/ConferenceCard.astro';
 
 /**
- * 公開フロントトップページ (Issue #86 / Phase 2)。
+ * 公開フロントトップページ (Issue #86 / Phase 2 → Phase 3)。
  *
  * SSG: ビルド時に mock データから一覧 HTML を生成する。CfP 締切までの残り日数は
  * ビルド時刻 (= today) を基準に計算される。Phase 5 で Amplify を経由した日次
@@ -18,14 +19,11 @@ import ConferenceCard from '../components/ConferenceCard.astro';
  * 表示フィルタ:
  * 「あと N 日」がサイトの目玉要素なので、まだ応募可能な open/urgent ステータス
  * のカンファレンスのみ一覧に出す。締切終了 (closed) / 締切未定 (unknown) は
- * 一覧から除外する (= ユーザーがアクションを取れないため)。
+ * 一覧から除外する。フィルタロジックは filterOpenConferences() に集約。
  */
 const today = new Date();
 const todayJst = formatJstDate(today);
-const conferences = mockConferences.filter((c) => {
-    const { status } = deadlineLabel(c.cfpEndDate, today);
-    return status === 'open' || status === 'urgent';
-});
+const conferences = sortByDeadlineAsc(filterOpenConferences(mockConferences, today));
 ---
 
 <html lang="ja">
@@ -51,9 +49,17 @@ const conferences = mockConferences.filter((c) => {
         </header>
 
         <main class="mx-auto max-w-5xl px-4 py-6 sm:py-8">
-            <div class="mb-4 flex items-baseline justify-between">
-                <h2 class="text-lg font-semibold text-gray-900">カンファレンス一覧</h2>
-                <span class="text-xs text-gray-500">{conferences.length} 件</span>
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-baseline gap-3">
+                    <h2 class="text-lg font-semibold text-gray-900">カンファレンス一覧</h2>
+                    <span class="text-xs text-gray-500">{conferences.length} 件</span>
+                </div>
+                <a
+                    href="/categories/"
+                    class="inline-flex items-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800 transition"
+                >
+                    カテゴリで絞る
+                </a>
             </div>
 
             <ul class="grid gap-4 sm:grid-cols-2">

@@ -1,0 +1,82 @@
+---
+import '../../styles/global.css';
+import { mockConferences } from '../../data/conferences.mock';
+import { extractCategorySlugs, filterByCategory } from '../../lib/categories';
+import { filterOpenConferences } from '../../lib/openConferences';
+import { formatJstDate } from '../../lib/dates';
+
+/**
+ * カテゴリ一覧ページ (Issue #86 / Phase 3)。
+ *
+ * 開催予定 (open / urgent) のカンファレンスが属する全カテゴリを一覧する。
+ * 各カテゴリの件数を表示し、`/categories/[slug]/` へリンクする。
+ *
+ * SSG: ビルド時に確定する。Phase 4 で admin-api の API に置換予定。
+ */
+const today = new Date();
+const todayJst = formatJstDate(today);
+
+// 締切終了 / 未定のカンファレンスは一覧フローに乗せない方針 (Phase 2 のトップページと同じ)
+const openConferences = filterOpenConferences(mockConferences, today);
+const categories = extractCategorySlugs(openConferences).map((slug) => ({
+    slug,
+    count: filterByCategory(openConferences, slug).length,
+}));
+---
+
+<html lang="ja">
+    <head>
+        <meta charset="utf-8" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" href="/favicon.ico" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="generator" content={Astro.generator} />
+        <title>カテゴリ一覧 — CfP Checker</title>
+        <meta name="description" content="カテゴリ別にカンファレンスを絞り込めます。" />
+    </head>
+    <body class="min-h-screen bg-gray-50 text-gray-900 antialiased">
+        <header class="border-b border-gray-200 bg-white">
+            <div class="mx-auto max-w-5xl px-4 py-6 sm:py-8">
+                <p class="text-xs text-gray-500">
+                    <a href="/" class="hover:text-emerald-700 hover:underline">CfP Checker</a>
+                    <span class="mx-1">/</span>
+                    <span>カテゴリ一覧</span>
+                </p>
+                <h1 class="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
+                    カテゴリ一覧
+                </h1>
+                <p class="mt-1 text-sm text-gray-600">
+                    関心のあるカテゴリでカンファレンスを絞り込みできます。
+                </p>
+            </div>
+        </header>
+
+        <main class="mx-auto max-w-5xl px-4 py-6 sm:py-8">
+            {categories.length === 0 ? (
+                <p class="text-sm text-gray-600">現在募集中のカンファレンスはありません。</p>
+            ) : (
+                <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {categories.map((c) => (
+                        <li>
+                            <a
+                                href={`/categories/${c.slug}/`}
+                                class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 hover:border-emerald-300 hover:bg-emerald-50 transition"
+                            >
+                                <span class="text-base font-semibold text-gray-900">{c.slug}</span>
+                                <span class="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                                    {c.count} 件
+                                </span>
+                            </a>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </main>
+
+        <footer class="border-t border-gray-200 bg-white">
+            <div class="mx-auto max-w-5xl px-4 py-6 text-xs text-gray-500">
+                <p>最終更新: {todayJst} (JST)</p>
+            </div>
+        </footer>
+    </body>
+</html>
