@@ -36,9 +36,10 @@
         <div class="mb-4 rounded border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
             <p class="font-semibold">ビルドサービスが未構成です</p>
             <p class="mt-1">
-                AWS Amplify アプリ ID および Webhook URL が設定されていません。
-                env (<code class="rounded bg-yellow-100 px-1">AMPLIFY_APP_ID</code> /
-                <code class="rounded bg-yellow-100 px-1">AMPLIFY_WEBHOOK_URL</code>) を設定するまで再ビルド機能は利用できません。
+                GitHub App の認証情報が設定されていません。
+                env (<code class="rounded bg-yellow-100 px-1">GITHUB_APP_ID</code> /
+                <code class="rounded bg-yellow-100 px-1">GITHUB_APP_INSTALLATION_ID</code> /
+                <code class="rounded bg-yellow-100 px-1">GITHUB_APP_PRIVATE_KEY</code>) を設定するまで再ビルド機能は利用できません。
             </p>
         </div>
     @endunless
@@ -48,7 +49,7 @@
             @if ($configured)
                 ビルド履歴がありません
             @else
-                履歴の取得には Amplify 設定が必要です
+                履歴の取得には GitHub App 設定が必要です
             @endif
         </div>
     @else
