@@ -46,7 +46,24 @@ const categoryEntries = extractCategorySlugs(openConferences).map((slug) => ({
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="generator" content={Astro.generator} />
         <title>CfP Checker — 国内テックカンファレンス CfP 締切まとめ</title>
-        <meta name="description" content="国内テックカンファレンスの CfP (Call for Proposals) 締切を一覧で確認できるサイト。" />
+        <meta name="description" content="登壇したい人のためのシンプルな締切チェッカー。国内テックカンファレンスの CfP (Call for Proposals) 締切を一覧で確認できます。" />
+
+        {/* Open Graph (SNS シェア時のプレビュー用、Issue #130 #2) */}
+        <meta property="og:title" content="CfP Checker — 国内テックカンファレンス CfP 締切まとめ" />
+        <meta property="og:description" content="登壇したい人のためのシンプルな締切チェッカー。国内テックカンファレンスの CfP 締切を一覧で確認できます。" />
+        <meta property="og:image" content="https://cfp-checker.dev/og-image.png" />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://cfp-checker.dev/" />
+        <meta property="og:site_name" content="CfP Checker" />
+        <meta property="og:locale" content="ja_JP" />
+
+        {/* Twitter Card */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="CfP Checker — 国内テックカンファレンス CfP 締切まとめ" />
+        <meta name="twitter:description" content="登壇したい人のためのシンプルな締切チェッカー。国内テックカンファレンスの CfP 締切を一覧で確認できます。" />
+        <meta name="twitter:image" content="https://cfp-checker.dev/og-image.png" />
+        <meta name="twitter:site" content="@st_tm_k" />
+        <meta name="twitter:creator" content="@st_tm_k" />
     </head>
     <body class="min-h-screen bg-gray-50 text-gray-900 antialiased">
         <header class="border-b border-gray-200 bg-white">
