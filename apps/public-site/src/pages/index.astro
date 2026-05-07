@@ -1,17 +1,65 @@
 ---
+import '../styles/global.css';
+import { mockConferences } from '../data/conferences.mock';
+import ConferenceCard from '../components/ConferenceCard.astro';
 
+/**
+ * 公開フロントトップページ (Issue #86 / Phase 2)。
+ *
+ * SSG: ビルド時に mock データから一覧 HTML を生成する。CfP 締切までの残り日数は
+ * ビルド時刻 (= today) を基準に計算される。Phase 5 で Amplify を経由した日次
+ * rebuild を組むと表示が日々更新される。
+ *
+ * Phase 4 で mock を admin-api の公開 API に置換する (= ファイル import を fetch
+ * に変えるだけで描画は変わらない設計)。
+ */
+const today = new Date();
+const conferences = mockConferences;
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
+<html lang="ja">
+    <head>
+        <meta charset="utf-8" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" href="/favicon.ico" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="generator" content={Astro.generator} />
+        <title>CfP Deadline Checker — 国内テックカンファレンス CfP 締切まとめ</title>
+        <meta name="description" content="国内テックカンファレンスの CfP (Call for Proposals) 締切を一覧で確認できるサイト。" />
+    </head>
+    <body class="min-h-screen bg-gray-50 text-gray-900 antialiased">
+        <header class="border-b border-gray-200 bg-white">
+            <div class="mx-auto max-w-5xl px-4 py-6 sm:py-8">
+                <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">
+                    CfP Deadline Checker
+                </h1>
+                <p class="mt-1 text-sm text-gray-600">
+                    国内テックカンファレンスの CfP (Call for Proposals) 締切まとめ
+                </p>
+            </div>
+        </header>
+
+        <main class="mx-auto max-w-5xl px-4 py-6 sm:py-8">
+            <div class="mb-4 flex items-baseline justify-between">
+                <h2 class="text-lg font-semibold text-gray-900">カンファレンス一覧</h2>
+                <span class="text-xs text-gray-500">{conferences.length} 件</span>
+            </div>
+
+            <ul class="grid gap-4 sm:grid-cols-2">
+                {conferences.map((conference) => (
+                    <li>
+                        <ConferenceCard conference={conference} today={today} />
+                    </li>
+                ))}
+            </ul>
+        </main>
+
+        <footer class="border-t border-gray-200 bg-white">
+            <div class="mx-auto max-w-5xl px-4 py-6 text-xs text-gray-500">
+                <p>
+                    最終更新: {today.toISOString().slice(0, 10)} (UTC)
+                </p>
+            </div>
+        </footer>
+    </body>
 </html>
