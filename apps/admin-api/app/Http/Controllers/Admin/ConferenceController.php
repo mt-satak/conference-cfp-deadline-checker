@@ -157,6 +157,21 @@ class ConferenceController extends Controller
     ): RedirectResponse {
         $validated = $request->validated();
 
+        // ── HTML form のチェックボックス全外し対応 (Issue #121) ──
+        // HTML 仕様で未チェックの checkbox は POST されないため、ユーザーが
+        // categories のチェックを全て外して submit すると `categories` キー自体が
+        // request body に存在しない。UpdateConferenceUseCase は「キー不在 = 既存値
+        // 維持」の partial update セマンティクスのため、補完しないと既存カテゴリが
+        // 残ってしまう (= ユーザー意図と乖離)。
+        //
+        // 本 Controller は HTML form 用 (= 全フィールド一括 submit が前提) なので、
+        // categories 未送信 = ユーザーが意図的に空にしたと解釈し、空配列で上書きする。
+        // API 経由 (Api\ConferenceController) では `'sometimes'` の partial update
+        // セマンティクスを保つため、この補完は入れない。
+        if (! $request->has('categories')) {
+            $validated['categories'] = [];
+        }
+
         // ConferenceController (API) と同じ「format / status 変換 + typed shape」パターン。
         // Phase 0.5 (Issue #41) で cfpUrl 等を nullable 受付化、status 受付追加。
         /** @var array{
