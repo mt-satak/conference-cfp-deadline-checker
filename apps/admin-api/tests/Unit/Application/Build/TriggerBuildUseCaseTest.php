@@ -30,7 +30,7 @@ it('Triggerer が BuildServiceNotConfiguredException を投げたらそのまま
     $triggerer = Mockery::mock(BuildTriggerer::class);
     $triggerer->shouldReceive('trigger')
         ->once()
-        ->andThrow(BuildServiceNotConfiguredException::webhookUrlMissing());
+        ->andThrow(BuildServiceNotConfiguredException::appIdMissing());
 
     // When/Then
     $useCase = new TriggerBuildUseCase($triggerer);

@@ -12,7 +12,7 @@ use App\Domain\Build\BuildTriggerer;
  * - BuildTriggerer (interface) に委譲してビルドを起動する
  * - 起動時刻 (ISO 8601 / Asia/Tokyo) を返す
  *
- * Amplify アプリ未構成等の場合は BuildTriggerer が
+ * GitHub App 未構成等の場合は BuildTriggerer が
  * BuildServiceNotConfiguredException を投げ、HTTP 層で 503 に整形される。
  */
 class TriggerBuildUseCase

@@ -111,7 +111,7 @@ it('admin/api 配下で CategoryConflictException が 409 + CONFLICT を返す',
 it('admin/api 配下で BuildServiceNotConfiguredException が 503 + SERVICE_UNAVAILABLE を返す', function () {
     // Given: BuildServiceNotConfiguredException を投げるルートを動的に登録
     Route::get('/admin/api/_test_unavailable', function () {
-        throw BuildServiceNotConfiguredException::webhookUrlMissing();
+        throw BuildServiceNotConfiguredException::appIdMissing();
     });
 
     // When

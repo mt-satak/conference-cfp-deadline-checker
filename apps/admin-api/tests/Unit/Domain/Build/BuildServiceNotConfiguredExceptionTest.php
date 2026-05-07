@@ -7,23 +7,14 @@ use App\Domain\Build\BuildServiceNotConfiguredException;
 /**
  * BuildServiceNotConfiguredException の static factory テスト (Phase 5.3)。
  *
- * 元々 Amplify 用の factory (webhookUrlMissing / appIdMissing) があったが、
- * Phase 5.3 で GitHub Actions 経路に切り替えるため privateKeyMissing /
- * installationIdMissing を追加する。Issue #110。
+ * Phase 5.3 (Issue #110) で AWS Amplify から GitHub Actions 経路に切り替えた際、
+ * factory メソッドを GitHub App 用 3 種 (appIdMissing / installationIdMissing /
+ * privateKeyMissing) に揃えた。
  *
  * これらの例外は HTTP 層 (AdminApiExceptionRenderer) で 503 SERVICE_UNAVAILABLE
  * に整形される運用なのでメッセージ内容で原因種別が識別できることを保証する。
  */
 describe('BuildServiceNotConfiguredException', function () {
-    it('既存の webhookUrlMissing factory が動作する (Amplify 互換)', function () {
-        // When
-        $e = BuildServiceNotConfiguredException::webhookUrlMissing();
-
-        // Then
-        expect($e)->toBeInstanceOf(BuildServiceNotConfiguredException::class);
-        expect($e->getMessage())->toContain('webhook');
-    });
-
     it('既存の appIdMissing factory が動作する', function () {
         // When
         $e = BuildServiceNotConfiguredException::appIdMissing();
