@@ -19,32 +19,36 @@ interface Props {
 
 const { text, status } = Astro.props;
 
-// 「あと N 日」(open/urgent) はサイトの目玉要素なので solid な濃い背景 + 白文字で
-// はっきり強調する。closed/unknown は応募できないためフォーカスを外す。
+// 「あと N 日」(open/urgent) と「本日締切」(today) はサイトの目玉要素なので
+// solid な濃い背景 + 白文字ではっきり強調する。closed/unknown は応募できないため
+// フォーカスを外す。today は最も強い赤色で当日の警告感を伝える。
 const classByStatus: Record<DeadlineLabelStatus, string> = {
     open: 'bg-emerald-600 text-white ring-1 ring-inset ring-emerald-700',
     urgent: 'bg-orange-500 text-white ring-1 ring-inset ring-orange-600',
+    today: 'bg-red-600 text-white ring-1 ring-inset ring-red-700',
     closed: 'bg-gray-100 text-gray-500 ring-1 ring-inset ring-gray-200',
     unknown: 'bg-white text-gray-600 ring-1 ring-inset ring-gray-300',
 };
 
 // "あと N 日" 形式から数字を抽出して大きく表示する。
-// 「本日締切」「締切終了」「締切未定」は数字無しなのでそのまま表示。
+// 「本日締切」「締切終了」「締切未定」は数字無しなのでそのまま表示するが、
+// バッジのサイズは "あと N 日" と統一して見た目の揃いを保つため、container に
+// `min-h` / `min-w` を当てて padding 込みでほぼ同サイズにする。
 const countdownMatch = text.match(/^あと\s*(\d+)\s*日$/);
 const remainingDays = countdownMatch?.[1] ?? null;
 ---
 
 <div
-    class={`inline-flex items-baseline gap-2 rounded-lg px-4 py-2 font-semibold ${classByStatus[status]}`}
+    class={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-semibold min-h-[60px] min-w-[120px] ${classByStatus[status]}`}
     aria-label={`CfP 締切: ${text}`}
 >
     {remainingDays !== null ? (
-        <>
+        <span class="inline-flex items-baseline gap-2">
             <span class="text-sm">あと</span>
             <span class="text-4xl font-extrabold leading-none tracking-tight">{remainingDays}</span>
             <span class="text-sm">日</span>
-        </>
+        </span>
     ) : (
-        <span class="text-base">{text}</span>
+        <span class="text-2xl font-black tracking-tight leading-none">{text}</span>
     )}
 </div>

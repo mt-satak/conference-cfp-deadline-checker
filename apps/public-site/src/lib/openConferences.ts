@@ -14,6 +14,6 @@ export function filterOpenConferences(
 ): Conference[] {
     return conferences.filter((c) => {
         const { status } = deadlineLabel(c.cfpEndDate, today);
-        return status === 'open' || status === 'urgent';
+        return status === 'open' || status === 'urgent' || status === 'today';
     });
 }

@@ -4,13 +4,14 @@ import { daysUntilDeadline } from './dates';
  * CfP 締切ラベルの表示状態。
  *
  * - open: まだ余裕あり (8 日以上前)
- * - urgent: 締切直前 (1〜7 日前) もしくは当日
+ * - urgent: 締切直前 (1〜7 日前)
+ * - today: 当日締切 (= サイトで最も注意を引きたい状態、UI で赤色強調)
  * - closed: 締切終了
  * - unknown: 締切日未入力 (admin が未設定)
  *
  * UI 側でこの enum をベースに色 / バッジを切り替える。
  */
-export type DeadlineLabelStatus = 'open' | 'urgent' | 'closed' | 'unknown';
+export type DeadlineLabelStatus = 'open' | 'urgent' | 'today' | 'closed' | 'unknown';
 
 export interface DeadlineLabel {
     /** 表示用テキスト (例: "あと 5 日") */
@@ -40,7 +41,7 @@ export function deadlineLabel(deadline: string | null, today: Date): DeadlineLab
     }
 
     if (days === 0) {
-        return { text: '本日締切', status: 'urgent' };
+        return { text: '本日締切', status: 'today' };
     }
 
     const status: DeadlineLabelStatus = days <= URGENT_THRESHOLD_DAYS ? 'urgent' : 'open';
