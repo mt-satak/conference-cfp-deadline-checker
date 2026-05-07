@@ -4,28 +4,39 @@ import { loadConferences } from '../data/loadConferences';
 import { formatJstDate } from '../lib/dates';
 import { filterOpenConferences } from '../lib/openConferences';
 import { sortByDeadlineAsc } from '../lib/sortConferences';
+import { extractCategorySlugs, filterByCategory } from '../lib/categories';
 import ConferenceCard from '../components/ConferenceCard.astro';
+import CategoryFilterModal from '../components/CategoryFilterModal.astro';
 import Footer from '../components/Footer.astro';
 
 /**
  * 公開フロントトップページ (Issue #86 / Phase 2 → Phase 3)。
  *
  * SSG: ビルド時に mock データから一覧 HTML を生成する。CfP 締切までの残り日数は
- * ビルド時刻 (= today) を基準に計算される。Phase 5 で Amplify を経由した日次
- * rebuild を組むと表示が日々更新される。
+ * ビルド時刻 (= today) を基準に計算される。Phase 5 で日次 rebuild を組むと
+ * 表示が日々更新される。
  *
- * Phase 4 で mock を admin-api の公開 API に置換する (= ファイル import を fetch
- * に変えるだけで描画は変わらない設計)。
+ * Phase 6 で「カテゴリで絞る」を別ページ遷移からモーダルに変更
+ * (戻る動線の UX 改善)。/categories/{slug}/ 個別ページは SEO + シェアリンクの
+ * 観点で維持。
  *
  * 表示フィルタ:
- * 「あと N 日」がサイトの目玉要素なので、まだ応募可能な open/urgent ステータス
- * のカンファレンスのみ一覧に出す。締切終了 (closed) / 締切未定 (unknown) は
- * 一覧から除外する。フィルタロジックは filterOpenConferences() に集約。
+ * 「あと N 日」がサイトの目玉要素なので、まだ応募可能な open/urgent/today
+ * ステータスのカンファレンスのみ一覧に出す。締切終了 (closed) / 締切未定
+ * (unknown) は一覧から除外する。
  */
 const today = new Date();
 const todayJst = formatJstDate(today);
 const allConferences = await loadConferences();
-const conferences = sortByDeadlineAsc(filterOpenConferences(allConferences, today));
+const openConferences = filterOpenConferences(allConferences, today);
+const conferences = sortByDeadlineAsc(openConferences);
+
+// モーダル用のカテゴリ + 件数集計 (open のもののみ)。
+// 旧 /categories/ ページのロジックをここに集約する。
+const categoryEntries = extractCategorySlugs(openConferences).map((slug) => ({
+    slug,
+    count: filterByCategory(openConferences, slug).length,
+}));
 ---
 
 <html lang="ja">
@@ -55,12 +66,13 @@ const conferences = sortByDeadlineAsc(filterOpenConferences(allConferences, toda
                     <h2 class="text-lg font-semibold text-gray-900">カンファレンス一覧</h2>
                     <span class="text-xs text-gray-500">{conferences.length} 件</span>
                 </div>
-                <a
-                    href="/categories/"
+                <button
+                    type="button"
+                    id="category-filter-open"
                     class="inline-flex items-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800 transition"
                 >
                     カテゴリで絞る
-                </a>
+                </button>
             </div>
 
             <ul class="grid gap-4 sm:grid-cols-2">
@@ -73,5 +85,7 @@ const conferences = sortByDeadlineAsc(filterOpenConferences(allConferences, toda
         </main>
 
         <Footer todayJst={todayJst} />
+
+        <CategoryFilterModal categories={categoryEntries} />
     </body>
 </html>
