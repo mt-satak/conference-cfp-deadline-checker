@@ -6,6 +6,7 @@ import { filterOpenConferences } from '../../lib/openConferences';
 import { sortByDeadlineAsc } from '../../lib/sortConferences';
 import { formatJstDate } from '../../lib/dates';
 import ConferenceCard from '../../components/ConferenceCard.astro';
+import Footer from '../../components/Footer.astro';
 
 /**
  * カテゴリ別カンファレンス一覧ページ (Issue #86 / Phase 3 → 4.3)。
@@ -90,10 +91,6 @@ const conferences = sortByDeadlineAsc(
             )}
         </main>
 
-        <footer class="border-t border-gray-200 bg-white">
-            <div class="mx-auto max-w-5xl px-4 py-6 text-xs text-gray-500">
-                <p>最終更新: {todayJst} (JST)</p>
-            </div>
-        </footer>
+        <Footer todayJst={todayJst} />
     </body>
 </html>

@@ -1,0 +1,37 @@
+---
+/**
+ * 全ページ共通のフッター (Issue #86)。
+ *
+ * - 最終更新日 (JST 表示)
+ * - 問い合わせ先 (X / Twitter Web Intent でプリフィルされた post 画面を開く)
+ *
+ * Web Intent URL:
+ *   https://twitter.com/intent/tweet?text=%40st_tm_k%20
+ *   ↓ 「@st_tm_k 」がプリフィルされた状態で X の post 編集画面が開く。
+ *   ユーザーは続けて本文を書いて投稿できる。
+ */
+interface Props {
+    todayJst: string;
+}
+
+const { todayJst } = Astro.props;
+const contactIntentUrl = 'https://twitter.com/intent/tweet?text=%40st_tm_k%20';
+---
+
+<footer class="border-t border-gray-200 bg-white">
+    <div class="mx-auto max-w-5xl px-4 py-6 text-xs text-gray-500 space-y-2">
+        <p>最終更新: {todayJst} (JST)</p>
+        <p>
+            問い合わせは X:
+            <a
+                href={contactIntentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="font-bold text-emerald-700 hover:text-emerald-800 hover:underline"
+            >
+                satak
+            </a>
+            までお願いします
+        </p>
+    </div>
+</footer>
