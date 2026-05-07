@@ -4,7 +4,7 @@ import { ARecord, HostedZone, RecordTarget } from 'aws-cdk-lib/aws-route53';
 import { Secret } from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
 import { AdminApi } from './constructs/admin-api';
-import { DataTables } from './constructs/data-tables';
+import { DataTables, type DataTablesEnv } from './constructs/data-tables';
 import { Operations } from './constructs/operations';
 import { StaticSite } from './constructs/static-site';
 
@@ -57,6 +57,14 @@ export interface CfpDeadlineCheckerStackProps extends cdk.StackProps {
    * (PR #68 で実害発覚) ため、bin/ 側で文字列として確定して渡す。
    */
   readonly appUrl: string;
+  /**
+   * DynamoDB の起動モード (Issue #28)。
+   * - 'dev': RemovalPolicy.DESTROY + deletionProtection: false (初回セットアップ用)
+   * - 'production' / 未指定: RETAIN + deletionProtection: true (本番運用、現状維持)
+   *
+   * bin/cfp-deadline-checker.ts で `--context env=dev` を読み取って渡す。
+   */
+  readonly dataTablesEnv?: DataTablesEnv;
 }
 
 /**
@@ -77,7 +85,9 @@ export class CfpDeadlineCheckerStack extends cdk.Stack {
   ) {
     super(scope, id, props);
 
-    const dataTables = new DataTables(this, 'DataTables');
+    const dataTables = new DataTables(this, 'DataTables', {
+      env: props.dataTablesEnv,
+    });
 
     // ── CloudFront Custom Origin Header 用 secret (Issue #77) ──
     // Lambda Function URL の AuthType=NONE に切り替えたため、CloudFront 経由

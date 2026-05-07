@@ -71,6 +71,18 @@ const adminApiAppUrl = domainName
 // 受信者側で確認リンクをクリックするまで通知は届かない。
 const alertEmail = app.node.tryGetContext('alertEmail') as string | undefined;
 
+// ── DynamoDB 起動モード (Issue #28) ──
+// 例: pnpm cdk deploy --context env=dev
+// dev: RemovalPolicy.DESTROY + deletionProtection: false (初回セットアップ用、
+//      deploy 失敗→再試行で "table already exists" エラーを避けるため)。
+// 未指定 / production: RETAIN + deletionProtection: true (= 現状維持)。
+//
+// 受け取る値は 'dev' | 'production' | undefined。それ以外の文字列が渡された
+// 場合は安全側に倒して production と同等扱いにする。
+const envContext = app.node.tryGetContext('env') as string | undefined;
+const dataTablesEnv: 'dev' | 'production' | undefined =
+  envContext === 'dev' ? 'dev' : envContext === 'production' ? 'production' : undefined;
+
 // ── Lambda@Edge ARN 直接指定 (= aws-cdk#29009 回避用、通常 deploy では未指定) ──
 // crossRegionReferences の SSM dynamic reference に CFN が pin した古い timestamp が
 // 解決できなくなった場合のリカバリ用。一時的に直値を渡して deploy すると、
@@ -118,6 +130,7 @@ const mainStack = new CfpDeadlineCheckerStack(app, 'CfpDeadlineCheckerStack', {
   certificateArn: edgeStack.certificateArn,
   alertEmail,
   appUrl: adminApiAppUrl,
+  dataTablesEnv,
   description: 'Conference CfP Deadline Checker - main stack',
 });
 

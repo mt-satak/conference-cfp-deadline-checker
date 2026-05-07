@@ -300,3 +300,44 @@ pnpm cdk destroy CfpDeadlineCheckerEdgeStack
 ただし DynamoDB は `removalPolicy: RETAIN` + `deletionProtection: true` のため、
 スタック削除後もテーブルは残る (= データが消えない安全側設計)。
 完全に削除する場合は AWS コンソールで deletionProtection を OFF にしてから手動削除。
+
+## DynamoDB 初回セットアップフラグ (`--context env=dev`)
+
+初回セットアップ等、deploy 失敗→再試行を繰り返すフェーズで以下のエラーに悩まされる場合がある:
+
+```
+Resource of type 'AWS::DynamoDB::Table' with identifier 'cfp-conferences' already exists.
+```
+
+これは Stack 削除時にテーブルが `RETAIN` で残るため、再 deploy 時に同名テーブルがぶつかるのが原因
+(architecture.md §11.2 S7 のセキュリティ要件)。
+
+**`env=dev` フラグ** (Issue #28) を付けると DynamoDB テーブルが以下のモードで作られる:
+
+| Context | RemovalPolicy | deletionProtection | 用途 |
+|---|---|---|---|
+| 未指定 / `--context env=production` | `RETAIN` | `true` | 通常運用 (data 保護) |
+| `--context env=dev` | `DESTROY` | `false` | 初回セットアップ、deploy 失敗→再試行を繰り返す段階 |
+
+使用例:
+
+```sh
+# 初回セットアップで使う
+pnpm cdk deploy CfpDeadlineCheckerStack --context env=dev
+
+# 設定 / データ調整中の destroy → redeploy サイクル
+pnpm cdk destroy CfpDeadlineCheckerStack
+pnpm cdk deploy CfpDeadlineCheckerStack --context env=dev
+
+# データ投入後は必ず env=dev を外して再 deploy (= 本番モードに戻す)
+pnpm cdk deploy CfpDeadlineCheckerStack
+```
+
+### ⚠ 注意
+
+- **`env=dev` で deploy するとテーブルが消える可能性が常にある**ため、本番データが入ったテーブルには絶対に使わない
+- `env=dev` 指定時は CDK synth / deploy 出力に警告が出る:
+  ```
+  [Warning at /CfpDeadlineCheckerStack/DataTables] DataTables env='dev' is enabled: tables will be DESTROYED on stack delete and deletionProtection is OFF.
+  ```
+- 開発が落ち着いたら `env=dev` を外した状態で再 deploy して本番モードに戻すこと
