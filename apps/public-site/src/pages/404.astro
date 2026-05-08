@@ -1,0 +1,68 @@
+---
+import '../styles/global.css';
+import { formatJstDate } from '../lib/dates';
+import Footer from '../components/Footer.astro';
+
+/**
+ * 404 Not Found ページ (Issue #130 #6)。
+ *
+ * SSG で dist/404.html が生成され、CloudFront の errorResponses で
+ * 404 ステータス時に本ページが返される (CDK static-site.ts L298-305)。
+ *
+ * 想定発生条件:
+ * - 古い URL (廃止されたカテゴリ) を踏んだ場合
+ * - URL のタイポ
+ * - 検索エンジンキャッシュからのアクセスで該当ページが既に消えた場合
+ *
+ * meta robots を noindex にして検索結果に出ないようにする (= 404 ページが
+ * 検索結果に出てもユーザー体験を損ねるだけ)。
+ */
+const today = new Date();
+const todayJst = formatJstDate(today);
+---
+
+<html lang="ja">
+    <head>
+        <meta charset="utf-8" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="generator" content={Astro.generator} />
+        <title>ページが見つかりません — CfP Checker</title>
+        <meta name="description" content="お探しのページは見つかりませんでした。" />
+        {/* 404 ページは検索結果に出さない */}
+        <meta name="robots" content="noindex, nofollow" />
+    </head>
+    <body class="min-h-screen bg-gray-50 text-gray-900 antialiased flex flex-col">
+        <header class="border-b border-gray-200 bg-white">
+            <div class="mx-auto max-w-5xl px-4 py-6 sm:py-8">
+                <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">
+                    <a href="/" class="hover:text-emerald-700">CfP Checker</a>
+                </h1>
+                <p class="mt-1 text-sm text-gray-600">
+                    国内テックカンファレンスの CfP (Call for Proposals) 締切まとめ
+                </p>
+            </div>
+        </header>
+
+        <main class="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center px-4 py-12 text-center sm:py-20">
+            <p class="text-7xl font-extrabold text-emerald-600 sm:text-8xl">404</p>
+            <h2 class="mt-6 text-2xl font-bold text-gray-900 sm:text-3xl">
+                ページが見つかりません
+            </h2>
+            <p class="mt-3 text-sm text-gray-600 sm:text-base">
+                お探しのページは存在しないか、移動した可能性があります。
+            </p>
+            <a
+                href="/"
+                class="mt-8 inline-flex items-center gap-1 rounded-md bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800 transition"
+            >
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+                トップページに戻る
+            </a>
+        </main>
+
+        <Footer todayJst={todayJst} />
+    </body>
+</html>
