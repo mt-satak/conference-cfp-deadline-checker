@@ -15,9 +15,15 @@ import type { DeadlineLabelStatus } from '../lib/deadlineLabel';
 interface Props {
     text: string;
     status: DeadlineLabelStatus;
+    /**
+     * CfP 締切日 (YYYY-MM-DD or null)。クライアント側 JS で「ページ表示時点」の
+     * 残日数を再計算して DOM を上書きするためのデータ属性に埋め込む (Issue #134)。
+     * SSG ビルド時刻が古くなっても、JS が動けば常に正確な「あと N 日」が表示される。
+     */
+    cfpEndDate: string | null;
 }
 
-const { text, status } = Astro.props;
+const { text, status, cfpEndDate } = Astro.props;
 
 // 「あと N 日」(open/urgent) と「本日締切」(today) はサイトの目玉要素なので
 // solid な濃い背景 + 白文字ではっきり強調する。closed/unknown は応募できないため
@@ -41,6 +47,8 @@ const remainingDays = countdownMatch?.[1] ?? null;
 <div
     class={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-semibold min-h-[60px] min-w-[120px] ${classByStatus[status]}`}
     aria-label={`CfP 締切: ${text}`}
+    data-deadline-badge
+    data-cfp-end-date={cfpEndDate ?? ''}
 >
     {remainingDays !== null ? (
         <span class="inline-flex items-baseline gap-2">
