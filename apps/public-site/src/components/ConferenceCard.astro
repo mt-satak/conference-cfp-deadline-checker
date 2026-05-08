@@ -27,9 +27,11 @@ const formatLabel = conference.format ? formatLabelMap[conference.format] : null
 ---
 
 <article class="flex h-full flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm hover:border-emerald-300 hover:shadow transition">
-    {/* 締切バッジを一番目立たせる: カード上部に大きく配置 (Issue #86 サイトの目玉要素) */}
+    {/* 締切バッジを一番目立たせる: カード上部に大きく配置 (Issue #86 サイトの目玉要素)。
+        Issue #134: cfpEndDate を data 属性として渡し、ブラウザ側 JS で表示時点の
+        残日数を再計算 → DOM を上書きできるようにする。 */}
     <div class="mb-4">
-        <DeadlineBadge text={label.text} status={label.status} />
+        <DeadlineBadge text={label.text} status={label.status} cfpEndDate={conference.cfpEndDate} />
     </div>
 
     <h2 class="text-lg font-semibold">

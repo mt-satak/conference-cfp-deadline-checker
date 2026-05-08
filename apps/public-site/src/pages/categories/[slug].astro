@@ -90,7 +90,7 @@ const conferences = sortByDeadlineAsc(
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div class="flex items-baseline gap-3">
                     <h2 class="text-lg font-semibold text-gray-900">該当カンファレンス</h2>
-                    <span class="text-xs text-gray-500">{conferences.length} 件</span>
+                    <span class="text-xs text-gray-500" data-conference-count>{conferences.length} 件</span>
                 </div>
                 {/* 絞り込みを解除して全件表示 (= トップ) に戻すボタン。
                     パンくずだけだと戻る動線が弱いのでセカンダリボタンとして明示。 */}
@@ -119,5 +119,12 @@ const conferences = sortByDeadlineAsc(
         </main>
 
         <Footer todayJst={todayJst} />
+
+        {/*
+          クライアント側で「あと N 日」を再計算 (Issue #134)。SSG ビルド時刻が
+          古くなって表示がずれるのを防ぐ。CSP script-src 'self' を通すため
+          public/scripts/ 配下の純 JS を is:inline + src で外部参照する。
+        */}
+        <script is:inline type="module" src="/scripts/deadline-recalc.js"></script>
     </body>
 </html>
