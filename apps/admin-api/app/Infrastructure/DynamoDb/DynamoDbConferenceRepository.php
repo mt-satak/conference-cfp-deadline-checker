@@ -6,6 +6,7 @@ use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceFormat;
 use App\Domain\Conferences\ConferenceRepository;
 use App\Domain\Conferences\ConferenceStatus;
+use App\Domain\Conferences\OfficialUrl;
 use Aws\DynamoDb\DynamoDbClient;
 use Aws\DynamoDb\Marshaler;
 use DateTimeImmutable;
@@ -67,6 +68,25 @@ class DynamoDbConferenceRepository implements ConferenceRepository
         $rawItem = $result['Item'];
 
         return $this->toConference($this->unmarshalAsArray($rawItem));
+    }
+
+    /**
+     * 引数 / DB 内 conference の officialUrl を OfficialUrl::normalize() で
+     * 正規化してから比較する (Issue #152 Phase 1)。表記揺れを吸収。
+     *
+     * 件数規模 (50〜200) なので O(N) の全件 scan で十分。
+     */
+    public function findByOfficialUrl(string $officialUrl): ?Conference
+    {
+        $target = OfficialUrl::normalize($officialUrl);
+
+        foreach ($this->findAll() as $conference) {
+            if (OfficialUrl::normalize($conference->officialUrl) === $target) {
+                return $conference;
+            }
+        }
+
+        return null;
     }
 
     /**
