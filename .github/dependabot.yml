@@ -1,0 +1,93 @@
+# Dependabot 設定 (Issue #130 #10)
+#
+# 依存ライブラリの脆弱性監視 + 自動 update PR を有効化する。
+#
+# 監視対象 ecosystem:
+#   - github-actions     : .github/workflows/ で参照する actions のバージョン
+#   - composer           : apps/admin-api/composer.json (PHP / Laravel / Bref / Pest 等)
+#   - npm (workspace 別) : apps/public-site / infra/cdk / packages/db-tools / workspace root
+#
+# pnpm の workspace 構造でも Dependabot は package-ecosystem: npm でネイティブ
+# 対応 (lockfile v6+)。各 workspace package を個別 directory として登録して
+# 「どこの依存か」を PR 単位で識別しやすくする。
+#
+# 運用方針:
+#   - 週次 (毎週月曜) に実行 → PR が一気に集中するのを避ける + マージ作業日を固定
+#   - minor/patch は groups でまとめて 1 PR にする (= レビュー / merge コスト削減)
+#   - major は破壊的変更が多いので個別 PR に切り出して慎重に対応
+#   - open-pull-requests-limit で同時に走る PR 数を制限
+#
+# secret はリポジトリに無いため (= AWS Secrets Manager / GitHub App / Variables 経由)、
+# Dependabot 用の secret 設定は不要。
+
+version: 2
+updates:
+  # ── GitHub Actions ──
+  # actions/checkout, actions/setup-node, aws-actions/configure-aws-credentials 等。
+  # Issue #116 の Node.js 24 移行で更新が走る (まだ 2026-09-16 まで猶予あり)。
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      actions-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # ── PHP (admin-api) ──
+  # Laravel / Bref / Pest / PHPStan / Pint 等の更新。
+  - package-ecosystem: "composer"
+    directory: "/apps/admin-api"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      composer-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # ── npm: workspace root ──
+  # ルート package.json (vite / tailwindcss / concurrently 等の dev tools)。
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    groups:
+      root-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # ── npm: 公開フロント (Astro) ──
+  - package-ecosystem: "npm"
+    directory: "/apps/public-site"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      public-site-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # ── npm: CDK ──
+  - package-ecosystem: "npm"
+    directory: "/infra/cdk"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      cdk-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # ── npm: db-tools ──
+  - package-ecosystem: "npm"
+    directory: "/packages/db-tools"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    groups:
+      db-tools-minor-patch:
+        update-types: ["minor", "patch"]
