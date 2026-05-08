@@ -296,6 +296,16 @@ function handler(event) {
       priceClass: PriceClass.PRICE_CLASS_200,
       minimumProtocolVersion: SecurityPolicyProtocol.TLS_V1_2_2021,
       errorResponses: [
+        // S3 OAC 経由で object が存在しない場合、S3 は ListBucket 権限が無いため
+        // 403 Forbidden を返す (= S3 の AccessDenied エラー XML が CloudFront に
+        // 渡る)。これを 404 に変換しつつ /404.html を返すことで、不存在 URL に
+        // 対するユーザー体験を統一する (Issue #130 #6 follow-up)。
+        {
+          httpStatus: 403,
+          responseHttpStatus: 404,
+          responsePagePath: '/404.html',
+          ttl: Duration.minutes(5),
+        },
         {
           httpStatus: 404,
           responseHttpStatus: 404,
