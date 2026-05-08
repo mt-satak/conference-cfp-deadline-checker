@@ -27,6 +27,21 @@ interface ConferenceRepository
     public function findById(string $conferenceId): ?Conference;
 
     /**
+     * officialUrl で 1 件取得する。存在しなければ null。
+     *
+     * 引数と DB 内 conference の officialUrl を OfficialUrl::normalize() で
+     * 正規化してから比較するため、表記揺れ (https/http, trailing slash, www.,
+     * query/fragment 等) を吸収する。
+     *
+     * Issue #152 Phase 1 の自動巡回で「既存重複」を検知するために使う。
+     *
+     * 件数規模 (50〜200) なので O(N) の全件 scan + memory 内比較で十分。
+     * 大規模化した場合は normalized_official_url を別 attribute として保存して
+     * GSI で indexed lookup にする。
+     */
+    public function findByOfficialUrl(string $officialUrl): ?Conference;
+
+    /**
      * カンファレンスを保存する。conferenceId の有無で新規 / 更新を区別せず、
      * 同 ID があれば上書き、なければ新規作成 (upsert)。
      */

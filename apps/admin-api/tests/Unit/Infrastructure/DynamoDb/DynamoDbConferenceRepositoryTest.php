@@ -535,3 +535,79 @@ it('findById は status に未知の文字列があったら Published で fail-
     expect($result)->toBeInstanceOf(Conference::class);
     expect($result->status)->toBe(ConferenceStatus::Published);
 });
+
+// ── findByOfficialUrl (Issue #152 Phase 1: 自動巡回の重複検知) ──
+
+it('findByOfficialUrl は OfficialUrl::normalize 後の比較で URL 表記揺れを吸収する', function () {
+    // Given: DB 内の conference は https + trailing slash + www. + UTM 付きで保存されたとする
+    // (= 本来あってはならないが、過去 import で混入した想定)
+    [$client, $repository] = makeMockedRepo();
+    $items = [
+        makeMarshalledItem([
+            'conferenceId' => 'abc',
+            'name' => 'PHPカンファレンス愛媛 2026',
+            // 故意に表記揺れを含めた URL
+            'officialUrl' => 'http://www.phpcon.example.com/2026/?utm_source=twitter',
+            'cfpUrl' => 'https://phpcon.example.com/2026/cfp',
+            'eventStartDate' => '2026-09-19',
+            'eventEndDate' => '2026-09-20',
+            'venue' => '愛媛',
+            'format' => 'offline',
+            'cfpEndDate' => '2026-07-15',
+            'categories' => [],
+            'createdAt' => '2026-04-15T10:30:00+09:00',
+            'updatedAt' => '2026-04-15T10:30:00+09:00',
+            'status' => 'published',
+        ]),
+    ];
+    $client->shouldReceive('scan')
+        ->once()
+        ->andReturn(new Result(['Items' => $items]));
+
+    // When: 引数は scheme / trailing slash / fragment が異なる URL
+    $result = $repository->findByOfficialUrl('https://phpcon.example.com/2026#section');
+
+    // Then: 同一視されて 1 件マッチする
+    expect($result)->toBeInstanceOf(Conference::class);
+    expect($result->conferenceId)->toBe('abc');
+});
+
+it('findByOfficialUrl は完全一致しない URL に対して null を返す', function () {
+    // Given: DB に別 host の conference が 1 件
+    [$client, $repository] = makeMockedRepo();
+    $items = [
+        makeMarshalledItem([
+            'conferenceId' => 'aaa',
+            'name' => 'A',
+            'officialUrl' => 'https://a.example.com/2026',
+            'cfpUrl' => 'https://a.example.com/cfp',
+            'eventStartDate' => '2026-05-01',
+            'eventEndDate' => '2026-05-02',
+            'venue' => 'X',
+            'format' => 'offline',
+            'cfpEndDate' => '2026-04-01',
+            'categories' => [],
+            'createdAt' => '2026-04-15T10:30:00+09:00',
+            'updatedAt' => '2026-04-15T10:30:00+09:00',
+        ]),
+    ];
+    $client->shouldReceive('scan')->once()->andReturn(new Result(['Items' => $items]));
+
+    // When: 別 host を引数に
+    $result = $repository->findByOfficialUrl('https://b.example.com/2026');
+
+    // Then
+    expect($result)->toBeNull();
+});
+
+it('findByOfficialUrl は DB が空でも null を返す (= 初回 import 時の挙動)', function () {
+    // Given
+    [$client, $repository] = makeMockedRepo();
+    $client->shouldReceive('scan')->once()->andReturn(new Result(['Items' => []]));
+
+    // When
+    $result = $repository->findByOfficialUrl('https://anywhere.example.com/');
+
+    // Then
+    expect($result)->toBeNull();
+});

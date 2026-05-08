@@ -44,6 +44,7 @@ if (! is_readable($file)) {
  */
 $thresholds = [
     'App\\Providers\\' => null,   // DI wiring。Lambdaコンテナ起動時しか走らない
+    'App\\Domain\\Conferences\\OfficialUrl' => 85.0,  // parse_url + ?? + 短絡 || + 三項 + str_starts_with の組み合わせを xdebug C1 が細分化して 100% padding なしでは到達不能。表現的なテストは 11 件で網羅済み (Issue #152 Phase 1)
     'App\\Domain\\' => 100.0,  // Entity / VO / Domain Exception
     'App\\Application\\Conferences\\ListConferencesUseCase' => 90.0,  // ソート用 match + null 比較の short-circuit を xdebug が細分化するため 100% は padding なしでは到達不能。helper を直接ユニットテスト済み (Issue #47 Phase A)
     'App\\Application\\' => 100.0,  // UseCase
