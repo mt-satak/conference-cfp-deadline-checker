@@ -48,6 +48,10 @@ const categoryEntries = extractCategorySlugs(openConferences).map((slug) => ({
         <title>CfP Checker — 国内テックカンファレンス CfP 締切まとめ</title>
         <meta name="description" content="登壇したい人のためのシンプルな締切チェッカー。国内テックカンファレンスの CfP (Call for Proposals) 締切を一覧で確認できます。" />
 
+        {/* Canonical URL (Issue #130 #5): 重複コンテンツ判定の回避。
+            apex / categories/<slug>/ で本ページのみが正規であることを明示する。 */}
+        <link rel="canonical" href="https://cfp-checker.dev/" />
+
         {/* Open Graph (SNS シェア時のプレビュー用、Issue #130 #2) */}
         <meta property="og:title" content="CfP Checker — 国内テックカンファレンス CfP 締切まとめ" />
         <meta property="og:description" content="登壇したい人のためのシンプルな締切チェッカー。国内テックカンファレンスの CfP 締切を一覧で確認できます。" />

@@ -52,6 +52,10 @@ const conferences = sortByDeadlineAsc(
         <title>{slug} — CfP Checker</title>
         <meta name="description" content={`${slug} カテゴリの開催予定カンファレンス一覧。CfP 締切までの残り日数を一覧で確認できます。`} />
 
+        {/* Canonical URL (Issue #130 #5): 重複コンテンツ判定の回避。
+            slug 単位で正規 URL を明示する。 */}
+        <link rel="canonical" href={`https://cfp-checker.dev/categories/${slug}/`} />
+
         {/* Open Graph (SNS シェア時のプレビュー用、Issue #130 #2) */}
         <meta property="og:title" content={`${slug} カテゴリ — CfP Checker`} />
         <meta property="og:description" content={`${slug} カテゴリの開催予定カンファレンス一覧。CfP 締切までの残り日数を一覧で確認できます。`} />
