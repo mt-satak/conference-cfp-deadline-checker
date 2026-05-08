@@ -1,0 +1,47 @@
+# Security スキャン (Issue #130 #9)
+#
+# 公開リポジトリのため、AWS access key / GitHub PAT / 秘密鍵等が誤って
+# コミットされた場合に即時 scrape されるリスクがある。gitleaks でリポジトリ
+# 全体をスキャンし、検出時は PR / push を fail させて merge をブロックする。
+#
+# 構成:
+#   - PR: pull_request 時に PR の差分 (base..head) を scan
+#   - main push: 直近の push 範囲を scan
+#   - fetch-depth: 0 で履歴全体を取得 (gitleaks の正確性向上)
+#
+# 公式 action は public repo / free org では追加 license 不要。
+# private repo に切り替える場合は GITLEAKS_LICENSE secret が必要になる点に注意。
+#
+# false positive (例: test fixture の dummy secret) が出始めたら .gitleaks.toml
+# を repo root に置いて除外設定する。最初は default rule のみで運用する。
+
+name: security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# 同一ブランチの古い run はキャンセル
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  gitleaks:
+    name: gitleaks scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 履歴全体を取得して past commit も scan できるようにする
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
