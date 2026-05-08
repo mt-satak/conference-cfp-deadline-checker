@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # ── PHP セットアップ (admin-api Lambda 配布物用) ──
       # CI 用 .env / APP_KEY 生成は不要。`cdk deploy` 時点で artisan を呼ばない。
