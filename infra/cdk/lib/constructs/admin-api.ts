@@ -1,6 +1,8 @@
 import * as path from 'node:path';
 import { Duration, Stack } from 'aws-cdk-lib';
 import { type Table } from 'aws-cdk-lib/aws-dynamodb';
+import { Rule, RuleTargetInput, Schedule } from 'aws-cdk-lib/aws-events';
+import { LambdaFunction as LambdaTarget } from 'aws-cdk-lib/aws-events-targets';
 import { Effect, PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import {
   Architecture,
@@ -76,6 +78,14 @@ export interface AdminApiProps {
 export class AdminApi extends Construct {
   public readonly function: LambdaFunction;
   public readonly functionUrl: IFunctionUrl;
+  /**
+   * 自動巡回 (Issue #152 Phase 1) 用 Lambda 関数。
+   *
+   * 既存 admin-api Lambda と同じ asset (= apps/admin-api/) を共有しつつ、
+   * handler を `artisan` (Bref console mode) に切り替えて artisan コマンドを
+   * 実行する。EventBridge schedule (週 1) から起動される。
+   */
+  public readonly autoCrawlFunction: LambdaFunction;
 
   constructor(scope: Construct, id: string, props: AdminApiProps) {
     super(scope, id);
@@ -145,16 +155,14 @@ export class AdminApi extends Construct {
       `arn:aws:lambda:${region}:873528684822:layer:php-85:14`,
     );
 
-    // Lambda 関数本体。
-    // PROVIDED_AL2023 ランタイム + Bref レイヤーで PHP 8.5 を実行。
-    // ハンドラ `public/index.php` は Bref の FPM モードを起動するシグナル。
-    // 現時点ではプレースホルダーのため 503 を返すのみ。
-    this.function = new LambdaFunction(this, 'Function', {
-      runtime: Runtime.PROVIDED_AL2023,
-      handler: 'public/index.php',
-      code: Code.fromAsset(
-        path.join(__dirname, '..', '..', '..', '..', 'apps', 'admin-api'),
-        {
+    // admin-api の Lambda asset (= apps/admin-api/) を共有変数として切り出す。
+    // - this.function (Web FPM): handler=public/index.php
+    // - this.autoCrawlFunction (Console): handler=artisan
+    // 両者は同じ Lambda asset (= 同じ S3 object) を使うため、deploy 時の
+    // ビルド時間と CFN リソース数を最小化できる。
+    const adminApiCode = Code.fromAsset(
+      path.join(__dirname, '..', '..', '..', '..', 'apps', 'admin-api'),
+      {
           // Lambda の unzipped 250MB 制限に収めるため、ランタイム不要なファイルを除外。
           // 本番デプロイは composer install --no-dev で行う前提だが、誤って dev 含み
           // で deploy された場合も exclude で防御する。
@@ -208,7 +216,15 @@ export class AdminApi extends Construct {
             'vendor/laravel/pao/**',
           ],
         },
-      ),
+    );
+
+    // Lambda 関数本体 (Web FPM)。
+    // PROVIDED_AL2023 ランタイム + Bref レイヤーで PHP 8.5 を実行。
+    // ハンドラ `public/index.php` は Bref の FPM モードを起動するシグナル。
+    this.function = new LambdaFunction(this, 'Function', {
+      runtime: Runtime.PROVIDED_AL2023,
+      handler: 'public/index.php',
+      code: adminApiCode,
       layers: [phpLayer],
       architecture: Architecture.X86_64,
       // CloudFront のオリジン応答タイムアウト (デフォルト 30 秒) より少し短くする
@@ -354,6 +370,97 @@ export class AdminApi extends Construct {
     // 直接 Function URL を叩いても admin routes には到達できない)。
     this.functionUrl = this.function.addFunctionUrl({
       authType: FunctionUrlAuthType.NONE,
+    });
+
+    // ── 自動巡回 Lambda console (Issue #152 Phase 1) ──
+    // 同じ admin-api asset (= adminApiCode) を共有しつつ handler を 'artisan' に
+    // 切り替えて Bref の console モードで artisan コマンドを実行する。EventBridge
+    // schedule (週 1) から起動される設計。
+    //
+    // BREF_RUNTIME='console' で Bref が console handler として bootstrap し、
+    // Lambda invoke の payload `{cli: 'command-name'}` を受け取って artisan を実行する。
+    //
+    // タイムアウト: 15 分 (Lambda 上限)。30 件 x ~5 秒の LLM 抽出で十分余裕。
+    this.autoCrawlFunction = new LambdaFunction(this, 'AutoCrawlFunction', {
+      runtime: Runtime.PROVIDED_AL2023,
+      handler: 'artisan',
+      code: adminApiCode,
+      layers: [phpLayer],
+      architecture: Architecture.X86_64,
+      timeout: Duration.minutes(15),
+      memorySize: 1024,
+      environment: {
+        BREF_RUNTIME: 'console',
+        BREF_LOOP_MAX: '1',
+        // ── Laravel ランタイム環境変数 (= 既存の admin-api Lambda と同じ値で揃える) ──
+        APP_KEY: appKeySecret.secretValue.unsafeUnwrap(),
+        APP_ENV: 'production',
+        APP_DEBUG: 'false',
+        SESSION_DRIVER: 'cookie',
+        SESSION_SECURE_COOKIE: 'true',
+        SESSION_SAME_SITE: 'strict',
+        CACHE_STORE: 'array',
+        DYNAMODB_CONFERENCES_TABLE: props.conferences.tableName,
+        DYNAMODB_CATEGORIES_TABLE: props.categories.tableName,
+        // 自動巡回は LLM 抽出を Bedrock 経由で行うため Bedrock 環境変数が必須
+        LLM_PROVIDER: 'bedrock',
+        LLM_MODEL: 'jp.anthropic.claude-sonnet-4-6',
+        LLM_REGION: region,
+        // APP_URL は admin UI 用 (URL 生成) なので auto-crawl では未使用だが、
+        // Laravel boot 時に config('app.url') 解決で警告が出ないよう同値で渡す
+        APP_URL: props.appUrl,
+        // CloudFront 関連 secret は admin-api 専用 (Function URL 経由の認可) で
+        // auto-crawl では使わないため省略
+      },
+      description: 'Auto-crawl scheduled task for Conference CfP Deadline Checker (Issue #152 Phase 1)',
+    });
+
+    // DynamoDB 権限: Phase 1a は観測のみで副作用なしのため read 権限だけで十分。
+    // Phase 1b で Draft 作成を入れたら grantReadWriteData に切り替える。
+    props.conferences.grantReadData(this.autoCrawlFunction);
+    props.categories.grantReadData(this.autoCrawlFunction);
+
+    // Bedrock 権限 (= 既存の admin-api function と同じ Sonnet 4.6 限定)
+    this.autoCrawlFunction.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ['bedrock:InvokeModel', 'bedrock:Converse'],
+        resources: [
+          `arn:aws:bedrock:${region}::foundation-model/anthropic.claude-sonnet-4-6*`,
+          `arn:aws:bedrock:${region}:*:inference-profile/*anthropic.claude-sonnet-4-6*`,
+          `arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6*`,
+        ],
+      }),
+    );
+
+    // AWS Marketplace subscribe 権限 (= 初回 Bedrock 呼出で必要、Issue #83)
+    this.autoCrawlFunction.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: [
+          'aws-marketplace:ViewSubscriptions',
+          'aws-marketplace:Subscribe',
+        ],
+        resources: ['*'],
+      }),
+    );
+
+    // EventBridge schedule: 週 1 (JST 月曜 09:00 = UTC 月曜 00:00)
+    // payload `{cli: 'conferences:auto-crawl'}` で artisan command を Bref console に渡す。
+    new Rule(this, 'AutoCrawlSchedule', {
+      schedule: Schedule.cron({
+        weekDay: 'MON',
+        hour: '0',
+        minute: '0',
+      }),
+      description: 'Weekly auto-crawl of registered conferences (Issue #152 Phase 1a)',
+      targets: [
+        new LambdaTarget(this.autoCrawlFunction, {
+          event: RuleTargetInput.fromObject({
+            cli: 'conferences:auto-crawl',
+          }),
+        }),
+      ],
     });
   }
 }
