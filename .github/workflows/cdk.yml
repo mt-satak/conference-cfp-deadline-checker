@@ -37,7 +37,7 @@ jobs:
 
       # pnpm version は package.json の packageManager から解決される。
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: Setup Node 22
         uses: actions/setup-node@v4

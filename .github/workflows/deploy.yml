@@ -93,7 +93,7 @@ jobs:
       # ── Node + pnpm セットアップ ──
       # pnpm のバージョンは package.json の `packageManager` から自動解決される。
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: Setup Node 22
         uses: actions/setup-node@v4
