@@ -142,6 +142,8 @@ describe('AutoCrawlConferencesUseCase', function () {
         $conference = makePublishedConference('c1', 'https://a.example.com/', '2026-07-15');
         $repo = Mockery::mock(ConferenceRepository::class);
         $repo->shouldReceive('findAll')->once()->andReturn([$conference]);
+        // Issue #169: 重複 Draft 無し (= 新規 UUID で作成される従来挙動)
+        $repo->shouldReceive('findDraftByOfficialUrl')->once()->andReturn(null);
 
         // Phase 1b: 差分があれば save が呼ばれる
         $savedConference = null;
@@ -190,6 +192,8 @@ describe('AutoCrawlConferencesUseCase', function () {
         $conference = makePublishedConference('c1', 'https://a.example.com/');
         $repo = Mockery::mock(ConferenceRepository::class);
         $repo->shouldReceive('findAll')->once()->andReturn([$conference]);
+        // Issue #169: 重複 Draft 無し
+        $repo->shouldReceive('findDraftByOfficialUrl')->once()->andReturn(null);
         $repo->shouldReceive('save')->once();
 
         $newDraft = new ConferenceDraft(
@@ -244,6 +248,8 @@ describe('AutoCrawlConferencesUseCase', function () {
         $conference = makePublishedConference('c1', 'https://a.example.com/');
         $repo = Mockery::mock(ConferenceRepository::class);
         $repo->shouldReceive('findAll')->once()->andReturn([$conference]);
+        // Issue #169: 重複 Draft 無し
+        $repo->shouldReceive('findDraftByOfficialUrl')->once()->andReturn(null);
         $savedConference = null;
         $repo->shouldReceive('save')
             ->once()
@@ -340,5 +346,104 @@ describe('AutoCrawlConferencesUseCase', function () {
 
         // Then
         expect($result->totalChecked)->toBe(0);
+    });
+
+    // ── Issue #169: Draft 重複防止 ──
+
+    it('既存 Draft がある URL では Draft を新規作成せず既存 Draft を上書きする (Issue #169)', function () {
+        // Given: 既存 Published + その URL の Draft が DB に存在 (= 前回 AutoCrawl で作成済)
+        $published = makePublishedConference('c1', 'https://a.example.com/', '2026-07-15');
+        $existingDraft = makeDraftConference('draft-existing', 'https://a.example.com/');
+
+        $repo = Mockery::mock(ConferenceRepository::class);
+        $repo->shouldReceive('findAll')->once()->andReturn([$published]);
+        // 重複チェック: 同 URL の Draft が既にあるので返す
+        $repo->shouldReceive('findDraftByOfficialUrl')
+            ->once()
+            ->with('https://a.example.com/')
+            ->andReturn($existingDraft);
+
+        // 期待: save は 1 回呼ばれ、保存される Conference の conferenceId は既存 Draft の ID
+        $savedConference = null;
+        $repo->shouldReceive('save')
+            ->once()
+            ->with(Mockery::on(function (Conference $c) use (&$savedConference) {
+                $savedConference = $c;
+
+                return true;
+            }));
+
+        // 抽出結果は cfpEndDate に diff
+        $newDraft = new ConferenceDraft(
+            sourceUrl: $published->officialUrl,
+            cfpUrl: $published->cfpUrl,
+            eventStartDate: $published->eventStartDate,
+            eventEndDate: $published->eventEndDate,
+            venue: $published->venue,
+            format: $published->format,
+            cfpEndDate: '2026-08-01',
+        );
+        $extract = Mockery::mock(ExtractConferenceDraftUseCase::class);
+        $extract->shouldReceive('execute')->once()->andReturn($newDraft);
+
+        $useCase = new AutoCrawlConferencesUseCase($repo, $extract);
+
+        // When
+        $result = $useCase->execute();
+
+        // Then: 既存 Draft の conferenceId を維持
+        expect($result->diffDetected)->toBe(1);
+        expect($result->createdDraftIds)->toBe(['draft-existing']);
+        /** @var Conference $savedConference */
+        expect($savedConference->conferenceId)->toBe('draft-existing');
+        expect($savedConference->status)->toBe(ConferenceStatus::Draft);
+        expect($savedConference->cfpEndDate)->toBe('2026-08-01');
+        // createdAt は既存値を維持 (= 「いつ最初に検知したか」が消えない)
+        expect($savedConference->createdAt)->toBe($existingDraft->createdAt);
+    });
+
+    it('該当 URL の Draft が無ければ新規 UUID で Draft 作成 (= 既存挙動を維持、Issue #169)', function () {
+        // Given: Published のみ、Draft 無し
+        $published = makePublishedConference('c1', 'https://a.example.com/', '2026-07-15');
+
+        $repo = Mockery::mock(ConferenceRepository::class);
+        $repo->shouldReceive('findAll')->once()->andReturn([$published]);
+        // 重複チェック: 該当 Draft 無し
+        $repo->shouldReceive('findDraftByOfficialUrl')
+            ->once()
+            ->with('https://a.example.com/')
+            ->andReturn(null);
+
+        $savedConference = null;
+        $repo->shouldReceive('save')
+            ->once()
+            ->with(Mockery::on(function (Conference $c) use (&$savedConference) {
+                $savedConference = $c;
+
+                return true;
+            }));
+
+        $newDraft = new ConferenceDraft(
+            sourceUrl: $published->officialUrl,
+            cfpUrl: $published->cfpUrl,
+            eventStartDate: $published->eventStartDate,
+            eventEndDate: $published->eventEndDate,
+            venue: $published->venue,
+            format: $published->format,
+            cfpEndDate: '2026-08-01',
+        );
+        $extract = Mockery::mock(ExtractConferenceDraftUseCase::class);
+        $extract->shouldReceive('execute')->once()->andReturn($newDraft);
+
+        $useCase = new AutoCrawlConferencesUseCase($repo, $extract);
+
+        // When
+        $result = $useCase->execute();
+
+        // Then: 新規 UUID で Draft 作成される (= 既存挙動)
+        expect($result->createdDraftIds)->toHaveCount(1);
+        /** @var Conference $savedConference */
+        expect($savedConference->conferenceId)->not->toBe($published->conferenceId);
+        expect($savedConference->status)->toBe(ConferenceStatus::Draft);
     });
 });

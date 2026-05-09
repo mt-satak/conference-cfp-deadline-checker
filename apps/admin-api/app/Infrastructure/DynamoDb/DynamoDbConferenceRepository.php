@@ -90,6 +90,38 @@ class DynamoDbConferenceRepository implements ConferenceRepository
     }
 
     /**
+     * status=Draft の中から officialUrl 一致の Conference を 1 件取得する (Issue #169)。
+     *
+     * 同 URL の Draft が複数あれば最新 createdAt を返す。AutoCrawl が「重複していたら
+     * 最新の 1 件を更新」する挙動を保証するため。
+     *
+     * 件数規模 (Draft 50 件未満想定) なので O(N) の全件 scan + memory 内比較で十分。
+     */
+    public function findDraftByOfficialUrl(string $officialUrl): ?Conference
+    {
+        $target = OfficialUrl::normalize($officialUrl);
+        $matched = [];
+
+        foreach ($this->findAll() as $conference) {
+            if ($conference->status !== ConferenceStatus::Draft) {
+                continue;
+            }
+            if (OfficialUrl::normalize($conference->officialUrl) === $target) {
+                $matched[] = $conference;
+            }
+        }
+
+        if ($matched === []) {
+            return null;
+        }
+
+        // 最新 createdAt を返す (= ISO 8601 文字列の辞書順 = 時系列順)
+        usort($matched, static fn (Conference $a, Conference $b): int => strcmp($b->createdAt, $a->createdAt));
+
+        return $matched[0];
+    }
+
+    /**
      * Marshaler::unmarshalItem の戻り型は array|stdClass union だが、第 2 引数
      * (mapAsObject) を省略 = false の運用なので必ず array<string, mixed> で返ることを
      * 型レベルで担保するヘルパ。

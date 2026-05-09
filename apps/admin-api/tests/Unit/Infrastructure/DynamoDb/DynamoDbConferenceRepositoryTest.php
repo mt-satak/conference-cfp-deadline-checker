@@ -613,3 +613,170 @@ it('findByOfficialUrl は DB が空でも null を返す (= 初回 import 時の
     // Then
     expect($result)->toBeNull();
 });
+
+// ── findDraftByOfficialUrl (Issue #169 Phase 1: AutoCrawl の Draft 重複防止) ──
+
+it('findDraftByOfficialUrl は status=draft の Conference のみマッチする', function () {
+    // Given: 同じ URL の Published と Draft が混在 (= 過去に Published を作成 + AutoCrawl で
+    // Draft を 1 件作った状況)
+    [$client, $repository] = makeMockedRepo();
+    $items = [
+        makeMarshalledItem([
+            'conferenceId' => 'pub-1',
+            'name' => 'PHPカンファレンス 2026',
+            'officialUrl' => 'https://phpcon.example.com/2026/',
+            'cfpUrl' => 'https://phpcon.example.com/2026/cfp',
+            'eventStartDate' => '2026-09-19',
+            'eventEndDate' => '2026-09-20',
+            'venue' => '東京',
+            'format' => 'offline',
+            'cfpEndDate' => '2026-07-15',
+            'categories' => [],
+            'createdAt' => '2026-04-15T10:30:00+09:00',
+            'updatedAt' => '2026-04-15T10:30:00+09:00',
+            'status' => 'published',
+        ]),
+        makeMarshalledItem([
+            'conferenceId' => 'draft-1',
+            'name' => 'PHPカンファレンス 2026',
+            'officialUrl' => 'https://phpcon.example.com/2026/',
+            'cfpUrl' => null,
+            'eventStartDate' => null,
+            'eventEndDate' => null,
+            'venue' => null,
+            'format' => null,
+            'cfpEndDate' => null,
+            'categories' => [],
+            'createdAt' => '2026-05-08T10:00:00+09:00',
+            'updatedAt' => '2026-05-08T10:00:00+09:00',
+            'status' => 'draft',
+        ]),
+    ];
+    $client->shouldReceive('scan')->once()->andReturn(new Result(['Items' => $items]));
+
+    // When
+    $result = $repository->findDraftByOfficialUrl('https://phpcon.example.com/2026/');
+
+    // Then: Draft のみマッチ (Published は無視される)
+    expect($result)->toBeInstanceOf(Conference::class);
+    expect($result->conferenceId)->toBe('draft-1');
+});
+
+it('findDraftByOfficialUrl は OfficialUrl::normalize で URL 表記揺れを吸収する', function () {
+    // Given: DB 内の Draft は trailing slash + www. + UTM 付きで保存されたとする
+    [$client, $repository] = makeMockedRepo();
+    $items = [
+        makeMarshalledItem([
+            'conferenceId' => 'draft-x',
+            'name' => 'X',
+            'officialUrl' => 'http://www.x.example.com/2026/?utm_source=twitter',
+            'cfpUrl' => null,
+            'eventStartDate' => null,
+            'eventEndDate' => null,
+            'venue' => null,
+            'format' => null,
+            'cfpEndDate' => null,
+            'categories' => [],
+            'createdAt' => '2026-04-15T10:30:00+09:00',
+            'updatedAt' => '2026-04-15T10:30:00+09:00',
+            'status' => 'draft',
+        ]),
+    ];
+    $client->shouldReceive('scan')->once()->andReturn(new Result(['Items' => $items]));
+
+    // When: scheme / trailing slash / fragment が異なる URL
+    $result = $repository->findDraftByOfficialUrl('https://x.example.com/2026#section');
+
+    // Then: 同一視されてマッチ
+    expect($result)->toBeInstanceOf(Conference::class);
+    expect($result->conferenceId)->toBe('draft-x');
+});
+
+it('findDraftByOfficialUrl は同じ URL の Draft が複数あれば最新 createdAt を返す (= AutoCrawl の重複対象を最新優先)', function () {
+    // Given: 同じ URL の Draft が 2 件 (= 既存の重複状態)
+    [$client, $repository] = makeMockedRepo();
+    $items = [
+        makeMarshalledItem([
+            'conferenceId' => 'draft-old',
+            'name' => 'X',
+            'officialUrl' => 'https://y.example.com/2026/',
+            'cfpUrl' => null,
+            'eventStartDate' => null,
+            'eventEndDate' => null,
+            'venue' => null,
+            'format' => null,
+            'cfpEndDate' => null,
+            'categories' => [],
+            'createdAt' => '2026-05-08T10:00:00+09:00',
+            'updatedAt' => '2026-05-08T10:00:00+09:00',
+            'status' => 'draft',
+        ]),
+        makeMarshalledItem([
+            'conferenceId' => 'draft-new',
+            'name' => 'X',
+            'officialUrl' => 'https://y.example.com/2026/',
+            'cfpUrl' => null,
+            'eventStartDate' => null,
+            'eventEndDate' => null,
+            'venue' => null,
+            'format' => null,
+            'cfpEndDate' => null,
+            'categories' => [],
+            'createdAt' => '2026-05-09T10:00:00+09:00',
+            'updatedAt' => '2026-05-09T10:00:00+09:00',
+            'status' => 'draft',
+        ]),
+    ];
+    $client->shouldReceive('scan')->once()->andReturn(new Result(['Items' => $items]));
+
+    // When
+    $result = $repository->findDraftByOfficialUrl('https://y.example.com/2026/');
+
+    // Then: 最新 createdAt の Draft が返る
+    expect($result)->toBeInstanceOf(Conference::class);
+    expect($result->conferenceId)->toBe('draft-new');
+});
+
+it('findDraftByOfficialUrl は該当 URL の Draft が無ければ null を返す', function () {
+    // Given: Published 1 件 + 別 URL の Draft 1 件
+    [$client, $repository] = makeMockedRepo();
+    $items = [
+        makeMarshalledItem([
+            'conferenceId' => 'pub-1',
+            'name' => 'A',
+            'officialUrl' => 'https://a.example.com/',
+            'cfpUrl' => 'https://a.example.com/cfp',
+            'eventStartDate' => '2026-05-01',
+            'eventEndDate' => '2026-05-02',
+            'venue' => 'X',
+            'format' => 'offline',
+            'cfpEndDate' => '2026-04-01',
+            'categories' => [],
+            'createdAt' => '2026-04-15T10:30:00+09:00',
+            'updatedAt' => '2026-04-15T10:30:00+09:00',
+            'status' => 'published',
+        ]),
+        makeMarshalledItem([
+            'conferenceId' => 'draft-other',
+            'name' => 'Other',
+            'officialUrl' => 'https://other.example.com/',
+            'cfpUrl' => null,
+            'eventStartDate' => null,
+            'eventEndDate' => null,
+            'venue' => null,
+            'format' => null,
+            'cfpEndDate' => null,
+            'categories' => [],
+            'createdAt' => '2026-05-08T10:00:00+09:00',
+            'updatedAt' => '2026-05-08T10:00:00+09:00',
+            'status' => 'draft',
+        ]),
+    ];
+    $client->shouldReceive('scan')->once()->andReturn(new Result(['Items' => $items]));
+
+    // When: a.example.com には Published のみ、Draft 該当無し
+    $result = $repository->findDraftByOfficialUrl('https://a.example.com/');
+
+    // Then: null
+    expect($result)->toBeNull();
+});
