@@ -293,6 +293,79 @@ it('SDK 例外時に warning ログを残してから例外を投げる', functi
         ->toThrow(LlmExtractionFailedException::class);
 });
 
+it('system prompt が「HTML に対応する記述が無い場合のみ null」を明記する (Issue #152 Phase 1 観測フィードバック)', function () {
+    // Given: Bedrock のリクエスト引数を捕捉する mock
+    // 観測結果 (5/5 件で全 diff が null) から、現状の「自信がない → null」だと過剰に null になっており、
+    // HTML に存在する事実すら null で返るケースが頻発していた。
+    // 改善: 「HTML に対応する記述が無い場合のみ null」という明確な判定基準にし、
+    // HTML から事実を可能な限り抽出する方針へシフトする。
+    $captured = null;
+    $client = Mockery::mock(BedrockRuntimeClient::class);
+    $client->shouldReceive('converse')
+        ->once()
+        ->with(Mockery::on(function ($args) use (&$captured) {
+            $captured = $args;
+
+            return true;
+        }))
+        ->andReturn(new Result([
+            'output' => ['message' => ['content' => [
+                ['toolUse' => ['toolUseId' => 'x', 'name' => 'extract_conference_draft',
+                    'input' => ['name' => 'X', 'categorySlugs' => []]]],
+            ]]],
+        ]));
+
+    // When
+    $extractor = new BedrockConferenceDraftExtractor(
+        client: $client,
+        modelId: 'anthropic.claude-sonnet-4-6',
+        availableSlugs: ['php'],
+    );
+    $extractor->extract('https://x.example.com', '<html></html>');
+
+    // Then
+    $systemText = $captured['system'][0]['text'] ?? '';
+    expect($systemText)->toContain('HTML に対応する記述が無い場合のみ null');
+    expect($systemText)->toContain('HTML に書かれた事実を可能な限り抽出');
+});
+
+it('system prompt が cfpUrl 抽出方針 (a href リンク採用) を明記する (Issue #152 Phase 1 観測フィードバック)', function () {
+    // Given: Bedrock のリクエスト引数を捕捉する mock
+    // 観測結果から cfpUrl が常に null で返ることが分かった。原因は LLM が
+    // 「公式サイトに CfP URL が直接書かれていない」と判断して推測を避けるため。
+    // 改善: HTML 内に fortee.jp / connpass.com / sessionize.com への <a href> リンクが
+    // ある場合はハルシネーションではなく HTML 上の事実として採用してよいことを明記する。
+    $captured = null;
+    $client = Mockery::mock(BedrockRuntimeClient::class);
+    $client->shouldReceive('converse')
+        ->once()
+        ->with(Mockery::on(function ($args) use (&$captured) {
+            $captured = $args;
+
+            return true;
+        }))
+        ->andReturn(new Result([
+            'output' => ['message' => ['content' => [
+                ['toolUse' => ['toolUseId' => 'x', 'name' => 'extract_conference_draft',
+                    'input' => ['name' => 'X', 'categorySlugs' => []]]],
+            ]]],
+        ]));
+
+    // When
+    $extractor = new BedrockConferenceDraftExtractor(
+        client: $client,
+        modelId: 'anthropic.claude-sonnet-4-6',
+        availableSlugs: ['php'],
+    );
+    $extractor->extract('https://x.example.com', '<html></html>');
+
+    // Then
+    $systemText = $captured['system'][0]['text'] ?? '';
+    expect($systemText)->toContain('fortee.jp');
+    expect($systemText)->toContain('connpass.com');
+    expect($systemText)->toContain('<a href');
+});
+
 it('converse 呼出時のリクエスト body に modelId / messages / tools / system が含まれる', function () {
     // Given: 引数を捕捉する mock
     $captured = null;
