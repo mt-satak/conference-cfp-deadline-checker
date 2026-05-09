@@ -38,14 +38,10 @@
     <main class="mx-auto max-w-6xl px-4 py-6">
         {{-- フラッシュメッセージ枠 (CRUD 成功時 / 失敗時) --}}
         @if (session('status'))
-            <div class="mb-4 rounded border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-800">
-                {{ session('status') }}
-            </div>
+            <x-admin.alert variant="success">{{ session('status') }}</x-admin.alert>
         @endif
         @if (session('error'))
-            <div class="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
-                {{ session('error') }}
-            </div>
+            <x-admin.alert variant="error">{{ session('error') }}</x-admin.alert>
         @endif
 
         @yield('content')

@@ -10,12 +10,12 @@
         </a>
     </div>
 
-    <div class="rounded-lg border border-gray-200 bg-white p-6">
+    <x-admin.card class="p-6">
         @include('admin.categories._form', [
             'category' => null,
             'action' => route('admin.categories.store'),
             'method' => 'POST',
             'submitLabel' => '作成する',
         ])
-    </div>
+    </x-admin.card>
 @endsection

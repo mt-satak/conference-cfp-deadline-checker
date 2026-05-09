@@ -20,22 +20,19 @@
         </p>
         <form method="POST" action="{{ route('admin.conferences.extract-from-url') }}" class="flex flex-wrap gap-2">
             @csrf
-            <input type="url" name="url" placeholder="https://phpcon.example.com/2026" required
-                   value="{{ old('url') }}"
-                   class="flex-1 min-w-[300px] rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
-            <button type="submit"
-                    class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-                取り込む
-            </button>
+            <x-admin.input type="url" name="url" placeholder="https://phpcon.example.com/2026" required
+                   :value="old('url')"
+                   class="flex-1 min-w-[300px] !text-sm" />
+            <x-admin.button type="submit">取り込む</x-admin.button>
         </form>
-        @error('url')<p class="mt-2 text-sm text-red-600">{{ $message }}</p>@enderror
+        <x-admin.error-message field="url" class="mt-2" />
     </div>
 
-    <div class="rounded-lg border border-gray-200 bg-white p-6">
+    <x-admin.card class="p-6">
         @include('admin.conferences._form', [
             'conference' => null,
             'action' => route('admin.conferences.store'),
             'method' => 'POST',
         ])
-    </div>
+    </x-admin.card>
 @endsection

@@ -24,16 +24,13 @@
             <form method="POST" action="{{ route('admin.build.trigger') }}"
                   onsubmit="return confirm('再ビルドをトリガーします。よろしいですか？');">
                 @csrf
-                <button type="submit"
-                        class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-                    再ビルドをトリガー
-                </button>
+                <x-admin.button type="submit">再ビルドをトリガー</x-admin.button>
             </form>
         @endif
     </div>
 
     @unless ($configured)
-        <div class="mb-4 rounded border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+        <x-admin.alert variant="warning">
             <p class="font-semibold">ビルドサービスが未構成です</p>
             <p class="mt-1">
                 GitHub App の認証情報が設定されていません。
@@ -41,7 +38,7 @@
                 <code class="rounded bg-yellow-100 px-1">GITHUB_APP_INSTALLATION_ID</code> /
                 <code class="rounded bg-yellow-100 px-1">GITHUB_APP_PRIVATE_KEY</code>) を設定するまで再ビルド機能は利用できません。
             </p>
-        </div>
+        </x-admin.alert>
     @endunless
 
     @if (count($statuses) === 0)
@@ -53,7 +50,7 @@
             @endif
         </div>
     @else
-        <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+        <x-admin.card class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead class="bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
                     <tr>
@@ -91,7 +88,7 @@
                     @endforeach
                 </tbody>
             </table>
-        </div>
+        </x-admin.card>
 
         <p class="mt-3 text-sm text-gray-500">{{ count($statuses) }} 件 (最大 10 件まで取得)</p>
     @endif
