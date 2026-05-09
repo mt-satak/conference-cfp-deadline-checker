@@ -32,20 +32,13 @@
                             <td class="px-4 py-3 font-mono text-xs text-gray-600">{{ $cat->slug }}</td>
                             <td class="px-4 py-3">
                                 @if ($cat->axis !== null)
-                                    <span class="inline-flex rounded bg-gray-100 px-2 py-0.5 text-xs">
-                                        {{ $cat->axis->value }}
-                                    </span>
+                                    <span class="inline-flex whitespace-nowrap rounded bg-gray-100 px-2 py-0.5 text-xs">{{ $cat->axis->value }}</span>
                                 @else
                                     <span class="text-xs text-gray-400">—</span>
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-right">
-                                <x-admin.button as="a"
-                                    href="{{ route('admin.categories.edit', $cat->categoryId) }}"
-                                    size="sm"
-                                    variant="secondary">
-                                    編集
-                                </x-admin.button>
+                                <x-admin.button as="a" href="{{ route('admin.categories.edit', $cat->categoryId) }}" size="sm" variant="secondary">編集</x-admin.button>
                             </td>
                         </tr>
                     @endforeach

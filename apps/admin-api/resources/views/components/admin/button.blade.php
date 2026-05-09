@@ -16,10 +16,14 @@
         'success' => 'bg-green-600 text-white hover:bg-green-700',
         default => 'bg-blue-600 text-white hover:bg-blue-700',
     };
+
+    // 日本語短文 (例: 「公開する」「編集」) が table 行内で改行される問題を防止 (= UX 修正)。
+    // size 問わず常に nowrap (ボタン内に長文を入れる UX は採用していないため副作用無し)。
+    $textClass = 'whitespace-nowrap';
 @endphp
 
 @if ($as === 'a')
-    <a {{ $attributes->merge(['class' => "{$sizeClass} {$variantClass}"]) }}>{{ $slot }}</a>
+    <a {{ $attributes->merge(['class' => "{$sizeClass} {$variantClass} {$textClass}"]) }}>{{ $slot }}</a>
 @else
-    <button {{ $attributes->merge(['class' => "{$sizeClass} {$variantClass}"]) }}>{{ $slot }}</button>
+    <button {{ $attributes->merge(['class' => "{$sizeClass} {$variantClass} {$textClass}"]) }}>{{ $slot }}</button>
 @endif
