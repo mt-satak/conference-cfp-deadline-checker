@@ -47,4 +47,18 @@ class BuildStatusPresenter
 
         return $payload;
     }
+
+    /**
+     * BuildStatus[] を toArray した配列のリストに一括変換する (Issue #178 #3)。
+     *
+     * @param  BuildStatus[]  $statuses
+     * @return list<array<string, mixed>>
+     */
+    public static function toList(array $statuses): array
+    {
+        return array_values(array_map(
+            static fn (BuildStatus $s): array => self::toArray($s),
+            $statuses,
+        ));
+    }
 }

@@ -40,4 +40,18 @@ class ConferencePresenter
             'status' => $conference->status->value,
         ];
     }
+
+    /**
+     * Conference[] を toArray した配列のリストに一括変換する (Issue #178 #3)。
+     *
+     * @param  Conference[]  $conferences
+     * @return list<array<string, mixed>>
+     */
+    public static function toList(array $conferences): array
+    {
+        return array_values(array_map(
+            static fn (Conference $c): array => self::toArray($c),
+            $conferences,
+        ));
+    }
 }

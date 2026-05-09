@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api\Public;
 
 use App\Application\Conferences\ListConferencesUseCase;
-use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceSortKey;
 use App\Domain\Conferences\ConferenceStatus;
 use App\Domain\Conferences\SortOrder;
@@ -33,16 +32,11 @@ class ConferenceController extends BaseController
         // 公開フロント (cfp-checker.dev) には Published のみ返す。
         // Issue #165 で Archived を追加したが、過去カンファ (= Archived) も Draft も
         // 公開対象外。配列に Published 単独を渡すことで明示する。
-        $conferences = $useCase->execute(
+        $data = ConferencePresenter::toList($useCase->execute(
             [ConferenceStatus::Published],
             ConferenceSortKey::CfpEndDate,
             SortOrder::Asc,
-        );
-
-        $data = array_map(
-            static fn (Conference $c): array => ConferencePresenter::toArray($c),
-            $conferences,
-        );
+        ));
 
         return $this->ok($data, ['count' => count($data)]);
     }

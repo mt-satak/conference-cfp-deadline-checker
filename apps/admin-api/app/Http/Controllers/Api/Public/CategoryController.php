@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api\Public;
 
 use App\Application\Categories\ListCategoriesUseCase;
-use App\Domain\Categories\Category;
 use App\Http\Controllers\Api\BaseController;
 use App\Http\Presenters\CategoryPresenter;
 use Illuminate\Http\JsonResponse;
@@ -25,12 +24,7 @@ class CategoryController extends BaseController
      */
     public function index(ListCategoriesUseCase $useCase): JsonResponse
     {
-        $categories = $useCase->execute();
-
-        $data = array_map(
-            static fn (Category $c): array => CategoryPresenter::toArray($c),
-            $categories,
-        );
+        $data = CategoryPresenter::toList($useCase->execute());
 
         return $this->ok($data, ['count' => count($data)]);
     }

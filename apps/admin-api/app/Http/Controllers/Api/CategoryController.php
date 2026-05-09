@@ -7,7 +7,6 @@ use App\Application\Categories\DeleteCategoryUseCase;
 use App\Application\Categories\GetCategoryUseCase;
 use App\Application\Categories\ListCategoriesUseCase;
 use App\Application\Categories\UpdateCategoryUseCase;
-use App\Domain\Categories\Category;
 use App\Http\Controllers\Categories\CategoryInputResolver;
 use App\Http\Presenters\CategoryPresenter;
 use App\Http\Requests\Categories\StoreCategoryRequest;
@@ -33,12 +32,7 @@ class CategoryController extends BaseController
      */
     public function index(ListCategoriesUseCase $useCase): JsonResponse
     {
-        $categories = $useCase->execute();
-
-        $data = array_map(
-            static fn (Category $c): array => CategoryPresenter::toArray($c),
-            $categories,
-        );
+        $data = CategoryPresenter::toList($useCase->execute());
 
         return $this->ok($data, ['count' => count($data)]);
     }
