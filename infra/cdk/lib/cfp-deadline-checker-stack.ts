@@ -4,6 +4,7 @@ import { ARecord, HostedZone, RecordTarget } from 'aws-cdk-lib/aws-route53';
 import { Secret } from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
 import { AdminApi } from './constructs/admin-api';
+import { AuditTrail } from './constructs/audit-trail';
 import { DataTables, type DataTablesEnv } from './constructs/data-tables';
 import { Operations } from './constructs/operations';
 import { StaticSite } from './constructs/static-site';
@@ -139,6 +140,12 @@ export class CfpDeadlineCheckerStack extends cdk.Stack {
       alertEmail: props.alertEmail,
     });
 
+    // 監査ログ (Issue #130 #12)。
+    // アカウント全域の API 呼び出しを multi-region trail で取得し、
+    // S3 に 90 日保管する。インシデント発生時に「誰が・いつ・どこで・何をしたか」
+    // を遡及調査するための仕掛け。
+    const auditTrail = new AuditTrail(this, 'AuditTrail');
+
     // ── 独自ドメインのエイリアスレコード (任意) ──
     // domainName / hostedZoneId / zoneName が渡された場合のみ、Route 53 に
     // CloudFront を指す A レコード (ALIAS) を作成する。
@@ -207,6 +214,11 @@ export class CfpDeadlineCheckerStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'AlarmTopicArn', {
       value: operations.alarmTopic.topicArn,
       description: 'SNS topic ARN for operational alarms',
+    });
+
+    new cdk.CfnOutput(this, 'AuditTrailLogBucketName', {
+      value: auditTrail.logBucket.bucketName,
+      description: 'S3 bucket where CloudTrail audit logs are stored (90-day lifecycle)',
     });
 
     // TODO: EventBridge による日次保険ビルドは Amplify の Webhook URL が
