@@ -5,10 +5,7 @@
 @section('content')
     <div class="mb-4 flex items-center justify-between">
         <h1 class="text-2xl font-bold">カテゴリ一覧</h1>
-        <a href="{{ route('admin.categories.create') }}"
-           class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-            + 新規作成
-        </a>
+        <x-admin.button as="a" href="{{ route('admin.categories.create') }}">+ 新規作成</x-admin.button>
     </div>
 
     @if (count($categories) === 0)
@@ -16,7 +13,7 @@
             登録されたカテゴリがありません
         </div>
     @else
-        <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+        <x-admin.card class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead class="bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
                     <tr>
@@ -50,7 +47,7 @@
                     @endforeach
                 </tbody>
             </table>
-        </div>
+        </x-admin.card>
 
         <p class="mt-3 text-sm text-gray-500">{{ count($categories) }} 件</p>
     @endif

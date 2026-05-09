@@ -160,17 +160,14 @@
          サーバ側 StoreConferenceRequest が status='draft' なら必須項目を緩和、
          status='published' なら従来通り全項目検証する。 --}}
     <div class="flex flex-wrap items-center justify-end gap-2 pt-2">
-        <a href="{{ route('admin.conferences.index') }}"
-           class="rounded border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50">
+        <x-admin.button as="a" href="{{ route('admin.conferences.index') }}" variant="secondary">
             キャンセル
-        </a>
-        <button type="submit" name="status" value="draft"
-                class="rounded border border-gray-400 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+        </x-admin.button>
+        <x-admin.button type="submit" name="status" value="draft" variant="secondary">
             下書き保存
-        </button>
-        <button type="submit" name="status" value="published"
-                class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+        </x-admin.button>
+        <x-admin.button type="submit" name="status" value="published">
             公開する
-        </button>
+        </x-admin.button>
     </div>
 </form>

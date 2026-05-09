@@ -40,10 +40,9 @@
 
     <div class="mb-4 flex items-center justify-between">
         <h1 class="text-2xl font-bold">カンファレンス一覧</h1>
-        <a href="{{ route('admin.conferences.create') }}"
-           class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+        <x-admin.button as="a" href="{{ route('admin.conferences.create') }}">
             + 新規作成
-        </a>
+        </x-admin.button>
     </div>
 
     {{-- status フィルタタブ (Phase 0.5 / Issue #41) --}}
@@ -67,7 +66,7 @@
             該当するカンファレンスがありません
         </div>
     @else
-        <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+        <x-admin.card class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead class="bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
                     <tr>
@@ -146,7 +145,7 @@
                     @endforeach
                 </tbody>
             </table>
-        </div>
+        </x-admin.card>
 
         <p class="mt-3 text-sm text-gray-500">{{ count($conferences) }} 件</p>
     @endif

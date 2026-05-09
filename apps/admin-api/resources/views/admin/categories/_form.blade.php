@@ -17,9 +17,7 @@
 
 {{-- 全体エラー (CategoryConflictException) --}}
 @error('conflict')
-    <div class="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
-        {{ $message }}
-    </div>
+    <x-admin.alert variant="error">{{ $message }}</x-admin.alert>
 @enderror
 
 <form method="POST" action="{{ $action }}" class="space-y-5">
@@ -71,13 +69,9 @@
 
     {{-- 送信 --}}
     <div class="flex justify-end gap-2 pt-2">
-        <a href="{{ route('admin.categories.index') }}"
-           class="rounded border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50">
+        <x-admin.button as="a" href="{{ route('admin.categories.index') }}" variant="secondary">
             キャンセル
-        </a>
-        <button type="submit"
-                class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-            {{ $submitLabel }}
-        </button>
+        </x-admin.button>
+        <x-admin.button type="submit">{{ $submitLabel }}</x-admin.button>
     </div>
 </form>

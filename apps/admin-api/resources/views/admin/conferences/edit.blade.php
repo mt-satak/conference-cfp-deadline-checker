@@ -17,13 +17,13 @@
         </a>
     </div>
 
-    <div class="rounded-lg border border-gray-200 bg-white p-6">
+    <x-admin.card class="p-6">
         @include('admin.conferences._form', [
             'conference' => $conference,
             'action' => route('admin.conferences.update', $conference->conferenceId),
             'method' => 'PUT',
         ])
-    </div>
+    </x-admin.card>
 
     {{-- 削除セクション --}}
     <div class="mt-8 rounded-lg border border-red-200 bg-red-50 p-6">
@@ -36,10 +36,7 @@
               onsubmit="return confirm('「{{ $conference->name }}」を削除します。よろしいですか？');">
             @csrf
             @method('DELETE')
-            <button type="submit"
-                    class="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
-                削除する
-            </button>
+            <x-admin.button type="submit" variant="danger">削除する</x-admin.button>
         </form>
     </div>
 @endsection
