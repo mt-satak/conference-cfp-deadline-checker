@@ -142,12 +142,35 @@ export class AdminApi extends Construct {
     //     --description "GitHub App credentials for admin-api Lambda" \
     //     --secret-string '{"app_id":"...","installation_id":"...","private_key":"...(改行は \\n でエスケープ)"}'
     //
-    // 値の更新 (rotate 時):
-    //   aws secretsmanager update-secret \
-    //     --secret-id cfp/admin-api-github-app \
-    //     --secret-string '{...}'
+    // ── private_key rotate 手順 (Issue #177 #6) ──
     //
-    // 詳細手順は Issue #110 / PR で案内。
+    // 想定タイミング:
+    //  - private_key 流出が疑われる時 (= GitHub App 設定画面 / git history / logs に
+    //    誤コミット等)
+    //  - 定期 rotate (個人開発では年 1 回程度を目安)
+    //
+    // 手順:
+    //  1. https://github.com/settings/apps/<app名> の Private keys セクションで
+    //     "Generate a private key" を押下し、新しい .pem ファイルをダウンロード。
+    //     旧鍵はまだ削除しない (= rollback 用に残す)。
+    //  2. .pem の中身を JSON エスケープ可能な形に変換:
+    //       PEM=$(cat new-key.pem | awk 'BEGIN{ORS="\\n"} {print}')
+    //  3. Secrets Manager の値を更新 (app_id / installation_id は据え置き、
+    //     private_key のみ差し替え):
+    //       aws secretsmanager update-secret \
+    //         --secret-id cfp/admin-api-github-app \
+    //         --secret-string "{\"app_id\":\"...\",\"installation_id\":\"...\",\"private_key\":\"${PEM}\"}"
+    //  4. Lambda の env は次回 cold start で更新値を読むため、即時反映したいなら
+    //     Lambda コンソールから手動で latest version を publish するか deploy.yml を
+    //     workflow_dispatch で叩いて再 deploy。
+    //  5. admin UI のビルドボタン押下で動作確認 → BuildController が 200 を返す
+    //     ことを確認。失敗時は CloudWatch Logs で Lambda 側のエラーを確認し、必要なら
+    //     旧鍵に戻して原因調査 (= 5. でこけるなら 1. の旧鍵を Secrets Manager に
+    //     書き戻して rollback)。
+    //  6. 動作確認 OK なら GitHub App 設定画面で旧 .pem を Delete。
+    //
+    // 値の更新 (rotate 以外、例えば installation_id 変更時) も同じ update-secret
+    // コマンドを使う。secret 全体を再投入する形なので、変えない値は元の値を維持して渡す。
     const githubAppSecret = Secret.fromSecretNameV2(
       this,
       'GitHubAppSecret',
