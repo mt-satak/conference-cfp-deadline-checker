@@ -49,7 +49,7 @@ it('GET /api/public/conferences は 200 と data 配列 + meta.count を返す',
     $useCase
         ->shouldReceive('execute')
         ->once()
-        ->with(ConferenceStatus::Published, ConferenceSortKey::CfpEndDate, SortOrder::Asc)
+        ->with([ConferenceStatus::Published], ConferenceSortKey::CfpEndDate, SortOrder::Asc)
         ->andReturn($conferences);
     app()->instance(ListConferencesUseCase::class, $useCase);
 

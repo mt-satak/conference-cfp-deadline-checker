@@ -73,7 +73,7 @@ it('Repository が空配列を返した場合は空配列をそのまま返す',
     expect($result)->toBe([]);
 });
 
-it('status=Draft フィルタ指定で Published を除外する (Phase 0.5)', function () {
+it('statusFilters=[Draft] で Published を除外する (Phase 0.5)', function () {
     // Given: Draft 1 件 + Published 2 件
     $all = [
         listUseCaseSampleConference('id-1', 'Draft 1', ConferenceStatus::Draft),
@@ -85,14 +85,14 @@ it('status=Draft フィルタ指定で Published を除外する (Phase 0.5)', f
 
     // When: Draft フィルタで実行
     $useCase = new ListConferencesUseCase($repository);
-    $result = $useCase->execute(ConferenceStatus::Draft);
+    $result = $useCase->execute([ConferenceStatus::Draft]);
 
     // Then: Draft の 1 件のみ返る
     expect($result)->toHaveCount(1);
     expect($result[0]->name)->toBe('Draft 1');
 });
 
-it('status=Published フィルタ指定で Draft を除外する', function () {
+it('statusFilters=[Published] で Draft を除外する', function () {
     // Given: Draft 1 件 + Published 2 件
     $all = [
         listUseCaseSampleConference('id-1', 'Draft 1', ConferenceStatus::Draft),
@@ -104,12 +104,71 @@ it('status=Published フィルタ指定で Draft を除外する', function () {
 
     // When
     $useCase = new ListConferencesUseCase($repository);
-    $result = $useCase->execute(ConferenceStatus::Published);
+    $result = $useCase->execute([ConferenceStatus::Published]);
 
     // Then: Published 2 件 (添字は 0,1 にリインデックスされる)
     expect($result)->toHaveCount(2);
     expect($result[0]->name)->toBe('Published A');
     expect($result[1]->name)->toBe('Published B');
+});
+
+it('statusFilters=[Draft, Published] で Archived のみを除外する (= Active タブの挙動、Issue #165)', function () {
+    // Given: Draft / Published / Archived 各 1 件 (= 3 ステータス全部混在)
+    $all = [
+        listUseCaseSampleConference('id-1', 'Draft 1', ConferenceStatus::Draft),
+        listUseCaseSampleConference('id-2', 'Published A', ConferenceStatus::Published),
+        listUseCaseSampleConference('id-3', 'Archived past', ConferenceStatus::Archived),
+    ];
+    $repository = Mockery::mock(ConferenceRepository::class);
+    $repository->shouldReceive('findAll')->once()->andReturn($all);
+
+    // When: Active 相当 (Draft + Published) で絞る
+    $useCase = new ListConferencesUseCase($repository);
+    $result = $useCase->execute([ConferenceStatus::Draft, ConferenceStatus::Published]);
+
+    // Then: Archived だけ除外される
+    expect($result)->toHaveCount(2);
+    $names = array_map(fn ($c) => $c->name, $result);
+    expect($names)->toContain('Draft 1');
+    expect($names)->toContain('Published A');
+    expect($names)->not->toContain('Archived past');
+});
+
+it('statusFilters=[Archived] で Archived のみ返る (Issue #165)', function () {
+    // Given
+    $all = [
+        listUseCaseSampleConference('id-1', 'Draft 1', ConferenceStatus::Draft),
+        listUseCaseSampleConference('id-2', 'Published A', ConferenceStatus::Published),
+        listUseCaseSampleConference('id-3', 'Archived past', ConferenceStatus::Archived),
+    ];
+    $repository = Mockery::mock(ConferenceRepository::class);
+    $repository->shouldReceive('findAll')->once()->andReturn($all);
+
+    // When
+    $useCase = new ListConferencesUseCase($repository);
+    $result = $useCase->execute([ConferenceStatus::Archived]);
+
+    // Then: Archived のみ
+    expect($result)->toHaveCount(1);
+    expect($result[0]->name)->toBe('Archived past');
+});
+
+it('statusFilters=null は filter 無し (= Archived も含めて全件返す、Issue #165)', function () {
+    // Given
+    $all = [
+        listUseCaseSampleConference('id-1', 'Draft 1', ConferenceStatus::Draft),
+        listUseCaseSampleConference('id-2', 'Published A', ConferenceStatus::Published),
+        listUseCaseSampleConference('id-3', 'Archived past', ConferenceStatus::Archived),
+    ];
+    $repository = Mockery::mock(ConferenceRepository::class);
+    $repository->shouldReceive('findAll')->once()->andReturn($all);
+
+    // When: filter なしで全件取得
+    $useCase = new ListConferencesUseCase($repository);
+    $result = $useCase->execute(null);
+
+    // Then: 3 件全部返る
+    expect($result)->toHaveCount(3);
 });
 
 it('既定で cfpEndDate 昇順にソートされる (Phase A)', function () {
@@ -355,7 +414,7 @@ it('status フィルタとソートは併用可能', function () {
 
     // When: Published フィルタ + cfpEndDate 昇順
     $useCase = new ListConferencesUseCase($repository);
-    $result = $useCase->execute(ConferenceStatus::Published);
+    $result = $useCase->execute([ConferenceStatus::Published]);
 
     // Then: Published 2 件のみが昇順
     expect($result)->toHaveCount(2);

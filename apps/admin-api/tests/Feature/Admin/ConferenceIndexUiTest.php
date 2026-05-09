@@ -105,12 +105,12 @@ it('Published / Draft の status バッジが行ごとに表示される (Phase 
     $response->assertSee('下書き', false);
 });
 
-it('?status=draft で UseCase に Draft フィルタが渡る', function () {
+it('?status=draft で UseCase に [Draft] フィルタが渡る', function () {
     // Given
     $useCase = Mockery::mock(ListConferencesUseCase::class);
     $useCase->shouldReceive('execute')
         ->once()
-        ->with(ConferenceStatus::Draft, null, SortOrder::Asc)
+        ->with([ConferenceStatus::Draft], null, SortOrder::Asc)
         ->andReturn([]);
     app()->instance(ListConferencesUseCase::class, $useCase);
 
@@ -121,12 +121,12 @@ it('?status=draft で UseCase に Draft フィルタが渡る', function () {
     $response->assertStatus(200);
 });
 
-it('?status=published で UseCase に Published フィルタが渡る', function () {
+it('?status=published で UseCase に [Published] フィルタが渡る', function () {
     // Given
     $useCase = Mockery::mock(ListConferencesUseCase::class);
     $useCase->shouldReceive('execute')
         ->once()
-        ->with(ConferenceStatus::Published, null, SortOrder::Asc)
+        ->with([ConferenceStatus::Published], null, SortOrder::Asc)
         ->andReturn([]);
     app()->instance(ListConferencesUseCase::class, $useCase);
 
@@ -137,12 +137,46 @@ it('?status=published で UseCase に Published フィルタが渡る', function
     $response->assertStatus(200);
 });
 
-it('?status 未指定はフィルタなしで UseCase が呼ばれる', function () {
+it('?status=archived で UseCase に [Archived] フィルタが渡る (Issue #165)', function () {
     // Given
     $useCase = Mockery::mock(ListConferencesUseCase::class);
     $useCase->shouldReceive('execute')
         ->once()
-        ->with(null, null, SortOrder::Asc)
+        ->with([ConferenceStatus::Archived], null, SortOrder::Asc)
+        ->andReturn([]);
+    app()->instance(ListConferencesUseCase::class, $useCase);
+
+    // When
+    $response = $this->get('/admin/conferences?status=archived');
+
+    // Then
+    $response->assertStatus(200);
+});
+
+it('?status=active (= デフォルト) で UseCase に [Draft, Published] が渡る (Issue #165)', function () {
+    // Given: Active タブは「Draft + Published」を意味する仮想 status 値。
+    // Archived を一覧から自動的にノイズとして消すための仕掛け。
+    $useCase = Mockery::mock(ListConferencesUseCase::class);
+    $useCase->shouldReceive('execute')
+        ->once()
+        ->with([ConferenceStatus::Draft, ConferenceStatus::Published], null, SortOrder::Asc)
+        ->andReturn([]);
+    app()->instance(ListConferencesUseCase::class, $useCase);
+
+    // When
+    $response = $this->get('/admin/conferences?status=active');
+
+    // Then
+    $response->assertStatus(200);
+});
+
+it('?status 未指定は active タブ相当の挙動になる (Issue #165 デフォルト挙動)', function () {
+    // Given: 一覧画面に直接アクセスしたら Archived は出ないようにする。
+    // = ?status=active と同等のフィルタ ([Draft, Published]) を UseCase に渡す。
+    $useCase = Mockery::mock(ListConferencesUseCase::class);
+    $useCase->shouldReceive('execute')
+        ->once()
+        ->with([ConferenceStatus::Draft, ConferenceStatus::Published], null, SortOrder::Asc)
         ->andReturn([]);
     app()->instance(ListConferencesUseCase::class, $useCase);
 
@@ -151,6 +185,21 @@ it('?status 未指定はフィルタなしで UseCase が呼ばれる', function
 
     // Then
     $response->assertStatus(200);
+});
+
+it('admin タブに「アーカイブ」が含まれる (Issue #165)', function () {
+    // Given: タブ表示確認のためテスト用にエラーなく描画されるよう mock
+    $useCase = Mockery::mock(ListConferencesUseCase::class);
+    $useCase->shouldReceive('execute')->andReturn([]);
+    app()->instance(ListConferencesUseCase::class, $useCase);
+
+    // When
+    $response = $this->get('/admin/conferences');
+
+    // Then: タブのラベルに「アーカイブ」が含まれる + リンク先が ?status=archived
+    $response->assertStatus(200);
+    $response->assertSee('アーカイブ', false);
+    $response->assertSee('?status=archived', false);
 });
 
 it('Draft 行には「公開する」ショートカットボタンが表示される', function () {
@@ -185,11 +234,12 @@ it('Published 行には「公開する」ボタンは出ない', function () {
 });
 
 it('?sort=name&order=desc で UseCase に sortKey + Desc が渡る (Issue #47 Phase A)', function () {
-    // Given
+    // Given: ?status 未指定なので Issue #165 のデフォルト (= active) で
+    // [Draft, Published] が statusFilters に渡る
     $useCase = Mockery::mock(ListConferencesUseCase::class);
     $useCase->shouldReceive('execute')
         ->once()
-        ->with(null, ConferenceSortKey::Name, SortOrder::Desc)
+        ->with([ConferenceStatus::Draft, ConferenceStatus::Published], ConferenceSortKey::Name, SortOrder::Desc)
         ->andReturn([]);
     app()->instance(ListConferencesUseCase::class, $useCase);
 

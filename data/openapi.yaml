@@ -98,17 +98,22 @@ paths:
           in: query
           required: false
           description: |
-            ライフサイクル状態でフィルタ (Phase 0.5 / Issue #41):
+            ライフサイクル状態でフィルタ (Phase 0.5 / Issue #41 / Issue #165 で archived/active 追加):
             - published: 公開中。公開フロントエンドにも露出する確定状態
             - draft: 下書き。仮登録 (CfP 期間未確定や LLM 抽出結果のレビュー待ち) で、
               公開フロントエンドには露出しない
-            未指定時は両方を返す。未知値は無視して両方を返す (fail-soft)。
+            - archived: 過去アーカイブ。日次 Lambda が `eventEndDate < today` を満たす
+              published を自動的にこの状態へ遷移させる (= Admin UI のノイズ削減)
+            - active: 仮想 status。draft + published の OR 結合フィルタを意味する
+              (= archived を除外して「いま動いている」ものだけを取得)
+            未指定時は全件返す (= API consumer は明示しない限り全データを期待)。
+            未知値も全件返す (fail-soft)。
 
-            cfpStartDate / cfpEndDate ベースの「応募受付中」フィルタは別途実装予定
-            (本コミット時点では未実装)。
+            注意: Admin UI (/admin/conferences) の default は "active" 扱いだが、
+            API のデフォルトはフィルタ無し (= 全件) で異なる。
           schema:
             type: string
-            enum: [draft, published]
+            enum: [draft, published, archived, active]
         - name: sort
           in: query
           required: false
@@ -776,11 +781,14 @@ components:
             Draft では空配列可。
         status:
           type: string
-          enum: [draft, published]
+          enum: [draft, published, archived]
           description: |
-            ライフサイクル状態 (Phase 0.5 / Issue #41 導入)。
+            ライフサイクル状態 (Phase 0.5 / Issue #41 導入、Issue #165 で archived 追加)。
             - draft: 仮登録、公開フロントエンドには露出しない
-            - published: 公開中
+            - published: 公開中、公開フロントエンドにも露出
+            - archived: 過去アーカイブ。`eventEndDate < today` を満たす published を
+              日次 Lambda が自動的にこの状態に遷移させる (= ソフト削除、誤判定時に復元可能)。
+              admin UI のデフォルトタブからは除外され「アーカイブ」タブで閲覧可能。
         description:
           type: string
           nullable: true

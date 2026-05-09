@@ -30,8 +30,11 @@ class ConferenceController extends BaseController
      */
     public function index(ListConferencesUseCase $useCase): JsonResponse
     {
+        // 公開フロント (cfp-checker.dev) には Published のみ返す。
+        // Issue #165 で Archived を追加したが、過去カンファ (= Archived) も Draft も
+        // 公開対象外。配列に Published 単独を渡すことで明示する。
         $conferences = $useCase->execute(
-            ConferenceStatus::Published,
+            [ConferenceStatus::Published],
             ConferenceSortKey::CfpEndDate,
             SortOrder::Asc,
         );

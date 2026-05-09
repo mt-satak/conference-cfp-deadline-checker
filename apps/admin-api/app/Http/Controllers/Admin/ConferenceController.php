@@ -47,15 +47,18 @@ class ConferenceController extends Controller
      * GET /admin/conferences — 一覧画面。
      *
      * クエリパラメータ:
-     * - ?status=draft|published: status バッジによるフィルタ (Phase 0.5 / Issue #41)
+     * - ?status=draft|published|archived|active: status フィルタ (Issue #165 で archived/active 追加)
+     *   - draft / published / archived: 各 status 単独
+     *   - active (= デフォルト): Draft + Published (Archived 除外、運用ノイズ削減)
+     *   - 未指定 / 不正値: active と同じ挙動
      * - ?sort=cfpEndDate|eventStartDate|cfpStartDate|name|createdAt: ソートキー (Issue #47 Phase A)
      * - ?order=asc|desc: 並び順 (Issue #47 Phase A)
-     * 未知値は無視して既定挙動 (= API Controller と同じ fail-soft)。
      */
     public function index(Request $request, ListConferencesUseCase $useCase): View
     {
         $statusParam = $request->query('status');
-        $statusFilter = is_string($statusParam) ? ConferenceStatus::tryFrom($statusParam) : null;
+        $effectiveStatus = is_string($statusParam) ? $statusParam : 'active';
+        $statusFilters = self::resolveStatusFilters($effectiveStatus);
 
         $sortParam = $request->query('sort');
         $sortKey = is_string($sortParam) ? ConferenceSortKey::tryFrom($sortParam) : null;
@@ -65,16 +68,48 @@ class ConferenceController extends Controller
             ? (SortOrder::tryFrom($orderParam) ?? SortOrder::Asc)
             : SortOrder::Asc;
 
-        $conferences = $useCase->execute($statusFilter, $sortKey, $order);
+        $conferences = $useCase->execute($statusFilters, $sortKey, $order);
 
         return view('admin.conferences.index', [
             'conferences' => $conferences,
-            // Blade 側でフィルタタブのアクティブ判定に使う (string 値)
-            'statusFilter' => $statusFilter?->value,
+            // Blade 側でフィルタタブのアクティブ判定に使う (string 値)。
+            // 未指定 = active 扱い (= Issue #165 で Archived を default で隠す方針)。
+            'statusFilter' => self::canonicalizeStatusParam($effectiveStatus),
             // Blade 側で列ヘッダの「現在のソート」表示と次にクリックした時の order 反転に使う
             'sortKey' => ($sortKey ?? ConferenceSortKey::CfpEndDate)->value,
             'sortOrder' => $order->value,
         ]);
+    }
+
+    /**
+     * URL の ?status 文字列を ListConferencesUseCase に渡す配列に解決する。
+     *
+     * "active" は仮想 status として「Draft + Published」を意味する (Issue #165)。
+     * 未知値は active と同じ扱いにして fail-soft (= ノイズが見えないことを優先)。
+     *
+     * @return ConferenceStatus[]
+     */
+    private static function resolveStatusFilters(string $statusParam): array
+    {
+        return match ($statusParam) {
+            'draft' => [ConferenceStatus::Draft],
+            'published' => [ConferenceStatus::Published],
+            'archived' => [ConferenceStatus::Archived],
+            // 'active' / 未指定 / 不正値: Active 扱いで Archived 除外
+            default => [ConferenceStatus::Draft, ConferenceStatus::Published],
+        };
+    }
+
+    /**
+     * Blade のタブハイライト判定用に ?status の値を正規化する。
+     * 未知値や未指定は 'active' に丸める (= UseCase 側の挙動と一致させる)。
+     */
+    private static function canonicalizeStatusParam(string $statusParam): string
+    {
+        return match ($statusParam) {
+            'draft', 'published', 'archived' => $statusParam,
+            default => 'active',
+        };
     }
 
     /**

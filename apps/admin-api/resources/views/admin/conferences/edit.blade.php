@@ -8,6 +8,8 @@
             カンファレンス編集
             @if ($conference->status === \App\Domain\Conferences\ConferenceStatus::Draft)
                 <span class="ml-2 rounded bg-gray-200 px-2 py-0.5 text-sm font-medium text-gray-800">下書き</span>
+            @elseif ($conference->status === \App\Domain\Conferences\ConferenceStatus::Archived)
+                <span class="ml-2 rounded bg-gray-300 px-2 py-0.5 text-sm font-medium text-gray-700">アーカイブ</span>
             @else
                 <span class="ml-2 rounded bg-green-100 px-2 py-0.5 text-sm font-medium text-green-800">公開中</span>
             @endif
