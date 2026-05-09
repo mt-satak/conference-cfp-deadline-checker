@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -16,17 +17,21 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * 不一致 / 未指定 = Function URL 直アクセスとみなして 403。
  *
- * 注意:
- * - secret は CDK 経由で Lambda 環境変数として渡される。Lambda 環境変数なので
- *   config:cache で固定化されても問題なし (rotate しない静的値)。
- * - config('cloudfront.origin_secret') が null/空の場合は **無効化** され next を呼ぶ。
- *   ローカル開発で env を入れない場合に admin UI を起動できるようにするため。
- *   本番では必ず env を設定すること (CDK で自動的に設定される)。
+ * secret 未設定時の挙動 (Issue #177 #1 で fail-closed 化):
+ * - APP_ENV=local / testing: 無効化 (= ローカル開発 + テストの利便性維持)
+ * - APP_ENV=production: 例外 throw して 500 で停止 (= CDK 配線ミス / config:cache stale 等の
+ *   事故時に Function URL を素通しさせない)
  */
 class CloudFrontSecretMiddleware
 {
     /** CloudFront Custom Origin Header の名前 */
     private const HEADER_NAME = 'X-CloudFront-Secret';
+
+    /**
+     * 本番判定で使う APP_ENV 値以外を「開発系環境」として bypass する。
+     * Laravel の慣習に従い production / staging を本番扱いとする。
+     */
+    private const PROD_LIKE_ENVS = ['production', 'staging'];
 
     /**
      * @param  Closure(Request): Response  $next
@@ -35,7 +40,16 @@ class CloudFrontSecretMiddleware
     {
         $expected = config('cloudfront.origin_secret');
         if (! is_string($expected) || $expected === '') {
-            // ローカル開発時 (config 未設定) は無効化
+            $env = config('app.env');
+            if (is_string($env) && in_array($env, self::PROD_LIKE_ENVS, true)) {
+                // 本番系で secret が無いのは設定事故。silent disable せず明示的に止める。
+                throw new RuntimeException(
+                    'CLOUDFRONT_ORIGIN_SECRET is required in production but is not configured. '
+                    .'Check Lambda env wiring (CDK admin-api.ts) and config cache.',
+                );
+            }
+
+            // ローカル / テスト環境では無効化 (= Issue #77 当初の挙動)
             return $next($request);
         }
 
