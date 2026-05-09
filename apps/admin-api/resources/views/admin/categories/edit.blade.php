@@ -27,7 +27,7 @@
         </p>
         <form method="POST" action="{{ route('admin.categories.destroy', $category->categoryId) }}"
               class="mt-3"
-              onsubmit="return confirm('「{{ $category->name }}」を削除します。よろしいですか？');">
+              data-confirm-message="「{{ $category->name }}」を削除します。よろしいですか？">
             @csrf
             @method('DELETE')
             <x-admin.button type="submit" variant="danger">削除する</x-admin.button>

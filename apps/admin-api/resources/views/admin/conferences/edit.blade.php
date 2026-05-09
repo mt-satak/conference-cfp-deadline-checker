@@ -35,7 +35,7 @@
         </p>
         <form method="POST" action="{{ route('admin.conferences.destroy', $conference->conferenceId) }}"
               class="mt-3"
-              onsubmit="return confirm('「{{ $conference->name }}」を削除します。よろしいですか？');">
+              data-confirm-message="「{{ $conference->name }}」を削除します。よろしいですか？">
             @csrf
             @method('DELETE')
             <x-admin.button type="submit" variant="danger">削除する</x-admin.button>
