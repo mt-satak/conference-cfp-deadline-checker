@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api\Public;
 
 use App\Application\Categories\ListCategoriesUseCase;
 use App\Http\Controllers\Api\BaseController;
-use App\Http\Presenters\CategoryPresenter;
+use App\Http\Presenters\PublicCategoryPresenter;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -14,7 +14,7 @@ use Illuminate\Http\JsonResponse;
  * ソースとして提供する。
  *
  * - 認証なし、CloudFrontSecretMiddleware で直アクセス防御
- * - 既存 ListCategoriesUseCase + CategoryPresenter を再利用
+ * - ListCategoriesUseCase は admin と共有、出力 projection だけ PublicCategoryPresenter に分離 (Issue #178 #4)
  * - displayOrder 昇順 (= UseCase のデフォルト)
  */
 class CategoryController extends BaseController
@@ -24,7 +24,7 @@ class CategoryController extends BaseController
      */
     public function index(ListCategoriesUseCase $useCase): JsonResponse
     {
-        $data = CategoryPresenter::toList($useCase->execute());
+        $data = PublicCategoryPresenter::toList($useCase->execute());
 
         return $this->ok($data, ['count' => count($data)]);
     }
