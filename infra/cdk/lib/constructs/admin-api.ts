@@ -415,9 +415,10 @@ export class AdminApi extends Construct {
       description: 'Auto-crawl scheduled task for Conference CfP Deadline Checker (Issue #152 Phase 1)',
     });
 
-    // DynamoDB 権限: Phase 1a は観測のみで副作用なしのため read 権限だけで十分。
-    // Phase 1b で Draft 作成を入れたら grantReadWriteData に切り替える。
-    props.conferences.grantReadData(this.autoCrawlFunction);
+    // DynamoDB 権限: Phase 1b で差分検知時に Draft Conference を新規作成するため
+    // conferences は read+write 必要。categories は LLM 解決保留 (Phase 2 で対応)
+    // のため read のみで十分。
+    props.conferences.grantReadWriteData(this.autoCrawlFunction);
     props.categories.grantReadData(this.autoCrawlFunction);
 
     // Bedrock 権限 (= 既存の admin-api function と同じ Sonnet 4.6 限定)
