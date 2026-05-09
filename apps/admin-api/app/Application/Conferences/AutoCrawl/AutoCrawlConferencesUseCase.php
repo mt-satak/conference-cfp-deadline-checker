@@ -96,7 +96,19 @@ class AutoCrawlConferencesUseCase
             $diffs = $this->detectDiff($conference, $draft);
             if (! empty($diffs)) {
                 $diffDetected++;
-                $newDraft = $this->buildDraftFromDiff($conference, $draft, $diffs);
+
+                // Issue #169: 同 URL の Draft が既にあれば上書き、無ければ新規 UUID。
+                // これにより毎週 AutoCrawl が走っても Draft が重複累積しない。
+                $existingDraft = $this->conferenceRepository->findDraftByOfficialUrl(
+                    $conference->officialUrl,
+                );
+
+                $newDraft = $this->buildDraftFromDiff(
+                    $conference,
+                    $draft,
+                    $diffs,
+                    $existingDraft,
+                );
                 $this->conferenceRepository->save($newDraft);
                 $createdDraftIds[] = $newDraft->conferenceId;
 
@@ -107,6 +119,7 @@ class AutoCrawlConferencesUseCase
                     'official_url' => $conference->officialUrl,
                     'diff_fields' => array_keys($diffs),
                     'diffs' => $diffs,
+                    'reused_existing_draft' => $existingDraft !== null,
                 ]);
             }
         }
@@ -160,7 +173,11 @@ class AutoCrawlConferencesUseCase
 
     /**
      * 既存 Conference をベースに、差分のあった非 null 新値で merge した Draft Conference
-     * を生成する。conferenceId は新規 UUID。status=Draft なので公開フロントには出ない。
+     * を生成する。status=Draft なので公開フロントには出ない。
+     *
+     * Issue #169: 同 URL の Draft が既に存在 ($existingDraft != null) する場合は、
+     * その conferenceId と createdAt を維持して上書きする (= 重複累積を防止)。
+     * 存在しない場合は新規 UUID + 現在時刻で生成 (= 既存挙動)。
      *
      * @param  array<string, array{old: mixed, new: mixed}>  $diffs
      */
@@ -168,11 +185,20 @@ class AutoCrawlConferencesUseCase
         Conference $existing,
         ConferenceDraft $draft,
         array $diffs,
+        ?Conference $existingDraft,
     ): Conference {
         $now = Carbon::now('Asia/Tokyo')->toIso8601String();
 
+        // 既存 Draft があればその ID + createdAt を引き継ぐ (= 「いつ初めて検知したか」を保持)
+        $conferenceId = $existingDraft !== null
+            ? $existingDraft->conferenceId
+            : (string) Str::uuid();
+        $createdAt = $existingDraft !== null
+            ? $existingDraft->createdAt
+            : $now;
+
         return new Conference(
-            conferenceId: (string) Str::uuid(),
+            conferenceId: $conferenceId,
             // name / officialUrl は不変 (= 同一 conference の更新候補であることを示す)
             name: $existing->name,
             trackName: $existing->trackName,
@@ -189,7 +215,7 @@ class AutoCrawlConferencesUseCase
             categories: $existing->categories,
             description: $existing->description,
             themeColor: $existing->themeColor,
-            createdAt: $now,
+            createdAt: $createdAt,
             updatedAt: $now,
             status: ConferenceStatus::Draft,
         );

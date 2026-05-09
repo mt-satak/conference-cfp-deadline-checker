@@ -42,6 +42,18 @@ interface ConferenceRepository
     public function findByOfficialUrl(string $officialUrl): ?Conference;
 
     /**
+     * status=Draft の中から officialUrl 一致の Conference を 1 件取得する (Issue #169)。
+     *
+     * findByOfficialUrl との違い:
+     * - status=Draft のみが検索対象 (Published / Archived は無視)
+     * - 同 URL の Draft が複数あれば最新 createdAt を返す (= 重複時は最新優先)
+     *
+     * 用途: AutoCrawl が差分検知時に「既に同じ URL の Draft がないか」を確認し、
+     * あれば新規 UUID で作らずに既存 Draft を上書きするため。
+     */
+    public function findDraftByOfficialUrl(string $officialUrl): ?Conference;
+
+    /**
      * カンファレンスを保存する。conferenceId の有無で新規 / 更新を区別せず、
      * 同 ID があれば上書き、なければ新規作成 (upsert)。
      */
