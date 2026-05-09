@@ -35,25 +35,50 @@ const BASE_CLASS =
     'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-semibold min-h-[60px] min-w-[120px]';
 
 /**
- * CfP 締切日と基準日の UTC 日付差を整数日数で返す (dates.ts と同等)。
- * @param {string} deadline YYYY-MM-DD
+ * CfP 締切日と基準日の JST 日付差を整数日数で返す (dates.ts と同等、Issue #174)。
+ * 旧版は UTC ベースで計算していたため JST 0:00-08:59 で 1 日ズレていた問題を修正。
+ * @param {string} deadline YYYY-MM-DD (JST のカレンダー日付として解釈)
  * @param {Date} today
  * @returns {number}
  */
 function daysUntilDeadline(deadline, today) {
-    const deadlineDate = new Date(deadline);
-    const deadlineUtc = Date.UTC(
-        deadlineDate.getUTCFullYear(),
-        deadlineDate.getUTCMonth(),
-        deadlineDate.getUTCDate(),
-    );
+    const [dy, dm, dd] = deadline.split('-').map(Number);
+    const deadlineUtc = Date.UTC(dy, dm - 1, dd);
+
+    const todayJst = jstDateComponents(today);
     const todayUtc = Date.UTC(
-        today.getUTCFullYear(),
-        today.getUTCMonth(),
-        today.getUTCDate(),
+        todayJst.year,
+        todayJst.month - 1,
+        todayJst.day,
     );
+
     const msPerDay = 24 * 60 * 60 * 1000;
     return Math.round((deadlineUtc - todayUtc) / msPerDay);
+}
+
+/**
+ * Date オブジェクトを JST タイムゾーンの year/month/day に分解する (Issue #174)。
+ * Intl.DateTimeFormat 経由で runtime の system timezone に依存せず JST 日付を返す。
+ * @param {Date} date
+ * @returns {{year: number, month: number, day: number}}
+ */
+function jstDateComponents(date) {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Tokyo',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    });
+    const parts = formatter.formatToParts(date);
+    const lookup = (type) => {
+        const part = parts.find((p) => p.type === type);
+        return Number(part ? part.value : '0');
+    };
+    return {
+        year: lookup('year'),
+        month: lookup('month'),
+        day: lookup('day'),
+    };
 }
 
 /**
