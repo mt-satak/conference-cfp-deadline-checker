@@ -92,6 +92,10 @@ class BedrockConferenceDraftExtractor implements ConferenceDraftExtractor
      * Bref が stderr を CloudWatch に転送するため、Lambda 環境では自動的に
      * CloudWatch Logs に流れて精度評価のフィードバックループ素材になる。
      *
+     * Issue #177 #4: source_url ではなく source_host のみログに残す。
+     * admin が悪意ある URL (例: 内部 IP / SSRF probing path) を入れた場合の path / query を
+     * CloudWatch に残さないため。host は publicly reachable なドメイン名で識別性を担保。
+     *
      * @param  array<string, mixed>  $response
      */
     private function logSuccess(string $sourceUrl, float $startedAt, array $response): void
@@ -100,7 +104,7 @@ class BedrockConferenceDraftExtractor implements ConferenceDraftExtractor
 
         Log::info('conference draft extraction succeeded', [
             'channel' => 'llm.extraction',
-            'source_url' => $sourceUrl,
+            'source_host' => self::extractHost($sourceUrl),
             'provider' => 'bedrock',
             'model_id' => $this->modelId,
             'elapsed_ms' => $this->elapsedMs($startedAt),
@@ -114,13 +118,25 @@ class BedrockConferenceDraftExtractor implements ConferenceDraftExtractor
     {
         Log::warning('conference draft extraction failed', [
             'channel' => 'llm.extraction',
-            'source_url' => $sourceUrl,
+            'source_host' => self::extractHost($sourceUrl),
             'provider' => 'bedrock',
             'model_id' => $this->modelId,
             'elapsed_ms' => $this->elapsedMs($startedAt),
             'exception_type' => $e::class,
             'exception_message' => $e->getMessage(),
         ]);
+    }
+
+    /**
+     * URL から host だけ取り出す (Issue #177 #4)。
+     * parse_url で host が取れない (= scheme/host が無い不正 URL) 場合は null を返す。
+     * 元の URL 文字列はログに乗せない。
+     */
+    private static function extractHost(string $url): ?string
+    {
+        $host = parse_url($url, PHP_URL_HOST);
+
+        return is_string($host) ? $host : null;
     }
 
     private function elapsedMs(float $startedAt): int
