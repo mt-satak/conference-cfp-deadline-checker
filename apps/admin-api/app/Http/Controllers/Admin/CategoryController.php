@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Application\Categories\CreateCategoryInput;
 use App\Application\Categories\CreateCategoryUseCase;
 use App\Application\Categories\DeleteCategoryUseCase;
 use App\Application\Categories\GetCategoryUseCase;
@@ -11,6 +10,7 @@ use App\Application\Categories\UpdateCategoryUseCase;
 use App\Domain\Categories\CategoryAxis;
 use App\Domain\Categories\CategoryConflictException;
 use App\Domain\Categories\CategoryNotFoundException;
+use App\Http\Controllers\Categories\CategoryInputResolver;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Categories\StoreCategoryRequest;
 use App\Http\Requests\Categories\UpdateCategoryRequest;
@@ -54,17 +54,10 @@ class CategoryController extends Controller
      */
     public function store(StoreCategoryRequest $request, CreateCategoryUseCase $useCase): RedirectResponse
     {
-        $v = $request->validated();
-
-        $axis = isset($v['axis']) ? CategoryAxis::from($v['axis']) : null;
+        $input = CategoryInputResolver::buildCreateInput($request->validated());
 
         try {
-            $category = $useCase->execute(new CreateCategoryInput(
-                name: $v['name'],
-                slug: $v['slug'],
-                displayOrder: $v['displayOrder'],
-                axis: $axis,
-            ));
+            $category = $useCase->execute($input);
         } catch (CategoryConflictException $e) {
             // name / slug の重複は form に戻して表示
             return redirect()
@@ -103,22 +96,7 @@ class CategoryController extends Controller
         UpdateCategoryRequest $request,
         UpdateCategoryUseCase $useCase,
     ): RedirectResponse {
-        $validated = $request->validated();
-
-        // axis 変換: API 側 (Api\CategoryController) と同じパターン。
-        // FormRequest の shape は axis?: string で来るので、enum 変換後に
-        // typed 配列を新規構築する。
-        /** @var array{
-         *     name?: string,
-         *     slug?: string,
-         *     displayOrder?: int,
-         *     axis?: CategoryAxis,
-         * } $fields
-         */
-        $fields = $validated;
-        if (isset($validated['axis'])) {
-            $fields['axis'] = CategoryAxis::from($validated['axis']);
-        }
+        $fields = CategoryInputResolver::castUpdateFields($request->validated());
 
         try {
             $category = $useCase->execute($id, $fields);

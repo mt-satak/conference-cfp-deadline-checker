@@ -2,14 +2,13 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Application\Categories\CreateCategoryInput;
 use App\Application\Categories\CreateCategoryUseCase;
 use App\Application\Categories\DeleteCategoryUseCase;
 use App\Application\Categories\GetCategoryUseCase;
 use App\Application\Categories\ListCategoriesUseCase;
 use App\Application\Categories\UpdateCategoryUseCase;
 use App\Domain\Categories\Category;
-use App\Domain\Categories\CategoryAxis;
+use App\Http\Controllers\Categories\CategoryInputResolver;
 use App\Http\Presenters\CategoryPresenter;
 use App\Http\Requests\Categories\StoreCategoryRequest;
 use App\Http\Requests\Categories\UpdateCategoryRequest;
@@ -65,19 +64,7 @@ class CategoryController extends BaseController
      */
     public function store(StoreCategoryRequest $request, CreateCategoryUseCase $useCase): JsonResponse
     {
-        $validated = $request->validated();
-
-        // isset は key 存在 AND 値 !== null。FormRequest::validated() の shape で
-        // axis は string|null なので、isset が true なら値は string。
-        $axis = isset($validated['axis']) ? CategoryAxis::from($validated['axis']) : null;
-
-        $input = new CreateCategoryInput(
-            name: $validated['name'],
-            slug: $validated['slug'],
-            displayOrder: $validated['displayOrder'],
-            axis: $axis,
-        );
-
+        $input = CategoryInputResolver::buildCreateInput($request->validated());
         $category = $useCase->execute($input);
 
         return $this->created(CategoryPresenter::toArray($category));
@@ -91,23 +78,7 @@ class CategoryController extends BaseController
      */
     public function update(string $id, UpdateCategoryRequest $request, UpdateCategoryUseCase $useCase): JsonResponse
     {
-        $validated = $request->validated();
-
-        // axis 変換: 元の $validated の shape は axis?: string で来る (Laravel
-        // FormRequest が null を validated() から除外する挙動 + Rule::in が string
-        // 以外を弾くため)。enum 変換後は array shape が string|enum union になるので
-        // UseCase に渡す配列を新規 PHPDoc で型固定する。
-        /** @var array{
-         *     name?: string,
-         *     slug?: string,
-         *     displayOrder?: int,
-         *     axis?: CategoryAxis,
-         * } $fields
-         */
-        $fields = $validated;
-        if (isset($validated['axis'])) {
-            $fields['axis'] = CategoryAxis::from($validated['axis']);
-        }
+        $fields = CategoryInputResolver::castUpdateFields($request->validated());
 
         $category = $useCase->execute($id, $fields);
 
