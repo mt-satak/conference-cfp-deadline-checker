@@ -7,7 +7,6 @@ use App\Application\Conferences\DeleteConferenceUseCase;
 use App\Application\Conferences\GetConferenceUseCase;
 use App\Application\Conferences\ListConferencesUseCase;
 use App\Application\Conferences\UpdateConferenceUseCase;
-use App\Domain\Conferences\Conference;
 use App\Domain\Conferences\ConferenceSortKey;
 use App\Domain\Conferences\SortOrder;
 use App\Http\Controllers\Conferences\ConferenceInputResolver;
@@ -60,12 +59,7 @@ class ConferenceController extends BaseController
             ? (SortOrder::tryFrom($orderParam) ?? SortOrder::Asc)
             : SortOrder::Asc;
 
-        $conferences = $useCase->execute($statusFilters, $sortKey, $order);
-
-        $data = array_map(
-            static fn (Conference $c): array => ConferencePresenter::toArray($c),
-            $conferences,
-        );
+        $data = ConferencePresenter::toList($useCase->execute($statusFilters, $sortKey, $order));
 
         return $this->ok($data, ['count' => count($data)]);
     }

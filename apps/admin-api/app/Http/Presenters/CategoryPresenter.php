@@ -40,4 +40,18 @@ class CategoryPresenter
 
         return $payload;
     }
+
+    /**
+     * Category[] を toArray した配列のリストに一括変換する (Issue #178 #3)。
+     *
+     * @param  Category[]  $categories
+     * @return list<array<string, mixed>>
+     */
+    public static function toList(array $categories): array
+    {
+        return array_values(array_map(
+            static fn (Category $c): array => self::toArray($c),
+            $categories,
+        ));
+    }
 }

@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Application\Build\ListBuildStatusesUseCase;
 use App\Application\Build\TriggerBuildUseCase;
-use App\Domain\Build\BuildStatus;
 use App\Http\Presenters\BuildStatusPresenter;
 use Illuminate\Http\JsonResponse;
 
@@ -50,11 +49,7 @@ class BuildController extends BaseController
     public function status(ListBuildStatusesUseCase $useCase): JsonResponse
     {
         $statuses = $useCase->execute();
-
-        $data = array_map(
-            static fn (BuildStatus $s): array => BuildStatusPresenter::toArray($s),
-            $statuses,
-        );
+        $data = BuildStatusPresenter::toList($statuses);
 
         $meta = [];
         if ($statuses !== []) {
