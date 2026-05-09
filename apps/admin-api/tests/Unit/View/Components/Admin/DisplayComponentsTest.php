@@ -99,6 +99,19 @@ describe('<x-admin.button>', function () {
             ->toContain('text-sm');
     });
 
+    it('テキストの折り返しを防ぐため whitespace-nowrap が常に当たる', function () {
+        // テーブル行内に複数ボタンが並ぶケースで「公開する」「編集」のような短い
+        // 日本語が改行されてレイアウトが崩れる問題を防止する。size 問わず必要。
+        // When: default サイズ
+        $html1 = Blade::render('<x-admin.button>送信</x-admin.button>');
+        // When: sm サイズ
+        $html2 = Blade::render('<x-admin.button size="sm">編集</x-admin.button>');
+
+        // Then
+        expect($html1)->toContain('whitespace-nowrap');
+        expect($html2)->toContain('whitespace-nowrap');
+    });
+
     it('size=sm + variant=success の組み合わせ (= テーブル行内の公開ボタン用)', function () {
         // When
         $html = Blade::render('<x-admin.button size="sm" variant="success">公開する</x-admin.button>');

@@ -102,11 +102,11 @@
                             </td>
                             <td class="px-4 py-3">
                                 @if ($isDraft)
-                                    <span class="inline-flex rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-800">下書き</span>
+                                    <span class="inline-flex whitespace-nowrap rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-800">下書き</span>
                                 @elseif ($isArchived)
-                                    <span class="inline-flex rounded bg-gray-300 px-2 py-0.5 text-xs font-medium text-gray-700">アーカイブ</span>
+                                    <span class="inline-flex whitespace-nowrap rounded bg-gray-300 px-2 py-0.5 text-xs font-medium text-gray-700">アーカイブ</span>
                                 @else
-                                    <span class="inline-flex rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">公開中</span>
+                                    <span class="inline-flex whitespace-nowrap rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">公開中</span>
                                 @endif
                             </td>
                             <td class="px-4 py-3">{{ $conf->cfpEndDate ?? '—' }}</td>
@@ -122,9 +122,7 @@
                             </td>
                             <td class="px-4 py-3">
                                 @if ($conf->format)
-                                    <span class="inline-flex rounded bg-gray-100 px-2 py-0.5 text-xs">
-                                        {{ $conf->format->value }}
-                                    </span>
+                                    <span class="inline-flex whitespace-nowrap rounded bg-gray-100 px-2 py-0.5 text-xs">{{ $conf->format->value }}</span>
                                 @else
                                     —
                                 @endif
@@ -142,12 +140,7 @@
                                             <x-admin.button type="submit" size="sm" variant="success">公開する</x-admin.button>
                                         </form>
                                     @endif
-                                    <x-admin.button as="a"
-                                        href="{{ route('admin.conferences.edit', $conf->conferenceId) }}"
-                                        size="sm"
-                                        variant="secondary">
-                                        編集
-                                    </x-admin.button>
+                                    <x-admin.button as="a" href="{{ route('admin.conferences.edit', $conf->conferenceId) }}" size="sm" variant="secondary">編集</x-admin.button>
                                 </div>
                             </td>
                         </tr>

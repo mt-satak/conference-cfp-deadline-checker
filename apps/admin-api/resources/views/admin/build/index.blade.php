@@ -63,9 +63,7 @@
                     @foreach ($statuses as $st)
                         <tr class="hover:bg-gray-50">
                             <td class="px-4 py-3">
-                                <span class="inline-flex rounded px-2 py-0.5 text-xs font-medium {{ $statusBadge($st->status) }}">
-                                    {{ $st->status->value }}
-                                </span>
+                                <span class="inline-flex whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium {{ $statusBadge($st->status) }}">{{ $st->status->value }}</span>
                             </td>
                             <td class="px-4 py-3 font-mono text-xs">{{ $st->jobId }}</td>
                             <td class="px-4 py-3 text-xs text-gray-600">{{ $st->startedAt }}</td>
