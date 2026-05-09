@@ -40,8 +40,12 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-right">
-                                <a href="{{ route('admin.categories.edit', $cat->categoryId) }}"
-                                   class="text-blue-600 hover:text-blue-800">編集</a>
+                                <x-admin.button as="a"
+                                    href="{{ route('admin.categories.edit', $cat->categoryId) }}"
+                                    size="sm"
+                                    variant="secondary">
+                                    編集
+                                </x-admin.button>
                             </td>
                         </tr>
                     @endforeach
