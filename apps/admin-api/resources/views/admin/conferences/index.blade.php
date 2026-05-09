@@ -139,11 +139,15 @@
                                               action="{{ route('admin.conferences.publish', $conf->conferenceId) }}"
                                               onsubmit="return confirm('「{{ $conf->name }}」を公開します。よろしいですか？');">
                                             @csrf
-                                            <button type="submit" class="text-green-700 hover:text-green-900">公開する</button>
+                                            <x-admin.button type="submit" size="sm" variant="success">公開する</x-admin.button>
                                         </form>
                                     @endif
-                                    <a href="{{ route('admin.conferences.edit', $conf->conferenceId) }}"
-                                       class="text-blue-600 hover:text-blue-800">編集</a>
+                                    <x-admin.button as="a"
+                                        href="{{ route('admin.conferences.edit', $conf->conferenceId) }}"
+                                        size="sm"
+                                        variant="secondary">
+                                        編集
+                                    </x-admin.button>
                                 </div>
                             </td>
                         </tr>

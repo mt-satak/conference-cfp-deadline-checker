@@ -69,6 +69,45 @@ describe('<x-admin.button>', function () {
             ->toContain('name="status"')
             ->toContain('value="draft"');
     });
+
+    it('variant=success は green 系 (= 公開・追加など positive action 用)', function () {
+        // When
+        $html = Blade::render('<x-admin.button variant="success">公開する</x-admin.button>');
+
+        // Then
+        expect($html)->toContain('bg-green-600')
+            ->toContain('hover:bg-green-700')
+            ->toContain('text-white');
+    });
+
+    it('size=sm はテーブル行内に収まる小型 padding (px-2 py-1 text-xs)', function () {
+        // When
+        $html = Blade::render('<x-admin.button size="sm">編集</x-admin.button>');
+
+        // Then: 小型サイズの padding / font-size
+        expect($html)->toContain('px-2 py-1')
+            ->toContain('text-xs')
+            ->not->toContain('px-4 py-2');
+    });
+
+    it('size 未指定はデフォルトの大きさ (px-4 py-2 text-sm)', function () {
+        // When
+        $html = Blade::render('<x-admin.button>送信</x-admin.button>');
+
+        // Then
+        expect($html)->toContain('px-4 py-2')
+            ->toContain('text-sm');
+    });
+
+    it('size=sm + variant=success の組み合わせ (= テーブル行内の公開ボタン用)', function () {
+        // When
+        $html = Blade::render('<x-admin.button size="sm" variant="success">公開する</x-admin.button>');
+
+        // Then
+        expect($html)->toContain('bg-green-600')
+            ->toContain('px-2 py-1')
+            ->toContain('text-xs');
+    });
 });
 
 describe('<x-admin.alert>', function () {
