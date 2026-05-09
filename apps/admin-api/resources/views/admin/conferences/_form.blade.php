@@ -98,43 +98,39 @@
     </x-admin.form-group>
 
     {{-- format (radio) --}}
-    <div>
-        <span class="mb-1 block text-sm font-medium">形式 <span class="text-red-600" title="公開時は必須 (下書き保存は任意)">*</span></span>
+    <x-admin.form-group>
+        {{-- ラジオグループ全体のラベルは <span> 扱い (= フォーカス対応の <label for> ではないため) --}}
+        <span class="mb-1 block text-sm font-medium">形式 <span class="text-red-600" title="{{ $reqTitle }}">*</span></span>
         <div class="flex gap-4">
             @php
                 $currentFormat = old('format', $existing?->format?->value ?? '');
             @endphp
             @foreach ($formats as $fmt)
-                <label class="inline-flex items-center gap-2">
-                    <input type="radio" name="format" value="{{ $fmt->value }}"
-                           {{ $currentFormat === $fmt->value ? 'checked' : '' }}
-                           class="h-4 w-4">
-                    <span class="text-sm">{{ $fmt->value }}</span>
-                </label>
+                <x-admin.radio name="format" :value="$fmt->value" :checked="$currentFormat === $fmt->value">
+                    {{ $fmt->value }}
+                </x-admin.radio>
             @endforeach
         </div>
-        @error('format')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-    </div>
+        <x-admin.error-message field="format" />
+    </x-admin.form-group>
 
     {{-- categories (multi-select via checkbox) --}}
-    <div>
+    <x-admin.form-group>
         <span class="mb-1 block text-sm font-medium">カテゴリ <span class="text-xs text-gray-500">(任意)</span></span>
         @if (count($categories) === 0)
             <p class="text-sm text-gray-500">登録されたカテゴリがありません</p>
         @else
             <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
                 @foreach ($categories as $cat)
-                    <label class="inline-flex items-center gap-2 rounded border border-gray-200 px-3 py-2 hover:bg-gray-50">
-                        <input type="checkbox" name="categories[]" value="{{ $cat->categoryId }}"
-                               {{ in_array($cat->categoryId, $selectedCategoryIds, true) ? 'checked' : '' }}
-                               class="h-4 w-4">
-                        <span class="text-sm">{{ $cat->name }}</span>
-                    </label>
+                    <x-admin.checkbox name="categories[]" :value="$cat->categoryId" boxed
+                        :checked="in_array($cat->categoryId, $selectedCategoryIds, true)">
+                        {{ $cat->name }}
+                    </x-admin.checkbox>
                 @endforeach
             </div>
         @endif
-        @error('categories')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-    </div>
+        <x-admin.error-message field="categories" />
+    </x-admin.form-group>
 
     {{-- description --}}
     <x-admin.form-group>

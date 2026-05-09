@@ -48,24 +48,21 @@
     </x-admin.form-group>
 
     {{-- axis (radio、optional) --}}
-    <div>
+    <x-admin.form-group>
         <span class="mb-1 block text-sm font-medium">軸ラベル <span class="text-xs text-gray-500">(任意、運用補助)</span></span>
         <div class="flex flex-wrap gap-3">
-            <label class="inline-flex items-center gap-2">
-                <input type="radio" name="axis" value="" {{ $currentAxis === '' ? 'checked' : '' }} class="h-4 w-4">
-                <span class="text-sm text-gray-500">未指定</span>
-            </label>
+            {{-- 「未指定」だけ text-gray-500 で薄く見せる (= 値が空であることを視覚的に示す) --}}
+            <x-admin.radio name="axis" value="" :checked="$currentAxis === ''">
+                <span class="text-gray-500">未指定</span>
+            </x-admin.radio>
             @foreach ($axes as $a)
-                <label class="inline-flex items-center gap-2">
-                    <input type="radio" name="axis" value="{{ $a->value }}"
-                           {{ $currentAxis === $a->value ? 'checked' : '' }}
-                           class="h-4 w-4">
-                    <span class="text-sm">{{ $a->value }}</span>
-                </label>
+                <x-admin.radio name="axis" :value="$a->value" :checked="$currentAxis === $a->value">
+                    {{ $a->value }}
+                </x-admin.radio>
             @endforeach
         </div>
-        @error('axis')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-    </div>
+        <x-admin.error-message field="axis" />
+    </x-admin.form-group>
 
     {{-- 送信 --}}
     <div class="flex justify-end gap-2 pt-2">
