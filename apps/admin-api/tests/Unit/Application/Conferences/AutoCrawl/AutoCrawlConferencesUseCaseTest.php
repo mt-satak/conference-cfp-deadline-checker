@@ -137,11 +137,21 @@ describe('AutoCrawlConferencesUseCase', function () {
         expect($result->extractionFailed)->toBe(0);
     });
 
-    it('cfpEndDate が変わったら diffDetected が増える', function () {
+    it('cfpEndDate が変わったら diffDetected が増えて Draft が新規作成される', function () {
         // Given: 既存は 2026-07-15、抽出結果は 2026-08-01 (= 締切延長)
         $conference = makePublishedConference('c1', 'https://a.example.com/', '2026-07-15');
         $repo = Mockery::mock(ConferenceRepository::class);
         $repo->shouldReceive('findAll')->once()->andReturn([$conference]);
+
+        // Phase 1b: 差分があれば save が呼ばれる
+        $savedConference = null;
+        $repo->shouldReceive('save')
+            ->once()
+            ->with(Mockery::on(function (Conference $c) use (&$savedConference) {
+                $savedConference = $c;
+
+                return true;
+            }));
 
         $newDraft = new ConferenceDraft(
             sourceUrl: $conference->officialUrl,
@@ -164,13 +174,23 @@ describe('AutoCrawlConferencesUseCase', function () {
         expect($result->totalChecked)->toBe(1);
         expect($result->diffDetected)->toBe(1);
         expect($result->extractionFailed)->toBe(0);
+        expect($result->createdDraftIds)->toHaveCount(1);
+        // Draft の中身: 既存値 + 新 cfpEndDate で merge
+        /** @var Conference $savedConference */
+        expect($savedConference->status)->toBe(ConferenceStatus::Draft);
+        expect($savedConference->name)->toBe($conference->name);
+        expect($savedConference->officialUrl)->toBe($conference->officialUrl);
+        expect($savedConference->cfpEndDate)->toBe('2026-08-01');  // 新値
+        expect($savedConference->venue)->toBe($conference->venue);  // 既存維持
+        expect($savedConference->conferenceId)->not->toBe($conference->conferenceId);  // 新規 UUID
     });
 
-    it('venue が変わったら diffDetected が増える', function () {
+    it('venue が変わったら diffDetected が増えて Draft が作成される', function () {
         // Given
         $conference = makePublishedConference('c1', 'https://a.example.com/');
         $repo = Mockery::mock(ConferenceRepository::class);
         $repo->shouldReceive('findAll')->once()->andReturn([$conference]);
+        $repo->shouldReceive('save')->once();
 
         $newDraft = new ConferenceDraft(
             sourceUrl: $conference->officialUrl,
@@ -191,6 +211,68 @@ describe('AutoCrawlConferencesUseCase', function () {
 
         // Then
         expect($result->diffDetected)->toBe(1);
+        expect($result->createdDraftIds)->toHaveCount(1);
+    });
+
+    it('LLM が null を返したフィールドは無視 (= 既存値維持で diff 0)', function () {
+        // Phase 1a 観測結果: 公式サイトトップに CfP 情報が無いと LLM が null を返す。
+        // この場合は既存 admin 値を信頼して diff 扱いしない。
+        $conference = makePublishedConference('c1', 'https://a.example.com/');
+        $repo = Mockery::mock(ConferenceRepository::class);
+        $repo->shouldReceive('findAll')->once()->andReturn([$conference]);
+        // save は呼ばれないはず
+        $repo->shouldNotReceive('save');
+
+        // 全フィールド null の抽出結果
+        $emptyDraft = new ConferenceDraft(sourceUrl: $conference->officialUrl);
+        $extract = Mockery::mock(ExtractConferenceDraftUseCase::class);
+        $extract->shouldReceive('execute')->once()->andReturn($emptyDraft);
+
+        $useCase = new AutoCrawlConferencesUseCase($repo, $extract);
+
+        // When
+        $result = $useCase->execute();
+
+        // Then
+        expect($result->totalChecked)->toBe(1);
+        expect($result->diffDetected)->toBe(0);
+        expect($result->createdDraftIds)->toBe([]);
+    });
+
+    it('LLM が一部 null + 一部新値の場合、新値部分のみ diff として処理', function () {
+        // 例: cfpUrl=null (拾えず) / venue='詳細追加' (LLM が詳細化)
+        $conference = makePublishedConference('c1', 'https://a.example.com/');
+        $repo = Mockery::mock(ConferenceRepository::class);
+        $repo->shouldReceive('findAll')->once()->andReturn([$conference]);
+        $savedConference = null;
+        $repo->shouldReceive('save')
+            ->once()
+            ->with(Mockery::on(function (Conference $c) use (&$savedConference) {
+                $savedConference = $c;
+
+                return true;
+            }));
+
+        $partialDraft = new ConferenceDraft(
+            sourceUrl: $conference->officialUrl,
+            cfpUrl: null,  // ← null (拾えず): 既存値維持
+            venue: '東京 (千代田区)',  // ← 詳細化: 新値で上書き
+            // 他は null
+        );
+        $extract = Mockery::mock(ExtractConferenceDraftUseCase::class);
+        $extract->shouldReceive('execute')->once()->andReturn($partialDraft);
+
+        $useCase = new AutoCrawlConferencesUseCase($repo, $extract);
+
+        // When
+        $result = $useCase->execute();
+
+        // Then
+        expect($result->diffDetected)->toBe(1);
+        /** @var Conference $savedConference */
+        expect($savedConference->cfpUrl)->toBe($conference->cfpUrl);  // 既存維持
+        expect($savedConference->venue)->toBe('東京 (千代田区)');  // 新値で上書き
+        expect($savedConference->cfpEndDate)->toBe($conference->cfpEndDate);  // 既存維持
     });
 
     it('HtmlFetchFailedException が出たら extractionFailed を増やして次に進む', function () {
