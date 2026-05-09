@@ -29,31 +29,25 @@
     @endif
 
     {{-- name --}}
-    <div>
-        <label for="name" class="mb-1 block text-sm font-medium">名称 <span class="text-red-600">*</span></label>
-        <input type="text" id="name" name="name" required maxlength="100"
-               value="{{ $val('name') }}"
-               class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none">
-        @error('name')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-    </div>
+    <x-admin.form-group>
+        <x-admin.label for="name" required>名称</x-admin.label>
+        <x-admin.input id="name" name="name" required maxlength="100" :value="$val('name')" />
+        <x-admin.error-message field="name" />
+    </x-admin.form-group>
 
     {{-- slug --}}
-    <div>
-        <label for="slug" class="mb-1 block text-sm font-medium">slug <span class="text-red-600">*</span> <span class="text-xs text-gray-500">(英小文字・数字・ハイフンのみ)</span></label>
-        <input type="text" id="slug" name="slug" required maxlength="64" pattern="^[a-z0-9-]+$"
-               value="{{ $val('slug') }}"
-               class="w-full rounded border border-gray-300 px-3 py-2 font-mono focus:border-blue-500 focus:outline-none">
-        @error('slug')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-    </div>
+    <x-admin.form-group>
+        <x-admin.label for="slug" required>slug <span class="text-xs text-gray-500">(英小文字・数字・ハイフンのみ)</span></x-admin.label>
+        <x-admin.input id="slug" name="slug" required maxlength="64" pattern="^[a-z0-9-]+$" :value="$val('slug')" class="font-mono" />
+        <x-admin.error-message field="slug" />
+    </x-admin.form-group>
 
     {{-- displayOrder --}}
-    <div>
-        <label for="displayOrder" class="mb-1 block text-sm font-medium">表示順 <span class="text-red-600">*</span> <span class="text-xs text-gray-500">(整数。軸ごとに番号帯を分けて運用)</span></label>
-        <input type="number" id="displayOrder" name="displayOrder" required step="1"
-               value="{{ $val('displayOrder', 100) }}"
-               class="w-32 rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none">
-        @error('displayOrder')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-    </div>
+    <x-admin.form-group>
+        <x-admin.label for="displayOrder" required>表示順 <span class="text-xs text-gray-500">(整数。軸ごとに番号帯を分けて運用)</span></x-admin.label>
+        <x-admin.input type="number" id="displayOrder" name="displayOrder" required step="1" :value="$val('displayOrder', 100)" class="!w-32" />
+        <x-admin.error-message field="displayOrder" />
+    </x-admin.form-group>
 
     {{-- axis (radio、optional) --}}
     <div>

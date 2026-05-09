@@ -34,84 +34,68 @@
         @method('PUT')
     @endif
 
+    @php
+        $reqTitle = '公開時は必須 (下書き保存は任意)';
+    @endphp
+
     {{-- name --}}
-    <div>
-        <label for="name" class="mb-1 block text-sm font-medium">名称 <span class="text-red-600" title="公開時は必須 (下書き保存は任意)">*</span></label>
-        <input type="text" id="name" name="name" required maxlength="200"
-               value="{{ $val('name') }}"
-               class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none">
-        @error('name')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-    </div>
+    <x-admin.form-group>
+        <x-admin.label for="name" required :requiredTitle="$reqTitle">名称</x-admin.label>
+        <x-admin.input id="name" name="name" required maxlength="200" :value="$val('name')" />
+        <x-admin.error-message field="name" />
+    </x-admin.form-group>
 
     {{-- trackName --}}
-    <div>
-        <label for="trackName" class="mb-1 block text-sm font-medium">トラック名</label>
-        <input type="text" id="trackName" name="trackName" maxlength="100"
-               value="{{ $val('trackName') }}"
-               class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none">
-        @error('trackName')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-    </div>
+    <x-admin.form-group>
+        <x-admin.label for="trackName">トラック名</x-admin.label>
+        <x-admin.input id="trackName" name="trackName" maxlength="100" :value="$val('trackName')" />
+        <x-admin.error-message field="trackName" />
+    </x-admin.form-group>
 
     {{-- URLs --}}
     <div class="grid gap-5 sm:grid-cols-2">
-        <div>
-            <label for="officialUrl" class="mb-1 block text-sm font-medium">公式 URL <span class="text-red-600" title="公開時は必須 (下書き保存は任意)">*</span></label>
-            <input type="url" id="officialUrl" name="officialUrl" required
-                   value="{{ $val('officialUrl') }}"
-                   placeholder="https://..."
-                   class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none">
-            @error('officialUrl')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-        </div>
-        <div>
-            <label for="cfpUrl" class="mb-1 block text-sm font-medium">CfP URL <span class="text-red-600" title="公開時は必須 (下書き保存は任意)">*</span></label>
-            <input type="url" id="cfpUrl" name="cfpUrl"
-                   value="{{ $val('cfpUrl') }}"
-                   placeholder="https://..."
-                   class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none">
-            @error('cfpUrl')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-        </div>
+        <x-admin.form-group>
+            <x-admin.label for="officialUrl" required :requiredTitle="$reqTitle">公式 URL</x-admin.label>
+            <x-admin.input type="url" id="officialUrl" name="officialUrl" required placeholder="https://..." :value="$val('officialUrl')" />
+            <x-admin.error-message field="officialUrl" />
+        </x-admin.form-group>
+        <x-admin.form-group>
+            <x-admin.label for="cfpUrl" required :requiredTitle="$reqTitle">CfP URL</x-admin.label>
+            <x-admin.input type="url" id="cfpUrl" name="cfpUrl" placeholder="https://..." :value="$val('cfpUrl')" />
+            <x-admin.error-message field="cfpUrl" />
+        </x-admin.form-group>
     </div>
 
     {{-- 日付 --}}
     <div class="grid gap-5 sm:grid-cols-2">
-        <div>
-            <label for="eventStartDate" class="mb-1 block text-sm font-medium">開催開始日 <span class="text-red-600" title="公開時は必須 (下書き保存は任意)">*</span></label>
-            <input type="date" id="eventStartDate" name="eventStartDate"
-                   value="{{ $val('eventStartDate') }}"
-                   class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none">
-            @error('eventStartDate')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-        </div>
-        <div>
-            <label for="eventEndDate" class="mb-1 block text-sm font-medium">開催終了日 <span class="text-red-600" title="公開時は必須 (下書き保存は任意)">*</span></label>
-            <input type="date" id="eventEndDate" name="eventEndDate"
-                   value="{{ $val('eventEndDate') }}"
-                   class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none">
-            @error('eventEndDate')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-        </div>
-        <div>
-            <label for="cfpStartDate" class="mb-1 block text-sm font-medium">CfP 開始日</label>
-            <input type="date" id="cfpStartDate" name="cfpStartDate"
-                   value="{{ $val('cfpStartDate') }}"
-                   class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none">
-            @error('cfpStartDate')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-        </div>
-        <div>
-            <label for="cfpEndDate" class="mb-1 block text-sm font-medium">CfP 締切 <span class="text-red-600" title="公開時は必須 (下書き保存は任意)">*</span></label>
-            <input type="date" id="cfpEndDate" name="cfpEndDate"
-                   value="{{ $val('cfpEndDate') }}"
-                   class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none">
-            @error('cfpEndDate')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-        </div>
+        <x-admin.form-group>
+            <x-admin.label for="eventStartDate" required :requiredTitle="$reqTitle">開催開始日</x-admin.label>
+            <x-admin.input type="date" id="eventStartDate" name="eventStartDate" :value="$val('eventStartDate')" />
+            <x-admin.error-message field="eventStartDate" />
+        </x-admin.form-group>
+        <x-admin.form-group>
+            <x-admin.label for="eventEndDate" required :requiredTitle="$reqTitle">開催終了日</x-admin.label>
+            <x-admin.input type="date" id="eventEndDate" name="eventEndDate" :value="$val('eventEndDate')" />
+            <x-admin.error-message field="eventEndDate" />
+        </x-admin.form-group>
+        <x-admin.form-group>
+            <x-admin.label for="cfpStartDate">CfP 開始日</x-admin.label>
+            <x-admin.input type="date" id="cfpStartDate" name="cfpStartDate" :value="$val('cfpStartDate')" />
+            <x-admin.error-message field="cfpStartDate" />
+        </x-admin.form-group>
+        <x-admin.form-group>
+            <x-admin.label for="cfpEndDate" required :requiredTitle="$reqTitle">CfP 締切</x-admin.label>
+            <x-admin.input type="date" id="cfpEndDate" name="cfpEndDate" :value="$val('cfpEndDate')" />
+            <x-admin.error-message field="cfpEndDate" />
+        </x-admin.form-group>
     </div>
 
     {{-- venue --}}
-    <div>
-        <label for="venue" class="mb-1 block text-sm font-medium">会場 <span class="text-red-600" title="公開時は必須 (下書き保存は任意)">*</span></label>
-        <input type="text" id="venue" name="venue" maxlength="100"
-               value="{{ $val('venue') }}"
-               class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none">
-        @error('venue')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-    </div>
+    <x-admin.form-group>
+        <x-admin.label for="venue" required :requiredTitle="$reqTitle">会場</x-admin.label>
+        <x-admin.input id="venue" name="venue" maxlength="100" :value="$val('venue')" />
+        <x-admin.error-message field="venue" />
+    </x-admin.form-group>
 
     {{-- format (radio) --}}
     <div>
@@ -153,24 +137,23 @@
     </div>
 
     {{-- description --}}
-    <div>
-        <label for="description" class="mb-1 block text-sm font-medium">説明</label>
-        <textarea id="description" name="description" rows="3" maxlength="2000"
-                  class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none">{{ $val('description') }}</textarea>
-        @error('description')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-    </div>
+    <x-admin.form-group>
+        <x-admin.label for="description">説明</x-admin.label>
+        <x-admin.textarea id="description" name="description" rows="3" maxlength="2000">{{ $val('description') }}</x-admin.textarea>
+        <x-admin.error-message field="description" />
+    </x-admin.form-group>
 
     {{-- themeColor --}}
-    <div>
-        <label for="themeColor" class="mb-1 block text-sm font-medium">テーマカラー</label>
+    <x-admin.form-group>
+        <x-admin.label for="themeColor">テーマカラー</x-admin.label>
         <div class="flex items-center gap-2">
             <input type="color" id="themeColor" name="themeColor"
                    value="{{ $val('themeColor', '#777BB4') }}"
                    class="h-10 w-16 cursor-pointer rounded border border-gray-300">
             <span class="text-xs text-gray-500">未指定なら空欄を維持してください</span>
         </div>
-        @error('themeColor')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-    </div>
+        <x-admin.error-message field="themeColor" />
+    </x-admin.form-group>
 
     {{-- 送信: 2 つの submit ボタンで status を分岐させる (Phase 0.5 / Issue #41)
          クリックされたボタンの name=value だけが request に乗る仕様を活用。
