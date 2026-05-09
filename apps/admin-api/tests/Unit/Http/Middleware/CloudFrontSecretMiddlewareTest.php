@@ -68,15 +68,50 @@ it('X-CloudFront-Secret header が未指定の場合 403 を返す', function ()
     expect($response->getStatusCode())->toBe(403);
 });
 
-it('config 未設定時はミドルウェア無効として next を呼ぶ (ローカル開発で env を入れない場合の想定)', function () {
-    // Given: config 未設定 (ローカル `php artisan serve` 等)
-    config(['cloudfront.origin_secret' => null]);
+it('config 未設定 + APP_ENV=local の時は next を呼ぶ (= ローカル開発の想定)', function () {
+    // Given: config 未設定 + ローカル環境
+    config(['cloudfront.origin_secret' => null, 'app.env' => 'local']);
     $request = Request::create('/admin/conferences', 'POST');
     $middleware = new CloudFrontSecretMiddleware;
 
     // When
     $response = $middleware->handle($request, fn () => new Response('OK', 200));
 
-    // Then
+    // Then: ローカルでは bypass されて next が呼ばれる
     expect($response->getStatusCode())->toBe(200);
+});
+
+it('config 未設定 + APP_ENV=testing の時は next を呼ぶ (= テスト環境)', function () {
+    // Given
+    config(['cloudfront.origin_secret' => null, 'app.env' => 'testing']);
+    $request = Request::create('/admin/conferences', 'POST');
+    $middleware = new CloudFrontSecretMiddleware;
+
+    // When
+    $response = $middleware->handle($request, fn () => new Response('OK', 200));
+
+    // Then: テスト環境でも bypass される (= 既存テストの後方互換)
+    expect($response->getStatusCode())->toBe(200);
+});
+
+it('config 未設定 + APP_ENV=production の時は例外 throw (= fail-closed、Issue #177 #1)', function () {
+    // Given: 本番環境で secret が空 (= CDK 配線ミス / config:cache stale 等の事故想定)
+    config(['cloudfront.origin_secret' => null, 'app.env' => 'production']);
+    $request = Request::create('/admin/conferences', 'POST');
+    $middleware = new CloudFrontSecretMiddleware;
+
+    // When / Then: silent disable せず例外を throw して 500 で確実に止まる
+    expect(fn () => $middleware->handle($request, fn () => new Response('OK', 200)))
+        ->toThrow(RuntimeException::class, 'CLOUDFRONT_ORIGIN_SECRET');
+});
+
+it('config 空文字列 + APP_ENV=production も例外 throw', function () {
+    // Given: env 値が空文字列 (= 本番事故の別パターン)
+    config(['cloudfront.origin_secret' => '', 'app.env' => 'production']);
+    $request = Request::create('/admin/conferences', 'POST');
+    $middleware = new CloudFrontSecretMiddleware;
+
+    // When / Then
+    expect(fn () => $middleware->handle($request, fn () => new Response('OK', 200)))
+        ->toThrow(RuntimeException::class);
 });
