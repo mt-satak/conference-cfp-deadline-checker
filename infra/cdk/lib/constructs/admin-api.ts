@@ -15,6 +15,7 @@ import {
 } from 'aws-cdk-lib/aws-lambda';
 import { Secret } from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
+import { ArchivePastTask } from './archive-past-task';
 
 /**
  * AdminApi Construct のオプション
@@ -86,6 +87,14 @@ export class AdminApi extends Construct {
    * 実行する。EventBridge schedule (週 1) から起動される。
    */
   public readonly autoCrawlFunction: LambdaFunction;
+
+  /**
+   * 開催日を過ぎた Published Conference を Archived 状態へ遷移させる Lambda console
+   * + EventBridge schedule (毎朝 JST 06:00、Issue #165 Phase 3)。
+   *
+   * 詳細は ArchivePastTask construct のクラスドキュメント参照。
+   */
+  public readonly archivePastTask: ArchivePastTask;
 
   constructor(scope: Construct, id: string, props: AdminApiProps) {
     super(scope, id);
@@ -462,6 +471,19 @@ export class AdminApi extends Construct {
           }),
         }),
       ],
+    });
+
+    // ── Archive-past Lambda console + EventBridge schedule (Issue #165 Phase 3) ──
+    // 開催日を過ぎた Published を Archived に遷移させる日次タスク。
+    // AutoCrawl と同じ admin-api asset / PHP layer を共有する設計。詳細は
+    // ArchivePastTask construct のクラスドキュメント参照。
+    this.archivePastTask = new ArchivePastTask(this, 'ArchivePastTask', {
+      adminApiCode,
+      phpLayer,
+      appKey: appKeySecret.secretValue,
+      appUrl: props.appUrl,
+      conferences: props.conferences,
+      architecture: Architecture.X86_64,
     });
   }
 }
