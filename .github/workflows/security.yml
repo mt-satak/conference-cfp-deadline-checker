@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # 履歴全体を取得して past commit も scan できるようにする
           fetch-depth: 0
@@ -45,3 +45,8 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # gitleaks-action は v2 系で action.yml が using: node20 のまま (= 2026-09-16 以降に
+          # Node 20 ランナーから削除されると動作不能)。upstream に v3 が無いため、Node 24 強制
+          # 起動の env で一時回避する (Issue #116)。upstream で Node 24 対応版が出たらこの env
+          # を外す。詳細: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'

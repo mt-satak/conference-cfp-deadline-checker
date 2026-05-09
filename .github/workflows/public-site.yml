@@ -50,13 +50,13 @@ jobs:
         working-directory: apps/public-site
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # pnpm/action-setup は package.json の `packageManager` field を優先する
       # ため `version` 入力は付けない (両方指定すると ERR_PNPM_BAD_PM_VERSION)
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'pnpm'
