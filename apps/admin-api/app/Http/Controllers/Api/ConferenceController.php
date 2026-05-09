@@ -35,17 +35,24 @@ class ConferenceController extends BaseController
      * GET /admin/api/conferences (operationId: listConferences)
      *
      * クエリパラメータ:
-     * - ?status=draft|published: 該当ステータスのみに絞り込む (Phase 0.5 / Issue #41)
+     * - ?status=draft|published|archived|active: status フィルタ (Issue #165 で archived/active 追加)
+     *   - draft / published / archived: 各 status 単独
+     *   - active: Draft + Published (Archived 除外)
+     *   - 未指定 / 不正値: フィルタ無し (= 全件返却、Admin UI のデフォルトとは異なる)
      * - ?sort=cfpEndDate|eventStartDate|cfpStartDate|name|createdAt: ソートキー (Issue #47 Phase A)
      * - ?order=asc|desc: 並び順 (Issue #47 Phase A)
      *
      * 未知の status / sort / order 値は無視 (= デフォルト挙動) で fail-soft。
      * ?q / ?category の対応は Issue #47 Phase B で扱う。
+     *
+     * Admin UI とは挙動が違う点に注意 (Issue #165): API consumer (= スクリプト / 自動化) は
+     * 明示しない限り全件を期待するため、デフォルトを「フィルタ無し」(= Archived も含む) にしている。
+     * 一方 Admin UI は人間が操作する画面なので、ノイズ削減のため未指定時に active 扱いにしている。
      */
     public function index(Request $request, ListConferencesUseCase $useCase): JsonResponse
     {
         $statusParam = $request->query('status');
-        $statusFilter = is_string($statusParam) ? ConferenceStatus::tryFrom($statusParam) : null;
+        $statusFilters = is_string($statusParam) ? self::resolveStatusFilters($statusParam) : null;
 
         $sortParam = $request->query('sort');
         $sortKey = is_string($sortParam) ? ConferenceSortKey::tryFrom($sortParam) : null;
@@ -55,7 +62,7 @@ class ConferenceController extends BaseController
             ? (SortOrder::tryFrom($orderParam) ?? SortOrder::Asc)
             : SortOrder::Asc;
 
-        $conferences = $useCase->execute($statusFilter, $sortKey, $order);
+        $conferences = $useCase->execute($statusFilters, $sortKey, $order);
 
         $data = array_map(
             static fn (Conference $c): array => ConferencePresenter::toArray($c),
@@ -63,6 +70,26 @@ class ConferenceController extends BaseController
         );
 
         return $this->ok($data, ['count' => count($data)]);
+    }
+
+    /**
+     * URL の ?status 文字列を ListConferencesUseCase に渡す配列に解決する (Issue #165)。
+     *
+     * Admin UI 側 (`Admin\ConferenceController`) と違い、API は未指定時に null (= 全件) を返す前提で
+     * `is_string($statusParam)` のときだけ呼ばれる (= 明示指定された場合のみここに来る)。
+     * 不正値は null 返却で UseCase 側にも null が渡り、結果として全件返る fail-soft 挙動。
+     *
+     * @return ConferenceStatus[]|null
+     */
+    private static function resolveStatusFilters(string $statusParam): ?array
+    {
+        return match ($statusParam) {
+            'draft' => [ConferenceStatus::Draft],
+            'published' => [ConferenceStatus::Published],
+            'archived' => [ConferenceStatus::Archived],
+            'active' => [ConferenceStatus::Draft, ConferenceStatus::Published],
+            default => null,
+        };
     }
 
     /**

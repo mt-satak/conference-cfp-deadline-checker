@@ -8,10 +8,14 @@
         /** @var ?string $statusFilter */
         /** @var string $sortKey */
         /** @var string $sortOrder */
+        // Active タブは Draft + Published を意味する仮想 status (Issue #165)。
+        // 「すべて」を撤廃して active を default にすることで、Archived がノイズとして
+        // 表示されない状態を実現する。
         $tabs = [
-            ['label' => 'すべて', 'value' => null],
+            ['label' => 'アクティブ', 'value' => 'active'],
             ['label' => '公開中', 'value' => 'published'],
             ['label' => '下書き', 'value' => 'draft'],
+            ['label' => 'アーカイブ', 'value' => 'archived'],
         ];
 
         // 列ヘッダのソートリンク URL を生成。
@@ -45,14 +49,12 @@
         </x-admin.button>
     </div>
 
-    {{-- status フィルタタブ (Phase 0.5 / Issue #41) --}}
+    {{-- status フィルタタブ (Phase 0.5 / Issue #41 / Issue #165 で archived/active 追加) --}}
     <div class="mb-4 flex gap-2 border-b border-gray-200">
         @foreach ($tabs as $tab)
             @php
-                $url = $tab['value'] === null
-                    ? route('admin.conferences.index')
-                    : route('admin.conferences.index').'?status='.$tab['value'];
-                $active = ($statusFilter ?? null) === $tab['value'];
+                $url = route('admin.conferences.index').'?status='.$tab['value'];
+                $active = $statusFilter === $tab['value'];
             @endphp
             <a href="{{ $url }}"
                class="border-b-2 px-3 py-2 text-sm {{ $active ? 'border-blue-600 font-semibold text-blue-700' : 'border-transparent text-gray-600 hover:text-gray-900' }}">
@@ -89,6 +91,7 @@
                     @foreach ($conferences as $conf)
                         @php
                             $isDraft = $conf->status === \App\Domain\Conferences\ConferenceStatus::Draft;
+                            $isArchived = $conf->status === \App\Domain\Conferences\ConferenceStatus::Archived;
                         @endphp
                         <tr class="hover:bg-gray-50">
                             <td class="px-4 py-3">
@@ -100,6 +103,8 @@
                             <td class="px-4 py-3">
                                 @if ($isDraft)
                                     <span class="inline-flex rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-800">下書き</span>
+                                @elseif ($isArchived)
+                                    <span class="inline-flex rounded bg-gray-300 px-2 py-0.5 text-xs font-medium text-gray-700">アーカイブ</span>
                                 @else
                                     <span class="inline-flex rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">公開中</span>
                                 @endif

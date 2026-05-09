@@ -108,22 +108,18 @@ it('ConferenceFormat::tryFrom() は不正値で null を返す', function () {
     expect(ConferenceFormat::tryFrom('unknown'))->toBeNull();
 });
 
-it('ConferenceStatus enum は draft / published の 2 ケースを持つ', function () {
-    // When / Then: 2 ケース全てが期待値の文字列で公開され、件数も 2 である
-    expect(ConferenceStatus::Draft->value)->toBe('draft');
-    expect(ConferenceStatus::Published->value)->toBe('published');
-    expect(ConferenceStatus::cases())->toHaveCount(2);
-});
-
 it('ConferenceStatus::from() で文字列から enum を取得できる', function () {
-    // When / Then: 各文字列値が対応する enum ケースに変換される
+    // When / Then: 各文字列値が対応する enum ケースに変換される (Issue #165 で archived 追加)
     expect(ConferenceStatus::from('draft'))->toBe(ConferenceStatus::Draft);
     expect(ConferenceStatus::from('published'))->toBe(ConferenceStatus::Published);
+    expect(ConferenceStatus::from('archived'))->toBe(ConferenceStatus::Archived);
 });
 
 it('ConferenceStatus::tryFrom() は不正値で null を返す', function () {
-    // When / Then: 列挙にない値は null を返す (例外を投げない)
-    expect(ConferenceStatus::tryFrom('archived'))->toBeNull();
+    // When / Then: 列挙にない値は null を返す (例外を投げない)。
+    // 'archived' は Issue #165 で正式な enum 値として追加されたため、
+    // 不正値として 'unknown-status' で検証する。
+    expect(ConferenceStatus::tryFrom('unknown-status'))->toBeNull();
 });
 
 it('Conference は status を指定して構築でき、プロパティとして公開する', function () {
