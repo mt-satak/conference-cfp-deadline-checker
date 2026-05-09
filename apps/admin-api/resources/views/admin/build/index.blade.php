@@ -20,7 +20,7 @@
 
         @if ($configured)
             <form method="POST" action="{{ route('admin.build.trigger') }}"
-                  onsubmit="return confirm('再ビルドをトリガーします。よろしいですか？');">
+                  data-confirm-message="再ビルドをトリガーします。よろしいですか？">
                 @csrf
                 <x-admin.button type="submit">再ビルドをトリガー</x-admin.button>
             </form>

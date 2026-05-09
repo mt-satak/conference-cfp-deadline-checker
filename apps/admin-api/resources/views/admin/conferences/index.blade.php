@@ -135,7 +135,7 @@
                                              POST 用なので form 包む。必須項目欠落時はサーバ側でエラー返す。 --}}
                                         <form method="POST"
                                               action="{{ route('admin.conferences.publish', $conf->conferenceId) }}"
-                                              onsubmit="return confirm('「{{ $conf->name }}」を公開します。よろしいですか？');">
+                                              data-confirm-message="「{{ $conf->name }}」を公開します。よろしいですか？">
                                             @csrf
                                             <x-admin.button type="submit" size="sm" variant="success">公開する</x-admin.button>
                                         </form>
