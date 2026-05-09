@@ -2,17 +2,15 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Application\Conferences\CreateConferenceInput;
 use App\Application\Conferences\CreateConferenceUseCase;
 use App\Application\Conferences\DeleteConferenceUseCase;
 use App\Application\Conferences\GetConferenceUseCase;
 use App\Application\Conferences\ListConferencesUseCase;
 use App\Application\Conferences\UpdateConferenceUseCase;
 use App\Domain\Conferences\Conference;
-use App\Domain\Conferences\ConferenceFormat;
 use App\Domain\Conferences\ConferenceSortKey;
-use App\Domain\Conferences\ConferenceStatus;
 use App\Domain\Conferences\SortOrder;
+use App\Http\Controllers\Conferences\ConferenceInputResolver;
 use App\Http\Presenters\ConferencePresenter;
 use App\Http\Requests\Conferences\StoreConferenceRequest;
 use App\Http\Requests\Conferences\UpdateConferenceRequest;
@@ -51,8 +49,8 @@ class ConferenceController extends BaseController
      */
     public function index(Request $request, ListConferencesUseCase $useCase): JsonResponse
     {
-        $statusParam = $request->query('status');
-        $statusFilters = is_string($statusParam) ? self::resolveStatusFilters($statusParam) : null;
+        // API は未指定 / 不正値で全件返却 (= defaultForUnknown=null)
+        $statusFilters = ConferenceInputResolver::resolveStatusFilters($request->query('status'), null);
 
         $sortParam = $request->query('sort');
         $sortKey = is_string($sortParam) ? ConferenceSortKey::tryFrom($sortParam) : null;
@@ -70,26 +68,6 @@ class ConferenceController extends BaseController
         );
 
         return $this->ok($data, ['count' => count($data)]);
-    }
-
-    /**
-     * URL の ?status 文字列を ListConferencesUseCase に渡す配列に解決する (Issue #165)。
-     *
-     * Admin UI 側 (`Admin\ConferenceController`) と違い、API は未指定時に null (= 全件) を返す前提で
-     * `is_string($statusParam)` のときだけ呼ばれる (= 明示指定された場合のみここに来る)。
-     * 不正値は null 返却で UseCase 側にも null が渡り、結果として全件返る fail-soft 挙動。
-     *
-     * @return ConferenceStatus[]|null
-     */
-    private static function resolveStatusFilters(string $statusParam): ?array
-    {
-        return match ($statusParam) {
-            'draft' => [ConferenceStatus::Draft],
-            'published' => [ConferenceStatus::Published],
-            'archived' => [ConferenceStatus::Archived],
-            'active' => [ConferenceStatus::Draft, ConferenceStatus::Published],
-            default => null,
-        };
     }
 
     /**
@@ -116,29 +94,8 @@ class ConferenceController extends BaseController
     public function store(StoreConferenceRequest $request, CreateConferenceUseCase $useCase): JsonResponse
     {
         $validated = $request->validated();
-
-        // status 省略 / 未知値は Published で扱う (Draft 入力時のみ status='draft' 必須)
-        $status = isset($validated['status'])
-            ? (ConferenceStatus::tryFrom($validated['status']) ?? ConferenceStatus::Published)
-            : ConferenceStatus::Published;
-
-        $formatRaw = $validated['format'] ?? null;
-        $input = new CreateConferenceInput(
-            name: $validated['name'],
-            trackName: $validated['trackName'] ?? null,
-            officialUrl: $validated['officialUrl'],
-            cfpUrl: $validated['cfpUrl'] ?? null,
-            eventStartDate: $validated['eventStartDate'] ?? null,
-            eventEndDate: $validated['eventEndDate'] ?? null,
-            venue: $validated['venue'] ?? null,
-            format: $formatRaw !== null ? ConferenceFormat::from($formatRaw) : null,
-            cfpStartDate: $validated['cfpStartDate'] ?? null,
-            cfpEndDate: $validated['cfpEndDate'] ?? null,
-            categories: $validated['categories'] ?? [],
-            description: $validated['description'] ?? null,
-            themeColor: $validated['themeColor'] ?? null,
-            status: $status,
-        );
+        $status = ConferenceInputResolver::resolveCreateStatus($validated);
+        $input = ConferenceInputResolver::buildCreateInput($validated, $status);
 
         $conference = $useCase->execute($input);
 
@@ -155,36 +112,7 @@ class ConferenceController extends BaseController
      */
     public function update(string $id, UpdateConferenceRequest $request, UpdateConferenceUseCase $useCase): JsonResponse
     {
-        $validated = $request->validated();
-
-        // format / status は string で来るので enum に変換する。
-        // 元の $validated を変更すると PHPStan の array shape が string|enum union に
-        // なるので、UseCase に渡す配列を新規構築して型を確定させる。
-        // Phase 0.5 (Issue #41) で format と status の enum 化、cfpUrl 等の null 受付。
-        /** @var array{
-         *     status?: ConferenceStatus,
-         *     name?: string,
-         *     trackName?: string|null,
-         *     officialUrl?: string,
-         *     cfpUrl?: string|null,
-         *     eventStartDate?: string|null,
-         *     eventEndDate?: string|null,
-         *     venue?: string|null,
-         *     format?: ConferenceFormat|null,
-         *     cfpStartDate?: string|null,
-         *     cfpEndDate?: string|null,
-         *     categories?: array<int, string>,
-         *     description?: string|null,
-         *     themeColor?: string|null,
-         * } $fields
-         */
-        $fields = $validated;
-        if (array_key_exists('format', $validated)) {
-            $fields['format'] = $validated['format'] !== null ? ConferenceFormat::from($validated['format']) : null;
-        }
-        if (isset($validated['status'])) {
-            $fields['status'] = ConferenceStatus::from($validated['status']);
-        }
+        $fields = ConferenceInputResolver::castUpdateFields($request->validated());
 
         $conference = $useCase->execute($id, $fields);
 

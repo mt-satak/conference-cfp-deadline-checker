@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Application\Categories\ListCategoriesUseCase;
-use App\Application\Conferences\CreateConferenceInput;
 use App\Application\Conferences\CreateConferenceUseCase;
 use App\Application\Conferences\DeleteConferenceUseCase;
 use App\Application\Conferences\Extraction\ConferenceDraft;
@@ -20,6 +19,7 @@ use App\Domain\Conferences\ConferenceNotFoundException;
 use App\Domain\Conferences\ConferenceSortKey;
 use App\Domain\Conferences\ConferenceStatus;
 use App\Domain\Conferences\SortOrder;
+use App\Http\Controllers\Conferences\ConferenceInputResolver;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Conferences\StoreConferenceRequest;
 use App\Http\Requests\Conferences\UpdateConferenceRequest;
@@ -56,9 +56,11 @@ class ConferenceController extends Controller
      */
     public function index(Request $request, ListConferencesUseCase $useCase): View
     {
-        $statusParam = $request->query('status');
-        $effectiveStatus = is_string($statusParam) ? $statusParam : 'active';
-        $statusFilters = self::resolveStatusFilters($effectiveStatus);
+        // Admin UI は未指定 / 不正値で active 扱い (= Archived を default で隠す方針)
+        $statusFilters = ConferenceInputResolver::resolveStatusFilters(
+            $request->query('status'),
+            [ConferenceStatus::Draft, ConferenceStatus::Published],
+        );
 
         $sortParam = $request->query('sort');
         $sortKey = is_string($sortParam) ? ConferenceSortKey::tryFrom($sortParam) : null;
@@ -74,7 +76,7 @@ class ConferenceController extends Controller
             'conferences' => $conferences,
             // Blade 側でフィルタタブのアクティブ判定に使う (string 値)。
             // 未指定 = active 扱い (= Issue #165 で Archived を default で隠す方針)。
-            'statusFilter' => self::canonicalizeStatusParam($effectiveStatus),
+            'statusFilter' => self::canonicalizeStatusParam($request->query('status')),
             // Blade 側で列ヘッダの「現在のソート」表示と次にクリックした時の order 反転に使う
             'sortKey' => ($sortKey ?? ConferenceSortKey::CfpEndDate)->value,
             'sortOrder' => $order->value,
@@ -82,30 +84,16 @@ class ConferenceController extends Controller
     }
 
     /**
-     * URL の ?status 文字列を ListConferencesUseCase に渡す配列に解決する。
-     *
-     * "active" は仮想 status として「Draft + Published」を意味する (Issue #165)。
-     * 未知値は active と同じ扱いにして fail-soft (= ノイズが見えないことを優先)。
-     *
-     * @return ConferenceStatus[]
-     */
-    private static function resolveStatusFilters(string $statusParam): array
-    {
-        return match ($statusParam) {
-            'draft' => [ConferenceStatus::Draft],
-            'published' => [ConferenceStatus::Published],
-            'archived' => [ConferenceStatus::Archived],
-            // 'active' / 未指定 / 不正値: Active 扱いで Archived 除外
-            default => [ConferenceStatus::Draft, ConferenceStatus::Published],
-        };
-    }
-
-    /**
      * Blade のタブハイライト判定用に ?status の値を正規化する。
      * 未知値や未指定は 'active' に丸める (= UseCase 側の挙動と一致させる)。
+     * 本メソッドは Admin UI 固有 (= タブの active 判定) のため Controller に残す。
      */
-    private static function canonicalizeStatusParam(string $statusParam): string
+    private static function canonicalizeStatusParam(mixed $statusParam): string
     {
+        if (! is_string($statusParam)) {
+            return 'active';
+        }
+
         return match ($statusParam) {
             'draft', 'published', 'archived' => $statusParam,
             default => 'active',
@@ -129,30 +117,9 @@ class ConferenceController extends Controller
      */
     public function store(StoreConferenceRequest $request, CreateConferenceUseCase $useCase): RedirectResponse
     {
-        $v = $request->validated();
-
-        // status 省略時は Published (= 後方互換)。Phase 0.5 (Issue #41) で nullable 受付化。
-        $status = isset($v['status'])
-            ? (ConferenceStatus::tryFrom($v['status']) ?? ConferenceStatus::Published)
-            : ConferenceStatus::Published;
-
-        $formatRaw = $v['format'] ?? null;
-        $input = new CreateConferenceInput(
-            name: $v['name'],
-            trackName: $v['trackName'] ?? null,
-            officialUrl: $v['officialUrl'],
-            cfpUrl: $v['cfpUrl'] ?? null,
-            eventStartDate: $v['eventStartDate'] ?? null,
-            eventEndDate: $v['eventEndDate'] ?? null,
-            venue: $v['venue'] ?? null,
-            format: $formatRaw !== null ? ConferenceFormat::from($formatRaw) : null,
-            cfpStartDate: $v['cfpStartDate'] ?? null,
-            cfpEndDate: $v['cfpEndDate'] ?? null,
-            categories: $v['categories'] ?? [],
-            description: $v['description'] ?? null,
-            themeColor: $v['themeColor'] ?? null,
-            status: $status,
-        );
+        $validated = $request->validated();
+        $status = ConferenceInputResolver::resolveCreateStatus($validated);
+        $input = ConferenceInputResolver::buildCreateInput($validated, $status);
 
         $conference = $useCase->execute($input);
 
@@ -207,32 +174,7 @@ class ConferenceController extends Controller
             $validated['categories'] = [];
         }
 
-        // ConferenceController (API) と同じ「format / status 変換 + typed shape」パターン。
-        // Phase 0.5 (Issue #41) で cfpUrl 等を nullable 受付化、status 受付追加。
-        /** @var array{
-         *     status?: ConferenceStatus,
-         *     name?: string,
-         *     trackName?: string|null,
-         *     officialUrl?: string,
-         *     cfpUrl?: string|null,
-         *     eventStartDate?: string|null,
-         *     eventEndDate?: string|null,
-         *     venue?: string|null,
-         *     format?: ConferenceFormat|null,
-         *     cfpStartDate?: string|null,
-         *     cfpEndDate?: string|null,
-         *     categories?: array<int, string>,
-         *     description?: string|null,
-         *     themeColor?: string|null,
-         * } $fields
-         */
-        $fields = $validated;
-        if (array_key_exists('format', $validated)) {
-            $fields['format'] = $validated['format'] !== null ? ConferenceFormat::from($validated['format']) : null;
-        }
-        if (isset($validated['status'])) {
-            $fields['status'] = ConferenceStatus::from($validated['status']);
-        }
+        $fields = ConferenceInputResolver::castUpdateFields($validated);
 
         try {
             $conference = $useCase->execute($id, $fields);
