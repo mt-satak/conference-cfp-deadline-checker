@@ -512,7 +512,7 @@ paths:
                     properties:
                       latestStatus:
                         type: string
-                        enum: [PENDING, PROVISIONING, RUNNING, FAILED, SUCCEED, CANCELLING, CANCELLED]
+                        enum: [PENDING, RUNNING, FAILED, SUCCEED, CANCELLED]
                         description: 最も新しいビルドのステータス
         '503':
           description: ビルドサービス未設定 (Amplify アプリ ID が未構成)
@@ -993,11 +993,11 @@ components:
       properties:
         jobId:
           type: string
-          description: Amplify ビルドジョブ ID
+          description: GitHub Actions の workflow_run ID
         status:
           type: string
-          enum: [PENDING, PROVISIONING, RUNNING, FAILED, SUCCEED, CANCELLING, CANCELLED]
-          description: ビルドステータス (Amplify SDK の値をそのまま転記)
+          enum: [PENDING, RUNNING, FAILED, SUCCEED, CANCELLED]
+          description: ビルドステータス (GitHub Actions の status / conclusion をマッピング)
         commitId:
           type: string
           description: ビルド対象の Git コミット SHA (リポジトリ連携時のみ)

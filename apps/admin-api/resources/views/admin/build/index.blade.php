@@ -8,10 +8,8 @@
     $statusBadge = static function (BuildJobStatus $status): string {
         return match ($status) {
             BuildJobStatus::Succeed => 'bg-green-100 text-green-800',
-            BuildJobStatus::Running, BuildJobStatus::Provisioning, BuildJobStatus::Pending
-                => 'bg-blue-100 text-blue-800',
-            BuildJobStatus::Failed, BuildJobStatus::Cancelled, BuildJobStatus::Cancelling
-                => 'bg-red-100 text-red-800',
+            BuildJobStatus::Running, BuildJobStatus::Pending => 'bg-blue-100 text-blue-800',
+            BuildJobStatus::Failed, BuildJobStatus::Cancelled => 'bg-red-100 text-red-800',
         };
     };
 @endphp

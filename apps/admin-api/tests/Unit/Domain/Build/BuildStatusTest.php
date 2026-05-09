@@ -48,11 +48,13 @@ it('optional フィールドを null で構築できる', function () {
     expect($status->triggerSource)->toBeNull();
 });
 
-it('BuildJobStatus enum は OpenAPI 仕様の 7 値を持つ', function () {
+it('BuildJobStatus enum は GitHub Actions の status / conclusion に対応する 5 値を持つ', function () {
+    // Given/When/Then: Phase 5.3 で GitHub Actions 経路に移行後の正規 5 値。
+    // 旧 Amplify SDK 由来の Provisioning / Cancelling は GitHub Actions に対応する状態が
+    // 無いため削除した (Issue #117)。
     $values = array_column(BuildJobStatus::cases(), 'value');
     expect($values)->toBe([
-        'PENDING', 'PROVISIONING', 'RUNNING', 'FAILED',
-        'SUCCEED', 'CANCELLING', 'CANCELLED',
+        'PENDING', 'RUNNING', 'FAILED', 'SUCCEED', 'CANCELLED',
     ]);
 });
 
