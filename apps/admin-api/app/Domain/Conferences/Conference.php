@@ -53,4 +53,56 @@ final readonly class Conference
         public string $updatedAt,
         public ConferenceStatus $status = ConferenceStatus::Published,
     ) {}
+
+    /**
+     * 開催日を過ぎたか判定する純粋関数 (Issue #165)。
+     *
+     * 比較基準:
+     * - eventEndDate が非 null ならそれを基準にする
+     * - eventEndDate が null なら eventStartDate を基準 (= 1 日開催想定)
+     * - 両方 null なら判定不能 → false (= Draft の不完全データを誤って archive しない)
+     *
+     * 当日中 (`基準日 === today`) は false を返す (= 終了日翌日からアーカイブ対象)。
+     * これは「終了直後にすぐ消える」ことを避け、運用者が当日中は一覧で確認できる UX のため。
+     *
+     * 文字列比較で OK な理由: ISO 8601 の YYYY-MM-DD は辞書順 = 時系列順なので。
+     */
+    public function isPastEvent(string $today): bool
+    {
+        $referenceDate = $this->eventEndDate ?? $this->eventStartDate;
+        if ($referenceDate === null) {
+            return false;
+        }
+
+        return $referenceDate < $today;
+    }
+
+    /**
+     * status と updatedAt のみ差し替えた新しい Conference を返す (Issue #165)。
+     *
+     * readonly class なので元インスタンスは不変。Application 層でアーカイブ処理時に使う。
+     * 他フィールド全てを保持しつつ、ステータス遷移と更新時刻だけを表現する。
+     */
+    public function withStatus(ConferenceStatus $status, string $updatedAt): self
+    {
+        return new self(
+            conferenceId: $this->conferenceId,
+            name: $this->name,
+            trackName: $this->trackName,
+            officialUrl: $this->officialUrl,
+            cfpUrl: $this->cfpUrl,
+            eventStartDate: $this->eventStartDate,
+            eventEndDate: $this->eventEndDate,
+            venue: $this->venue,
+            format: $this->format,
+            cfpStartDate: $this->cfpStartDate,
+            cfpEndDate: $this->cfpEndDate,
+            categories: $this->categories,
+            description: $this->description,
+            themeColor: $this->themeColor,
+            createdAt: $this->createdAt,
+            updatedAt: $updatedAt,
+            status: $status,
+        );
+    }
 }
