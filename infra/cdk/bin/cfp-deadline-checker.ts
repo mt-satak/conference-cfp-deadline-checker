@@ -3,6 +3,7 @@ import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { CfpCiStack } from '../lib/ci-stack';
 import { CfpDeadlineCheckerStack } from '../lib/cfp-deadline-checker-stack';
+import { getContextString } from '../lib/context-helper';
 import { EdgeStack } from '../lib/edge-stack';
 
 const app = new cdk.App();
@@ -14,17 +15,14 @@ const account = process.env.CDK_DEFAULT_ACCOUNT;
 // ── GitHub OIDC / CI 用設定 ──
 // 既定値は本リポジトリのオーナー / リポジトリ名。fork 等で変える場合は
 // `pnpm cdk deploy --context githubOrg=foo --context githubRepo=bar` で上書き。
-const githubOrg = (app.node.tryGetContext('githubOrg') as string | undefined) ?? 'mt-satak';
-const githubRepo =
-  (app.node.tryGetContext('githubRepo') as string | undefined) ?? 'conference-cfp-deadline-checker';
+const githubOrg = getContextString(app, 'githubOrg', 'mt-satak');
+const githubRepo = getContextString(app, 'githubRepo', 'conference-cfp-deadline-checker');
 
 // 既存 GitHub OIDC Provider がアカウントに既にある場合、その ARN を渡すと
 // 新規作成せず import する。AWS アカウント全体で 1 つしか持てない制約への対応。
 //   pnpm cdk deploy CfpDeadlineCheckerCiStack \
 //     --context existingOidcProviderArn=arn:aws:iam::<ACCOUNT>:oidc-provider/token.actions.githubusercontent.com
-const existingOidcProviderArn = app.node.tryGetContext('existingOidcProviderArn') as
-  | string
-  | undefined;
+const existingOidcProviderArn = getContextString(app, 'existingOidcProviderArn');
 
 // ── ドメイン設定 (任意) ──
 // ドメイン取得後、以下のように指定して有効化する:
@@ -32,8 +30,8 @@ const existingOidcProviderArn = app.node.tryGetContext('existingOidcProviderArn'
 // rootDomain: Hosted Zone を作るドメイン (apex)
 // domainName: 実際のサイト配信ホスト名 (rootDomain と同じ apex でも可)
 // 両方指定された場合のみ Route 53 / ACM / カスタムドメイン関連リソースを生成する。
-const domainName = app.node.tryGetContext('domainName') as string | undefined;
-const rootDomain = app.node.tryGetContext('rootDomain') as string | undefined;
+const domainName = getContextString(app, 'domainName');
+const rootDomain = getContextString(app, 'rootDomain');
 
 // ── 既存ドメインリソース参照モード (Phase 6.0 / Issue #119) ──
 // Route 53 console でドメインを購入した場合、Route 53 が hosted zone を
@@ -43,12 +41,8 @@ const rootDomain = app.node.tryGetContext('rootDomain') as string | undefined;
 //     --context customDomainHostedZoneId=Z068674386S4F3UC1CEQ \
 //     --context customDomainCertificateArn=arn:aws:acm:us-east-1:...:certificate/...
 // 値は cdk.json の context にも書ける (= deploy.yml から context 引数なしでも動く)。
-const customDomainHostedZoneId = app.node.tryGetContext(
-  'customDomainHostedZoneId',
-) as string | undefined;
-const customDomainCertificateArn = app.node.tryGetContext(
-  'customDomainCertificateArn',
-) as string | undefined;
+const customDomainHostedZoneId = getContextString(app, 'customDomainHostedZoneId');
+const customDomainCertificateArn = getContextString(app, 'customDomainCertificateArn');
 
 // ── Laravel APP_URL (Issue #67) ──
 // CloudFront → Lambda Function URL 転送では Host が書き換わるため、Laravel に
@@ -61,15 +55,14 @@ const customDomainCertificateArn = app.node.tryGetContext(
 // `staticSite.distribution.distributionDomainName` を CFN ref で参照すると
 // AdminApi → Distribution → AdminApiFunctionUrl → AdminApi の循環参照に
 // なるため、ここで synth 時に文字列として確定する。
-const appUrlContext = app.node.tryGetContext('appUrl') as string | undefined;
 const adminApiAppUrl = domainName
   ? `https://${domainName}`
-  : (appUrlContext ?? 'https://d1fz1i6glcp2yn.cloudfront.net');
+  : getContextString(app, 'appUrl', 'https://d1fz1i6glcp2yn.cloudfront.net');
 
 // ── 運用アラーム通知先 (任意) ──
 // 例: pnpm cdk deploy --context alertEmail=ops@example.com
 // 受信者側で確認リンクをクリックするまで通知は届かない。
-const alertEmail = app.node.tryGetContext('alertEmail') as string | undefined;
+const alertEmail = getContextString(app, 'alertEmail');
 
 // ── DynamoDB 起動モード (Issue #28) ──
 // 例: pnpm cdk deploy --context env=dev
@@ -79,7 +72,7 @@ const alertEmail = app.node.tryGetContext('alertEmail') as string | undefined;
 //
 // 受け取る値は 'dev' | 'production' | undefined。それ以外の文字列が渡された
 // 場合は安全側に倒して production と同等扱いにする。
-const envContext = app.node.tryGetContext('env') as string | undefined;
+const envContext = getContextString(app, 'env');
 const dataTablesEnv: 'dev' | 'production' | undefined =
   envContext === 'dev' ? 'dev' : envContext === 'production' ? 'production' : undefined;
 
@@ -91,7 +84,7 @@ const dataTablesEnv: 'dev' | 'production' | undefined =
 // 例:
 //   pnpm cdk deploy CfpDeadlineCheckerStack \
 //     --context basicAuthArnDirect=arn:aws:lambda:us-east-1:<acct>:function:<name>:<version>
-const basicAuthArnDirect = app.node.tryGetContext('basicAuthArnDirect') as string | undefined;
+const basicAuthArnDirect = getContextString(app, 'basicAuthArnDirect');
 
 // ── EdgeStack: us-east-1 にデプロイ ──
 // CloudFront に紐付く Lambda@Edge / WAF / Secrets Manager / ACM 証明書 /
