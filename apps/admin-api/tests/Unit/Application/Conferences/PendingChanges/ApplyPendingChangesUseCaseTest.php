@@ -242,6 +242,63 @@ describe('ApplyPendingChangesUseCase', function () {
         expect($saved->pendingChanges)->toBeNull();
     });
 
+    it('pendingChanges entry に new キーが欠落している場合は null 扱いで反映 (= 防御)', function () {
+        // Given: 'venue' エントリに 'new' キー無し (= AutoCrawl が壊れた値を保存した想定)
+        $existing = makePublishedWithPending('c1', [
+            'venue' => ['old' => '東京'],  // ← new キーなし
+        ]);
+        $repo = Mockery::mock(ConferenceRepository::class);
+        $repo->shouldReceive('findById')->once()->andReturn($existing);
+
+        $saved = null;
+        $repo->shouldReceive('save')
+            ->once()
+            ->with(Mockery::on(function (Conference $c) use (&$saved) {
+                $saved = $c;
+
+                return true;
+            }));
+
+        $useCase = new ApplyPendingChangesUseCase($repo);
+
+        // When
+        $useCase->execute('c1');
+
+        // Then: $entry['new'] ?? null の null 分岐 → venue が null セットされる
+        /** @var Conference $saved */
+        expect($saved->venue)->toBeNull();
+        expect($saved->pendingChanges)->toBeNull();
+    });
+
+    it('format の new 値が null の場合 (= 想定外データ) は actual を null にして反映', function () {
+        // Given: pendingChanges['format']['new'] が null (= AutoCrawl が non-null チェックを通って
+        //        いるはずだが、何らかの経路で壊れた値が DB に残っていた防御ケース)
+        $existing = makePublishedWithPending('c1', [
+            'format' => ['old' => 'offline', 'new' => null],
+        ]);
+        $repo = Mockery::mock(ConferenceRepository::class);
+        $repo->shouldReceive('findById')->once()->andReturn($existing);
+
+        $saved = null;
+        $repo->shouldReceive('save')
+            ->once()
+            ->with(Mockery::on(function (Conference $c) use (&$saved) {
+                $saved = $c;
+
+                return true;
+            }));
+
+        $useCase = new ApplyPendingChangesUseCase($repo);
+
+        // When: format == null は is_string($newValue) が false → tryFrom 通らずそのまま null
+        $useCase->execute('c1');
+
+        // Then
+        /** @var Conference $saved */
+        expect($saved->format)->toBeNull();
+        expect($saved->pendingChanges)->toBeNull();
+    });
+
     it('format の new 値が不正文字列の場合は actual を null にして反映 (= ConferenceFormat::tryFrom が null を返す)', function () {
         // Given: format に不正値 (= AutoCrawl が壊れた値を保存した想定、防御的に null セット)
         $existing = makePublishedWithPending('c1', [
