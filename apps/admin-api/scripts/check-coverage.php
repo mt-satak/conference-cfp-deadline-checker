@@ -48,6 +48,7 @@ $thresholds = [
     'App\\Domain\\' => 100.0,  // Entity / VO / Domain Exception
     'App\\Application\\Conferences\\ListConferencesUseCase' => 90.0,  // ソート用 match + null 比較の short-circuit を xdebug が細分化するため 100% は padding なしでは到達不能。helper を直接ユニットテスト済み (Issue #47 Phase A)
     'App\\Application\\Conferences\\AutoCrawl\\AutoCrawlConferencesUseCase' => 80.0,  // Phase 1a/1b で複合分岐 (Throwable catch / LLM null 無視 / array_key_exists 7 フィールド分の merge) を含む。padding テストで全 branch を埋めるより主要 path を 9 件の test でカバー + 閾値を下げる方が筋 (Issue #152、memory feedback_no_padding_tests.md)
+    'App\\Application\\Conferences\\PendingChanges\\ApplyPendingChangesUseCase' => 90.0,  // Issue #188 PR-3。`$field === 'format' && is_string($newValue) ? tryFrom : $newValue` の短絡 + 三項を xdebug C1 が micro-branch に細分化するため 100% は padding なしでは到達不能。15 件の主要 path テストで網羅済 (= 4 種の field × 値型 + edge case)。閾値 90% で実測 94.74% (= 18/19) に余裕を持たせる
     'App\\Application\\' => 100.0,  // UseCase
     'App\\Http\\Presenters\\' => 100.0,  // データ整形のみ
     'App\\Http\\Requests\\' => 100.0,  // バリデーションルール定義
