@@ -237,6 +237,11 @@ class DynamoDbConferenceRepository implements ConferenceRepository
         if ($conference->themeColor !== null) {
             $item['themeColor'] = $conference->themeColor;
         }
+        // Issue #188: AutoCrawl が検知した「人間レビュー待ちの保留差分」。
+        // null は属性ごと載せず、空配列も載せない (= 0 件は保留なしと同義扱い)。
+        if (! empty($conference->pendingChanges)) {
+            $item['pendingChanges'] = $conference->pendingChanges;
+        }
 
         return $item;
     }
@@ -277,7 +282,46 @@ class DynamoDbConferenceRepository implements ConferenceRepository
             createdAt: $this->stringify($item, 'createdAt'),
             updatedAt: $this->stringify($item, 'updatedAt'),
             status: $this->resolveStatus($item),
+            pendingChanges: $this->resolvePendingChanges($item),
         );
+    }
+
+    /**
+     * Issue #188: pendingChanges 属性 (DDB Map) を Conference の型に整形する。
+     *
+     * 期待形: array<string, array{old: string|null, new: string|null}>
+     * - 属性なし or 不正形 → null
+     * - 各 inner value が Map でなく old/new キーを持たない場合は当該フィールドを除外
+     *
+     * AutoCrawlUseCase が format を string 値に正規化済みなので、ここでは型確認のみ。
+     *
+     * @param  array<string, mixed>  $item
+     * @return array<string, array{old: string|null, new: string|null}>|null
+     */
+    private function resolvePendingChanges(array $item): ?array
+    {
+        if (! array_key_exists('pendingChanges', $item)) {
+            return null;
+        }
+        $raw = $item['pendingChanges'];
+        if (! is_array($raw)) {
+            return null;
+        }
+
+        $result = [];
+        foreach ($raw as $field => $entry) {
+            if (! is_string($field) || ! is_array($entry)) {
+                continue;
+            }
+            $old = $entry['old'] ?? null;
+            $new = $entry['new'] ?? null;
+            $result[$field] = [
+                'old' => is_scalar($old) ? (string) $old : null,
+                'new' => is_scalar($new) ? (string) $new : null,
+            ];
+        }
+
+        return $result === [] ? null : $result;
     }
 
     /**

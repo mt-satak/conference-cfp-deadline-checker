@@ -14,19 +14,25 @@ use App\Domain\Conferences\ConferenceRepository;
 use App\Domain\Conferences\ConferenceStatus;
 
 /**
- * AutoCrawlConferencesUseCase の単体テスト (Issue #152 Phase 1a)。
+ * AutoCrawlConferencesUseCase の単体テスト。
  *
- * Phase 1a の MVP 設計:
- *   - 既存 Published conference を全件 fetch
- *   - 各 officialUrl を ExtractConferenceDraftUseCase で再抽出
- *   - 抽出値と既存値を比較 → 差分があれば Result に件数記録
- *   - DB への副作用なし (= 観測のみ、Draft 作成は Phase 1b で実装)
- *   - 抽出失敗時は次の URL に進む (= 部分成功扱い)
+ * Issue #152 Phase 1: 既知 Published URL の再抽出 + 差分検知 + Draft 別行の生成。
+ * Issue #169: Draft 重複防止 (= findDraftByOfficialUrl で既存 Draft の ID を引き継ぐ)。
+ *
+ * Issue #188 で本 UseCase の挙動を変更:
+ * - 差分検知時に Draft 別行を作らず、Published 行内の `pendingChanges` フィールドへ保存。
+ * - `pendingChanges !== null` の Published は再検知の対象外 (= skip-if-pending)。
+ *   レビュー中に新しい diff が混入する事態を構造的に防止 (人間ゲート保証)。
+ * - Published の actual フィールド (cfpUrl 等) は AutoCrawl では絶対に書き換えない。
+ *   書き換えるのは pendingChanges のみで、Apply UseCase (PR-3) で初めて actual に反映される。
+ *
+ * これに伴い:
+ * - `findDraftByOfficialUrl` 経路は不要になり、Mock 期待からも外す。
+ * - `AutoCrawlResult.createdDraftIds` → `pendingChangesUpdatedIds` にリネーム。
+ * - `AutoCrawlResult.skippedHasPending` 追加 (= スキップ件数の観測用)。
  *
  * 比較対象フィールド:
  *   cfpUrl / eventStartDate / eventEndDate / venue / format / cfpStartDate / cfpEndDate
- *   (= name / officialUrl は通常変わらない、categorySlugs は admin 解決後の UUID
- *    と LLM 出力 slug の比較なので Phase 1a では除外)
  */
 function makePublishedConference(string $id, string $officialUrl, ?string $cfpEndDate = '2026-12-31'): Conference
 {
@@ -48,6 +54,33 @@ function makePublishedConference(string $id, string $officialUrl, ?string $cfpEn
         createdAt: '2026-04-15T10:30:00+09:00',
         updatedAt: '2026-04-15T10:30:00+09:00',
         status: ConferenceStatus::Published,
+    );
+}
+
+/**
+ * @param  array<string, array{old: mixed, new: mixed}>  $pendingChanges
+ */
+function makePublishedConferenceWithPending(string $id, string $officialUrl, array $pendingChanges): Conference
+{
+    return new Conference(
+        conferenceId: $id,
+        name: "Conference {$id}",
+        trackName: null,
+        officialUrl: $officialUrl,
+        cfpUrl: 'https://example.com/cfp',
+        eventStartDate: '2026-09-19',
+        eventEndDate: '2026-09-20',
+        venue: '東京',
+        format: ConferenceFormat::Offline,
+        cfpStartDate: null,
+        cfpEndDate: '2026-07-15',
+        categories: [],
+        description: null,
+        themeColor: null,
+        createdAt: '2026-04-15T10:30:00+09:00',
+        updatedAt: '2026-04-15T10:30:00+09:00',
+        status: ConferenceStatus::Published,
+        pendingChanges: $pendingChanges,
     );
 }
 
@@ -115,13 +148,16 @@ describe('AutoCrawlConferencesUseCase', function () {
         expect($result->totalChecked)->toBe(1);
         expect($result->diffDetected)->toBe(0);
         expect($result->extractionFailed)->toBe(0);
+        expect($result->skippedHasPending)->toBe(0);
     });
 
-    it('全フィールド一致なら diffDetected は 0', function () {
+    it('全フィールド一致なら diffDetected は 0 で save も呼ばれない', function () {
         // Given
         $conference = makePublishedConference('c1', 'https://a.example.com/');
         $repo = Mockery::mock(ConferenceRepository::class);
         $repo->shouldReceive('findAll')->once()->andReturn([$conference]);
+        // Issue #188: 差分なしなら Published 行を再保存する必要も無い
+        $repo->shouldNotReceive('save');
 
         $extract = Mockery::mock(ExtractConferenceDraftUseCase::class);
         $extract->shouldReceive('execute')->once()->andReturn(makeMatchingDraft($conference));
@@ -137,15 +173,17 @@ describe('AutoCrawlConferencesUseCase', function () {
         expect($result->extractionFailed)->toBe(0);
     });
 
-    it('cfpEndDate が変わったら diffDetected が増えて Draft が新規作成される', function () {
-        // Given: 既存は 2026-07-15、抽出結果は 2026-08-01 (= 締切延長)
+    // ── Issue #188: 差分検知時は Published 行の pendingChanges に保存 ──
+
+    it('cfpEndDate が変わったら Published 行の pendingChanges に保存され actual は変わらない', function () {
+        // Given: 既存 cfpEndDate=2026-07-15、抽出値=2026-08-01 (= 締切延長)
         $conference = makePublishedConference('c1', 'https://a.example.com/', '2026-07-15');
         $repo = Mockery::mock(ConferenceRepository::class);
         $repo->shouldReceive('findAll')->once()->andReturn([$conference]);
-        // Issue #169: 重複 Draft 無し (= 新規 UUID で作成される従来挙動)
-        $repo->shouldReceive('findDraftByOfficialUrl')->once()->andReturn(null);
 
-        // Phase 1b: 差分があれば save が呼ばれる
+        // Phase 1b で findDraftByOfficialUrl を期待していたが、Issue #188 では不要
+        $repo->shouldNotReceive('findDraftByOfficialUrl');
+
         $savedConference = null;
         $repo->shouldReceive('save')
             ->once()
@@ -175,26 +213,32 @@ describe('AutoCrawlConferencesUseCase', function () {
         // Then
         expect($result->totalChecked)->toBe(1);
         expect($result->diffDetected)->toBe(1);
-        expect($result->extractionFailed)->toBe(0);
-        expect($result->createdDraftIds)->toHaveCount(1);
-        // Draft の中身: 既存値 + 新 cfpEndDate で merge
+        expect($result->pendingChangesUpdatedIds)->toBe(['c1']);  // 同 ID (= Published 行を保存)
         /** @var Conference $savedConference */
-        expect($savedConference->status)->toBe(ConferenceStatus::Draft);
-        expect($savedConference->name)->toBe($conference->name);
-        expect($savedConference->officialUrl)->toBe($conference->officialUrl);
-        expect($savedConference->cfpEndDate)->toBe('2026-08-01');  // 新値
-        expect($savedConference->venue)->toBe($conference->venue);  // 既存維持
-        expect($savedConference->conferenceId)->not->toBe($conference->conferenceId);  // 新規 UUID
+        expect($savedConference->conferenceId)->toBe('c1');  // 新規 UUID ではなく元の ID
+        expect($savedConference->status)->toBe(ConferenceStatus::Published);  // Published のまま
+        // actual 値は人間が Apply するまで不変 (= 人間ゲート保証)
+        expect($savedConference->cfpEndDate)->toBe('2026-07-15');
+        // pendingChanges に diff が入る
+        expect($savedConference->pendingChanges)->toBe([
+            'cfpEndDate' => ['old' => '2026-07-15', 'new' => '2026-08-01'],
+        ]);
     });
 
-    it('venue が変わったら diffDetected が増えて Draft が作成される', function () {
+    it('venue が変わったら pendingChanges.venue に old/new で記録される', function () {
         // Given
         $conference = makePublishedConference('c1', 'https://a.example.com/');
         $repo = Mockery::mock(ConferenceRepository::class);
         $repo->shouldReceive('findAll')->once()->andReturn([$conference]);
-        // Issue #169: 重複 Draft 無し
-        $repo->shouldReceive('findDraftByOfficialUrl')->once()->andReturn(null);
-        $repo->shouldReceive('save')->once();
+
+        $savedConference = null;
+        $repo->shouldReceive('save')
+            ->once()
+            ->with(Mockery::on(function (Conference $c) use (&$savedConference) {
+                $savedConference = $c;
+
+                return true;
+            }));
 
         $newDraft = new ConferenceDraft(
             sourceUrl: $conference->officialUrl,
@@ -215,16 +259,101 @@ describe('AutoCrawlConferencesUseCase', function () {
 
         // Then
         expect($result->diffDetected)->toBe(1);
-        expect($result->createdDraftIds)->toHaveCount(1);
+        expect($result->pendingChangesUpdatedIds)->toBe(['c1']);
+        /** @var Conference $savedConference */
+        expect($savedConference->pendingChanges)->toBe([
+            'venue' => ['old' => '東京', 'new' => 'オンライン'],
+        ]);
+        expect($savedConference->venue)->toBe('東京');  // actual は不変
     });
 
-    it('LLM が null を返したフィールドは無視 (= 既存値維持で diff 0)', function () {
+    it('format が変わったら pendingChanges には enum->value 文字列で記録される (= DDB Marshaler 対応)', function () {
+        // Given: format が Offline → Hybrid に変わる
+        $conference = makePublishedConference('c1', 'https://a.example.com/');
+        $repo = Mockery::mock(ConferenceRepository::class);
+        $repo->shouldReceive('findAll')->once()->andReturn([$conference]);
+
+        $savedConference = null;
+        $repo->shouldReceive('save')
+            ->once()
+            ->with(Mockery::on(function (Conference $c) use (&$savedConference) {
+                $savedConference = $c;
+
+                return true;
+            }));
+
+        $newDraft = new ConferenceDraft(
+            sourceUrl: $conference->officialUrl,
+            cfpUrl: $conference->cfpUrl,
+            eventStartDate: $conference->eventStartDate,
+            eventEndDate: $conference->eventEndDate,
+            venue: $conference->venue,
+            format: ConferenceFormat::Hybrid,  // ← enum 値で渡る
+            cfpEndDate: $conference->cfpEndDate,
+        );
+        $extract = Mockery::mock(ExtractConferenceDraftUseCase::class);
+        $extract->shouldReceive('execute')->once()->andReturn($newDraft);
+
+        $useCase = new AutoCrawlConferencesUseCase($repo, $extract);
+
+        // When
+        $result = $useCase->execute();
+
+        // Then: pendingChanges には enum ではなく文字列で保存される (DDB Marshaler 対応)
+        expect($result->diffDetected)->toBe(1);
+        /** @var Conference $savedConference */
+        expect($savedConference->pendingChanges)->toBe([
+            'format' => ['old' => 'offline', 'new' => 'hybrid'],
+        ]);
+        expect($savedConference->format)->toBe(ConferenceFormat::Offline);  // actual 不変
+    });
+
+    it('複数フィールドが同時に変わったら全て pendingChanges に含まれる', function () {
+        // Given: cfpEndDate と venue の両方が変わる
+        $conference = makePublishedConference('c1', 'https://a.example.com/', '2026-07-15');
+        $repo = Mockery::mock(ConferenceRepository::class);
+        $repo->shouldReceive('findAll')->once()->andReturn([$conference]);
+
+        $savedConference = null;
+        $repo->shouldReceive('save')
+            ->once()
+            ->with(Mockery::on(function (Conference $c) use (&$savedConference) {
+                $savedConference = $c;
+
+                return true;
+            }));
+
+        $newDraft = new ConferenceDraft(
+            sourceUrl: $conference->officialUrl,
+            cfpUrl: $conference->cfpUrl,
+            eventStartDate: $conference->eventStartDate,
+            eventEndDate: $conference->eventEndDate,
+            venue: '東京 (千代田区)',
+            format: $conference->format,
+            cfpEndDate: '2026-08-01',
+        );
+        $extract = Mockery::mock(ExtractConferenceDraftUseCase::class);
+        $extract->shouldReceive('execute')->once()->andReturn($newDraft);
+
+        $useCase = new AutoCrawlConferencesUseCase($repo, $extract);
+
+        // When
+        $result = $useCase->execute();
+
+        // Then
+        /** @var Conference $savedConference */
+        expect($savedConference->pendingChanges)->toBe([
+            'venue' => ['old' => '東京', 'new' => '東京 (千代田区)'],
+            'cfpEndDate' => ['old' => '2026-07-15', 'new' => '2026-08-01'],
+        ]);
+    });
+
+    it('LLM が null を返したフィールドは無視 (= 既存値維持で diff 0 / save 呼ばれず)', function () {
         // Phase 1a 観測結果: 公式サイトトップに CfP 情報が無いと LLM が null を返す。
         // この場合は既存 admin 値を信頼して diff 扱いしない。
         $conference = makePublishedConference('c1', 'https://a.example.com/');
         $repo = Mockery::mock(ConferenceRepository::class);
         $repo->shouldReceive('findAll')->once()->andReturn([$conference]);
-        // save は呼ばれないはず
         $repo->shouldNotReceive('save');
 
         // 全フィールド null の抽出結果
@@ -240,16 +369,14 @@ describe('AutoCrawlConferencesUseCase', function () {
         // Then
         expect($result->totalChecked)->toBe(1);
         expect($result->diffDetected)->toBe(0);
-        expect($result->createdDraftIds)->toBe([]);
+        expect($result->pendingChangesUpdatedIds)->toBe([]);
     });
 
-    it('LLM が一部 null + 一部新値の場合、新値部分のみ diff として処理', function () {
+    it('LLM が一部 null + 一部新値の場合、新値部分のみ pendingChanges に含まれる', function () {
         // 例: cfpUrl=null (拾えず) / venue='詳細追加' (LLM が詳細化)
         $conference = makePublishedConference('c1', 'https://a.example.com/');
         $repo = Mockery::mock(ConferenceRepository::class);
         $repo->shouldReceive('findAll')->once()->andReturn([$conference]);
-        // Issue #169: 重複 Draft 無し
-        $repo->shouldReceive('findDraftByOfficialUrl')->once()->andReturn(null);
         $savedConference = null;
         $repo->shouldReceive('save')
             ->once()
@@ -261,8 +388,8 @@ describe('AutoCrawlConferencesUseCase', function () {
 
         $partialDraft = new ConferenceDraft(
             sourceUrl: $conference->officialUrl,
-            cfpUrl: null,  // ← null (拾えず): 既存値維持
-            venue: '東京 (千代田区)',  // ← 詳細化: 新値で上書き
+            cfpUrl: null,  // ← null (拾えず): pendingChanges 対象外
+            venue: '東京 (千代田区)',  // ← 詳細化: pending として記録
             // 他は null
         );
         $extract = Mockery::mock(ExtractConferenceDraftUseCase::class);
@@ -276,10 +403,127 @@ describe('AutoCrawlConferencesUseCase', function () {
         // Then
         expect($result->diffDetected)->toBe(1);
         /** @var Conference $savedConference */
-        expect($savedConference->cfpUrl)->toBe($conference->cfpUrl);  // 既存維持
-        expect($savedConference->venue)->toBe('東京 (千代田区)');  // 新値で上書き
-        expect($savedConference->cfpEndDate)->toBe($conference->cfpEndDate);  // 既存維持
+        // pendingChanges には venue だけ記録 (cfpUrl は null 抽出だったので含まれない)
+        expect($savedConference->pendingChanges)->toBe([
+            'venue' => ['old' => '東京', 'new' => '東京 (千代田区)'],
+        ]);
+        expect($savedConference->venue)->toBe('東京');  // actual 不変
     });
+
+    // ── Issue #188: skip-if-pending (人間ゲート保証) ──
+
+    it('pendingChanges が既にある Conference は再抽出されず skippedHasPending が増える', function () {
+        // Given: pending 待ちの Conference (= レビュー中)
+        $pending = makePublishedConferenceWithPending(
+            'c1',
+            'https://a.example.com/',
+            ['cfpEndDate' => ['old' => '2026-07-15', 'new' => '2026-08-01']],
+        );
+        $repo = Mockery::mock(ConferenceRepository::class);
+        $repo->shouldReceive('findAll')->once()->andReturn([$pending]);
+        // skip するので extract / save とも呼ばれない
+        $repo->shouldNotReceive('save');
+
+        $extract = Mockery::mock(ExtractConferenceDraftUseCase::class);
+        $extract->shouldNotReceive('execute');
+
+        $useCase = new AutoCrawlConferencesUseCase($repo, $extract);
+
+        // When
+        $result = $useCase->execute();
+
+        // Then
+        expect($result->totalChecked)->toBe(1);
+        expect($result->diffDetected)->toBe(0);
+        expect($result->skippedHasPending)->toBe(1);
+        expect($result->pendingChangesUpdatedIds)->toBe([]);
+    });
+
+    it('pending 0 件の空配列 (= レビュー解消直後の状態) は skip 対象ではなく通常巡回される', function () {
+        // Given: pendingChanges = [] は「保留差分なし」を null と区別したい場合に使う。
+        //        skip-if-pending の判定は厳密に null !== の比較で行うため、空配列は再検知される。
+        $conference = new Conference(
+            conferenceId: 'c1',
+            name: 'Reviewed Conf',
+            trackName: null,
+            officialUrl: 'https://a.example.com/',
+            cfpUrl: 'https://example.com/cfp',
+            eventStartDate: '2026-09-19',
+            eventEndDate: '2026-09-20',
+            venue: '東京',
+            format: ConferenceFormat::Offline,
+            cfpStartDate: null,
+            cfpEndDate: '2026-07-15',
+            categories: [],
+            description: null,
+            themeColor: null,
+            createdAt: '2026-04-15T10:30:00+09:00',
+            updatedAt: '2026-04-15T10:30:00+09:00',
+            status: ConferenceStatus::Published,
+            pendingChanges: [],
+        );
+        $repo = Mockery::mock(ConferenceRepository::class);
+        $repo->shouldReceive('findAll')->once()->andReturn([$conference]);
+        // 全一致なら save は呼ばれず skipped にもカウントされない
+        $repo->shouldNotReceive('save');
+
+        $extract = Mockery::mock(ExtractConferenceDraftUseCase::class);
+        $extract->shouldReceive('execute')->once()->andReturn(makeMatchingDraft($conference));
+
+        $useCase = new AutoCrawlConferencesUseCase($repo, $extract);
+
+        // When
+        $result = $useCase->execute();
+
+        // Then: 通常巡回 (= skip されない)
+        expect($result->totalChecked)->toBe(1);
+        expect($result->skippedHasPending)->toBe(0);
+        expect($result->diffDetected)->toBe(0);
+    });
+
+    it('pending あり + pending なし が混在しても pending あり側だけスキップされる', function () {
+        // Given: 2 件中 1 件 pending、1 件 通常
+        $pending = makePublishedConferenceWithPending(
+            'pending-1',
+            'https://a.example.com/',
+            ['venue' => ['old' => 'X', 'new' => 'Y']],
+        );
+        $normal = makePublishedConference('normal-1', 'https://b.example.com/', '2026-07-15');
+
+        $repo = Mockery::mock(ConferenceRepository::class);
+        $repo->shouldReceive('findAll')->once()->andReturn([$pending, $normal]);
+
+        // pending 側は extract / save が呼ばれない、normal 側だけ save が呼ばれる
+        $repo->shouldReceive('save')->once();
+
+        $extract = Mockery::mock(ExtractConferenceDraftUseCase::class);
+        // normal 側だけ extract される
+        $extract->shouldReceive('execute')
+            ->once()
+            ->with('https://b.example.com/')
+            ->andReturn(new ConferenceDraft(
+                sourceUrl: 'https://b.example.com/',
+                cfpUrl: $normal->cfpUrl,
+                eventStartDate: $normal->eventStartDate,
+                eventEndDate: $normal->eventEndDate,
+                venue: $normal->venue,
+                format: $normal->format,
+                cfpEndDate: '2026-08-01',
+            ));
+
+        $useCase = new AutoCrawlConferencesUseCase($repo, $extract);
+
+        // When
+        $result = $useCase->execute();
+
+        // Then
+        expect($result->totalChecked)->toBe(2);
+        expect($result->skippedHasPending)->toBe(1);
+        expect($result->diffDetected)->toBe(1);
+        expect($result->pendingChangesUpdatedIds)->toBe(['normal-1']);
+    });
+
+    // ── 例外処理 (既存挙動を維持) ──
 
     it('HtmlFetchFailedException が出たら extractionFailed を増やして次に進む', function () {
         // Given: 2 件のうち 1 件が fetch 失敗
@@ -346,104 +590,5 @@ describe('AutoCrawlConferencesUseCase', function () {
 
         // Then
         expect($result->totalChecked)->toBe(0);
-    });
-
-    // ── Issue #169: Draft 重複防止 ──
-
-    it('既存 Draft がある URL では Draft を新規作成せず既存 Draft を上書きする (Issue #169)', function () {
-        // Given: 既存 Published + その URL の Draft が DB に存在 (= 前回 AutoCrawl で作成済)
-        $published = makePublishedConference('c1', 'https://a.example.com/', '2026-07-15');
-        $existingDraft = makeDraftConference('draft-existing', 'https://a.example.com/');
-
-        $repo = Mockery::mock(ConferenceRepository::class);
-        $repo->shouldReceive('findAll')->once()->andReturn([$published]);
-        // 重複チェック: 同 URL の Draft が既にあるので返す
-        $repo->shouldReceive('findDraftByOfficialUrl')
-            ->once()
-            ->with('https://a.example.com/')
-            ->andReturn($existingDraft);
-
-        // 期待: save は 1 回呼ばれ、保存される Conference の conferenceId は既存 Draft の ID
-        $savedConference = null;
-        $repo->shouldReceive('save')
-            ->once()
-            ->with(Mockery::on(function (Conference $c) use (&$savedConference) {
-                $savedConference = $c;
-
-                return true;
-            }));
-
-        // 抽出結果は cfpEndDate に diff
-        $newDraft = new ConferenceDraft(
-            sourceUrl: $published->officialUrl,
-            cfpUrl: $published->cfpUrl,
-            eventStartDate: $published->eventStartDate,
-            eventEndDate: $published->eventEndDate,
-            venue: $published->venue,
-            format: $published->format,
-            cfpEndDate: '2026-08-01',
-        );
-        $extract = Mockery::mock(ExtractConferenceDraftUseCase::class);
-        $extract->shouldReceive('execute')->once()->andReturn($newDraft);
-
-        $useCase = new AutoCrawlConferencesUseCase($repo, $extract);
-
-        // When
-        $result = $useCase->execute();
-
-        // Then: 既存 Draft の conferenceId を維持
-        expect($result->diffDetected)->toBe(1);
-        expect($result->createdDraftIds)->toBe(['draft-existing']);
-        /** @var Conference $savedConference */
-        expect($savedConference->conferenceId)->toBe('draft-existing');
-        expect($savedConference->status)->toBe(ConferenceStatus::Draft);
-        expect($savedConference->cfpEndDate)->toBe('2026-08-01');
-        // createdAt は既存値を維持 (= 「いつ最初に検知したか」が消えない)
-        expect($savedConference->createdAt)->toBe($existingDraft->createdAt);
-    });
-
-    it('該当 URL の Draft が無ければ新規 UUID で Draft 作成 (= 既存挙動を維持、Issue #169)', function () {
-        // Given: Published のみ、Draft 無し
-        $published = makePublishedConference('c1', 'https://a.example.com/', '2026-07-15');
-
-        $repo = Mockery::mock(ConferenceRepository::class);
-        $repo->shouldReceive('findAll')->once()->andReturn([$published]);
-        // 重複チェック: 該当 Draft 無し
-        $repo->shouldReceive('findDraftByOfficialUrl')
-            ->once()
-            ->with('https://a.example.com/')
-            ->andReturn(null);
-
-        $savedConference = null;
-        $repo->shouldReceive('save')
-            ->once()
-            ->with(Mockery::on(function (Conference $c) use (&$savedConference) {
-                $savedConference = $c;
-
-                return true;
-            }));
-
-        $newDraft = new ConferenceDraft(
-            sourceUrl: $published->officialUrl,
-            cfpUrl: $published->cfpUrl,
-            eventStartDate: $published->eventStartDate,
-            eventEndDate: $published->eventEndDate,
-            venue: $published->venue,
-            format: $published->format,
-            cfpEndDate: '2026-08-01',
-        );
-        $extract = Mockery::mock(ExtractConferenceDraftUseCase::class);
-        $extract->shouldReceive('execute')->once()->andReturn($newDraft);
-
-        $useCase = new AutoCrawlConferencesUseCase($repo, $extract);
-
-        // When
-        $result = $useCase->execute();
-
-        // Then: 新規 UUID で Draft 作成される (= 既存挙動)
-        expect($result->createdDraftIds)->toHaveCount(1);
-        /** @var Conference $savedConference */
-        expect($savedConference->conferenceId)->not->toBe($published->conferenceId);
-        expect($savedConference->status)->toBe(ConferenceStatus::Draft);
     });
 });

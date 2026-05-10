@@ -9,32 +9,35 @@ use App\Application\Conferences\Extraction\ExtractConferenceDraftUseCase;
 use App\Application\Conferences\Extraction\HtmlFetchFailedException;
 use App\Application\Conferences\Extraction\LlmExtractionFailedException;
 use App\Domain\Conferences\Conference;
+use App\Domain\Conferences\ConferenceFormat;
 use App\Domain\Conferences\ConferenceRepository;
 use App\Domain\Conferences\ConferenceStatus;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Throwable;
 
 /**
- * 自動巡回 UseCase (Issue #152 Phase 1)。
+ * 自動巡回 UseCase (Issue #152 Phase 1, Issue #188 で挙動変更)。
  *
  * 動作:
  *   1. ConferenceRepository::findAll() で全件取得
- *   2. status=Published のみを対象に絞る (Draft や Closed 系は対象外)
- *   3. 各 conference の officialUrl を ExtractConferenceDraftUseCase で再抽出
- *   4. 抽出値と既存値を比較。LLM が null を返したフィールドは「変更なし」扱い
+ *   2. status=Published のみを対象に絞る (Draft や Archived 系は対象外)
+ *   3. Issue #188: `pendingChanges !== null` の Conference は **スキップ** (= 人間レビュー中)
+ *   4. 各 conference の officialUrl を ExtractConferenceDraftUseCase で再抽出
+ *   5. 抽出値と既存値を比較。LLM が null を返したフィールドは「変更なし」扱い
  *      (= 公式サイトトップから情報を拾えなかっただけで誤りとは限らない)。
  *      非 null 値で異なる場合のみ「差分あり」とみなす
- *   5. 差分があれば Draft Conference を新規作成 (= 既存値 + LLM が返した非 null 値で merge)。
- *      conferenceId は新規 UUID、status=Draft なので公開フロントには出ない
- *      (admin が「下書き」タブで確認 → 公開化判断する材料となる)
- *   6. 抽出失敗 (HtmlFetch / LlmExtraction) は次の URL に進む (= 部分成功)
- *   7. AutoCrawlResult として件数サマリ + 作成された Draft ID 一覧を返す
+ *   6. Issue #188: 差分があれば Published 行の `pendingChanges` フィールドに保存
+ *      (Draft 別行は作らない)。actual フィールド (cfpUrl 等) は不変 (= 人間ゲート保証)
+ *   7. 抽出失敗 (HtmlFetch / LlmExtraction) は次の URL に進む (= 部分成功)
+ *   8. AutoCrawlResult として件数サマリ + 更新 Conference ID 一覧を返す
  *
- * Phase 1a (観測のみ) → Phase 1b (本実装) の差分:
- *   - diff 判定: LLM null は無視 (= 既存値を維持)
- *   - 副作用: 差分検知時に Draft 作成 (= ConferenceRepository::save)
+ * Issue #188 設計判断:
+ *   - skip-if-pending: pending 待ちの Conference は次回 AutoCrawl でも再検知しない。
+ *     Apply/Reject (PR-3 で実装) で pendingChanges がクリアされるまで、レビュー中の
+ *     diff が新しい diff で書き換わる事態を構造的に防止する。
+ *   - actual 不変: AutoCrawl は actual フィールドを直接書き換えない。書き換え対象は
+ *     pendingChanges のみで、人間が Apply UseCase を実行して初めて actual に反映される。
  *
  * 比較対象から除外:
  *   - name / officialUrl: 通常変わらない (= 変わったら別 conference 扱いされるべき)
@@ -59,11 +62,28 @@ class AutoCrawlConferencesUseCase
         $totalChecked = 0;
         $diffDetected = 0;
         $extractionFailed = 0;
+        $skippedHasPending = 0;
         $failedUrls = [];
-        $createdDraftIds = [];
+        $pendingChangesUpdatedIds = [];
 
         foreach ($published as $conference) {
             $totalChecked++;
+
+            // Issue #188: pending 待ちの Conference は再抽出しない (= 人間ゲート保証)。
+            // null と [] (= レビュー解消直後の状態) は「保留差分なし」として通常巡回し、
+            // 1 件以上のフィールドが入っている時のみ skip する (= empty 判定)。
+            if (! empty($conference->pendingChanges)) {
+                $skippedHasPending++;
+                Log::info('auto-crawl: skipped (has pending changes)', [
+                    'channel' => 'auto-crawl',
+                    'conference_id' => $conference->conferenceId,
+                    'official_url' => $conference->officialUrl,
+                    'pending_field_count' => count($conference->pendingChanges),
+                ]);
+
+                continue;
+            }
+
             try {
                 $draft = $this->extractUseCase->execute($conference->officialUrl);
             } catch (HtmlFetchFailedException|LlmExtractionFailedException $e) {
@@ -97,29 +117,16 @@ class AutoCrawlConferencesUseCase
             if (! empty($diffs)) {
                 $diffDetected++;
 
-                // Issue #169: 同 URL の Draft が既にあれば上書き、無ければ新規 UUID。
-                // これにより毎週 AutoCrawl が走っても Draft が重複累積しない。
-                $existingDraft = $this->conferenceRepository->findDraftByOfficialUrl(
-                    $conference->officialUrl,
-                );
+                $updatedConference = $this->withPendingChanges($conference, $diffs);
+                $this->conferenceRepository->save($updatedConference);
+                $pendingChangesUpdatedIds[] = $updatedConference->conferenceId;
 
-                $newDraft = $this->buildDraftFromDiff(
-                    $conference,
-                    $draft,
-                    $diffs,
-                    $existingDraft,
-                );
-                $this->conferenceRepository->save($newDraft);
-                $createdDraftIds[] = $newDraft->conferenceId;
-
-                Log::info('auto-crawl: draft created', [
+                Log::info('auto-crawl: pending changes updated', [
                     'channel' => 'auto-crawl',
-                    'source_conference_id' => $conference->conferenceId,
-                    'new_draft_id' => $newDraft->conferenceId,
+                    'conference_id' => $conference->conferenceId,
                     'official_url' => $conference->officialUrl,
-                    'diff_fields' => array_keys($diffs),
-                    'diffs' => $diffs,
-                    'reused_existing_draft' => $existingDraft !== null,
+                    'pending_fields' => array_keys($diffs),
+                    'pending_changes' => $diffs,
                 ]);
             }
         }
@@ -129,20 +136,25 @@ class AutoCrawlConferencesUseCase
             diffDetected: $diffDetected,
             extractionFailed: $extractionFailed,
             failedUrls: $failedUrls,
-            createdDraftIds: $createdDraftIds,
+            pendingChangesUpdatedIds: $pendingChangesUpdatedIds,
+            skippedHasPending: $skippedHasPending,
         );
     }
 
     /**
      * 既存 Conference と LLM 抽出 ConferenceDraft の差分を検出する。
      *
-     * Phase 1b の判定ルール (= Phase 1a 観測結果から導入):
+     * 判定ルール:
      * - LLM が null を返したフィールドは「変更なし」扱い (= 既存値を維持)
      * - 非 null 値で異なる場合のみ「差分あり」
      *
      * 比較対象は CfP 運用で重要なフィールドに絞る。
      *
-     * @return array<string, array{old: mixed, new: mixed}> field => {old, new}
+     * format フィールドは ConferenceFormat enum で渡されるが、pendingChanges として
+     * DynamoDB に永続化する際に Marshaler が enum を扱えないため、ここで `.value`
+     * 文字列に正規化する。比較自体は enum で行う (= 等価判定の意味は変わらない)。
+     *
+     * @return array<string, array{old: string|null, new: string|null}> field => {old, new}
      */
     private function detectDiff(Conference $existing, ConferenceDraft $draft): array
     {
@@ -164,7 +176,10 @@ class AutoCrawlConferencesUseCase
                 continue;
             }
             if ($old !== $new) {
-                $diffs[$field] = ['old' => $old, 'new' => $new];
+                $diffs[$field] = [
+                    'old' => $old instanceof ConferenceFormat ? $old->value : $old,
+                    'new' => $new instanceof ConferenceFormat ? $new->value : $new,
+                ];
             }
         }
 
@@ -172,52 +187,43 @@ class AutoCrawlConferencesUseCase
     }
 
     /**
-     * 既存 Conference をベースに、差分のあった非 null 新値で merge した Draft Conference
-     * を生成する。status=Draft なので公開フロントには出ない。
+     * Issue #188: 既存 Published Conference に pendingChanges を載せた新インスタンスを返す。
      *
-     * Issue #169: 同 URL の Draft が既に存在 ($existingDraft != null) する場合は、
-     * その conferenceId と createdAt を維持して上書きする (= 重複累積を防止)。
-     * 存在しない場合は新規 UUID + 現在時刻で生成 (= 既存挙動)。
+     * - actual フィールド (cfpUrl 等) は変更しない (= 人間が Apply するまで不変)
+     * - pendingChanges に diff (field => {old, new}) を保存
+     * - updatedAt は現在時刻に更新 (= 「いつ pending を検知したか」を簡易追跡)
+     * - status は Published のまま (= 別行の Draft は作らない)
+     * - conferenceId / createdAt / その他の actual は維持
+     *
+     * format は ConferenceFormat enum で渡されるため diffs にそのまま入る。
+     * pendingChanges として保存すると DynamoDB Marshaler が non-scalar を扱えない可能性が
+     * あるため、Repository 側で string 値に変換する責務を持たせる (= toItem で対応)。
      *
      * @param  array<string, array{old: mixed, new: mixed}>  $diffs
      */
-    private function buildDraftFromDiff(
-        Conference $existing,
-        ConferenceDraft $draft,
-        array $diffs,
-        ?Conference $existingDraft,
-    ): Conference {
+    private function withPendingChanges(Conference $existing, array $diffs): Conference
+    {
         $now = Carbon::now('Asia/Tokyo')->toIso8601String();
 
-        // 既存 Draft があればその ID + createdAt を引き継ぐ (= 「いつ初めて検知したか」を保持)
-        $conferenceId = $existingDraft !== null
-            ? $existingDraft->conferenceId
-            : (string) Str::uuid();
-        $createdAt = $existingDraft !== null
-            ? $existingDraft->createdAt
-            : $now;
-
         return new Conference(
-            conferenceId: $conferenceId,
-            // name / officialUrl は不変 (= 同一 conference の更新候補であることを示す)
+            conferenceId: $existing->conferenceId,
             name: $existing->name,
             trackName: $existing->trackName,
             officialUrl: $existing->officialUrl,
-            // diffs に含まれるフィールドのみ新値で上書き、それ以外は既存値を維持
-            cfpUrl: array_key_exists('cfpUrl', $diffs) ? $draft->cfpUrl : $existing->cfpUrl,
-            eventStartDate: array_key_exists('eventStartDate', $diffs) ? $draft->eventStartDate : $existing->eventStartDate,
-            eventEndDate: array_key_exists('eventEndDate', $diffs) ? $draft->eventEndDate : $existing->eventEndDate,
-            venue: array_key_exists('venue', $diffs) ? $draft->venue : $existing->venue,
-            format: array_key_exists('format', $diffs) ? $draft->format : $existing->format,
-            cfpStartDate: array_key_exists('cfpStartDate', $diffs) ? $draft->cfpStartDate : $existing->cfpStartDate,
-            cfpEndDate: array_key_exists('cfpEndDate', $diffs) ? $draft->cfpEndDate : $existing->cfpEndDate,
-            // categories は LLM 解決保留 (Phase 2 で対応)、既存維持
+            cfpUrl: $existing->cfpUrl,
+            eventStartDate: $existing->eventStartDate,
+            eventEndDate: $existing->eventEndDate,
+            venue: $existing->venue,
+            format: $existing->format,
+            cfpStartDate: $existing->cfpStartDate,
+            cfpEndDate: $existing->cfpEndDate,
             categories: $existing->categories,
             description: $existing->description,
             themeColor: $existing->themeColor,
-            createdAt: $createdAt,
+            createdAt: $existing->createdAt,
             updatedAt: $now,
-            status: ConferenceStatus::Draft,
+            status: $existing->status,
+            pendingChanges: $diffs,
         );
     }
 }
