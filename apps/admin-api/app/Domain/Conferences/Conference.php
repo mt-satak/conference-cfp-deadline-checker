@@ -23,16 +23,22 @@ final readonly class Conference
 {
     /**
      * @param  string[]  $categories  categories.categoryId の配列 (UUID v4)。Draft では空配列可。
+     * @param  array<string, array{old: mixed, new: mixed}>|null  $pendingChanges
+     *                                                                             Issue #188: AutoCrawl が検知した「人間レビュー待ちの保留差分」。
+     *                                                                             key は変更フィールド名 (cfpUrl / cfpEndDate 等)、value は {old, new}。
+     *                                                                             null = 保留差分なし、空配列 = 「過去あった保留が解消された」状態を null と区別したい場合。
+     *                                                                             Public Presenter (#178 #4 PUBLIC_FIELDS) には含めない (= 公開漏洩防止)。
      *
      * status による必須/任意の差分:
      * - 必須 (両状態): conferenceId, name, officialUrl, createdAt, updatedAt, status
      * - 任意 (Draft では null 可): cfpUrl, eventStartDate, eventEndDate, venue, format, cfpEndDate
-     * - 任意 (元から両状態 null 可): trackName, cfpStartDate, description, themeColor
+     * - 任意 (元から両状態 null 可): trackName, cfpStartDate, description, themeColor, pendingChanges
      *
      * Published バリデーションは HTTP 層 (FormRequest) で実施。Domain Entity 側は
      * 「Draft 中の中間状態」と「Published の確定状態」の両方を表現できる柔軟な型に留める。
      *
      * status はデフォルト Published で既存呼出との後方互換を取る (Issue #41 PR-1 / PR-2)。
+     * pendingChanges もデフォルト null で既存 caller への後方互換を取る (Issue #188)。
      */
     public function __construct(
         public string $conferenceId,
@@ -52,6 +58,7 @@ final readonly class Conference
         public string $createdAt,
         public string $updatedAt,
         public ConferenceStatus $status = ConferenceStatus::Published,
+        public ?array $pendingChanges = null,
     ) {}
 
     /**
@@ -103,6 +110,7 @@ final readonly class Conference
             createdAt: $this->createdAt,
             updatedAt: $updatedAt,
             status: $status,
+            pendingChanges: $this->pendingChanges,
         );
     }
 }

@@ -280,3 +280,81 @@ describe('Conference::withStatus (Issue #165)', function () {
         expect($original->updatedAt)->toBe('2026-04-01T10:00:00+09:00');
     });
 });
+
+/**
+ * Issue #188: AutoCrawl の差分検知を Conference.pendingChanges に集約。
+ *
+ * - Published Conference に「人間レビュー待ちの保留差分」を保持できるようにする。
+ * - actual フィールド (cfpUrl 等) は AutoCrawl が直接書き換えない。書き換える対象は
+ *   pendingChanges のみで、Apply UseCase で初めて actual に反映される。
+ * - 後方互換のためデフォルト null。既存 16+ caller に影響しない。
+ */
+describe('Conference::pendingChanges (Issue #188)', function () {
+    it('pendingChanges を省略するとデフォルト null になる (= 既存 caller への後方互換)', function () {
+        // Given/When: pendingChanges 未指定で構築
+        $conference = makeConference();
+
+        // Then: null
+        expect($conference->pendingChanges)->toBeNull();
+    });
+
+    it('pendingChanges は field => {old, new} の連想配列で受け取って公開する', function () {
+        // Given: AutoCrawl が生成する shape の保留差分
+        $pending = [
+            'cfpEndDate' => ['old' => '2026-07-15', 'new' => '2026-08-01'],
+            'venue' => ['old' => '東京', 'new' => '東京 (千代田区)'],
+        ];
+
+        // When: pendingChanges を指定して構築
+        $conference = new Conference(
+            conferenceId: 'pc-1',
+            name: 'Pending Changes Conf',
+            trackName: null,
+            officialUrl: 'https://x.example.com',
+            cfpUrl: null,
+            eventStartDate: null,
+            eventEndDate: null,
+            venue: '東京',
+            format: null,
+            cfpStartDate: null,
+            cfpEndDate: '2026-07-15',
+            categories: [],
+            description: null,
+            themeColor: null,
+            createdAt: '2026-04-01T10:00:00+09:00',
+            updatedAt: '2026-04-01T10:00:00+09:00',
+            status: ConferenceStatus::Published,
+            pendingChanges: $pending,
+        );
+
+        // Then: そのまま公開される
+        expect($conference->pendingChanges)->toBe($pending);
+    });
+
+    it('pendingChanges は空配列も許容する (= 0 件保留状態を null と区別したい場合)', function () {
+        // Given/When: 空配列で構築
+        $conference = new Conference(
+            conferenceId: 'pc-2',
+            name: 'Empty Pending',
+            trackName: null,
+            officialUrl: 'https://x.example.com',
+            cfpUrl: null,
+            eventStartDate: null,
+            eventEndDate: null,
+            venue: null,
+            format: null,
+            cfpStartDate: null,
+            cfpEndDate: null,
+            categories: [],
+            description: null,
+            themeColor: null,
+            createdAt: '2026-04-01T10:00:00+09:00',
+            updatedAt: '2026-04-01T10:00:00+09:00',
+            pendingChanges: [],
+        );
+
+        // Then: 空配列がそのまま保持される (null とは区別)
+        expect($conference->pendingChanges)->toBe([]);
+        expect($conference->pendingChanges)->not->toBeNull();
+    });
+});
