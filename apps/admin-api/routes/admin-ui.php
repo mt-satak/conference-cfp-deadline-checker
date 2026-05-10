@@ -27,6 +27,9 @@ Route::put('/conferences/{id}', [ConferenceController::class, 'update'])->name('
 Route::delete('/conferences/{id}', [ConferenceController::class, 'destroy'])->name('admin.conferences.destroy');
 // Draft → Published 昇格専用 (Phase 0.5 / Issue #41 PR-3)
 Route::post('/conferences/{id}/publish', [ConferenceController::class, 'publish'])->name('admin.conferences.publish');
+// AutoCrawl 保留差分の Apply / Reject (Issue #188 PR-3)
+Route::post('/conferences/{id}/pending/apply', [ConferenceController::class, 'applyPending'])->name('admin.conferences.pending.apply');
+Route::post('/conferences/{id}/pending/reject', [ConferenceController::class, 'rejectPending'])->name('admin.conferences.pending.reject');
 // LLM URL 抽出 (Issue #40 Phase 3 PR-3): 1 admin あたり 1 時間 50 リクエストに制限し
 // LLM コスト runaway を防ぐ。Laravel 標準 throttle:50,60 (= 50 req / 60 min / IP 単位) を使う。
 Route::post('/conferences/extract-from-url', [ConferenceController::class, 'extractFromUrl'])

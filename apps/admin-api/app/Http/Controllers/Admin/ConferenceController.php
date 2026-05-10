@@ -11,6 +11,8 @@ use App\Application\Conferences\Extraction\HtmlFetchFailedException;
 use App\Application\Conferences\Extraction\LlmExtractionFailedException;
 use App\Application\Conferences\GetConferenceUseCase;
 use App\Application\Conferences\ListConferencesUseCase;
+use App\Application\Conferences\PendingChanges\ApplyPendingChangesUseCase;
+use App\Application\Conferences\PendingChanges\RejectPendingChangesUseCase;
 use App\Application\Conferences\UpdateConferenceUseCase;
 use App\Domain\Categories\CategoryRepository;
 use App\Domain\Conferences\Conference;
@@ -266,6 +268,44 @@ class ConferenceController extends Controller
         // categories: string[] で 0 件を許容済み)。
 
         return $missing;
+    }
+
+    /**
+     * POST /admin/conferences/{id}/pending/apply — pendingChanges を actual に反映 (Issue #188 PR-3)。
+     *
+     * AutoCrawl が検知した保留差分 (Conference.pendingChanges) を「全て適用」する。
+     * 差分が無い (= 二重クリック / 既に Reject 済) 場合も UseCase 側で no-op になるので
+     * Controller では分岐せず redirect with status する。
+     */
+    public function applyPending(string $id, ApplyPendingChangesUseCase $useCase): RedirectResponse
+    {
+        try {
+            $conference = $useCase->execute($id);
+        } catch (ConferenceNotFoundException) {
+            abort(404);
+        }
+
+        return redirect()
+            ->route('admin.conferences.edit', $id)
+            ->with('status', "「{$conference->name}」の保留中変更を適用しました");
+    }
+
+    /**
+     * POST /admin/conferences/{id}/pending/reject — pendingChanges を破棄 (Issue #188 PR-3)。
+     *
+     * actual フィールドは触らず pendingChanges のみクリアする。
+     */
+    public function rejectPending(string $id, RejectPendingChangesUseCase $useCase): RedirectResponse
+    {
+        try {
+            $conference = $useCase->execute($id);
+        } catch (ConferenceNotFoundException) {
+            abort(404);
+        }
+
+        return redirect()
+            ->route('admin.conferences.edit', $id)
+            ->with('status', "「{$conference->name}」の保留中変更を破棄しました");
     }
 
     /**

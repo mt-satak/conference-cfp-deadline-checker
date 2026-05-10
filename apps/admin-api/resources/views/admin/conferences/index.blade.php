@@ -99,6 +99,14 @@
                                 @if ($conf->trackName)
                                     <div class="text-xs text-gray-500">{{ $conf->trackName }}</div>
                                 @endif
+                                {{-- AutoCrawl 保留中変更バッジ (Issue #188 PR-3) --}}
+                                @if (! empty($conf->pendingChanges))
+                                    <a href="{{ route('admin.conferences.edit', $conf->conferenceId) }}"
+                                       class="mt-1 inline-flex items-center rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 hover:bg-amber-200"
+                                       title="クリックして編集画面でレビュー">
+                                        🔔 保留中変更あり ({{ count($conf->pendingChanges) }} 件)
+                                    </a>
+                                @endif
                             </td>
                             <td class="px-4 py-3">
                                 @if ($isDraft)
