@@ -1000,3 +1000,183 @@ describe('DynamoDbConferenceRepository::pendingChanges (Issue #188)', function (
         expect($result->pendingChanges)->toBeNull();
     });
 });
+
+// ── Issue #200 PR-2: discoveryMetadata の read/write ──
+
+describe('DynamoDbConferenceRepository::discoveryMetadata (Issue #200 PR-2)', function () {
+    it('save は discoveryMetadata を DDB Map 属性として保存する', function () {
+        // Given: discoveryMetadata 持ちの Conference
+        [$client, $repository] = makeMockedRepo();
+        $conference = new Conference(
+            conferenceId: 'd-1',
+            name: 'Discovered',
+            trackName: null,
+            officialUrl: 'https://x.example.com/',
+            cfpUrl: null,
+            eventStartDate: null,
+            eventEndDate: null,
+            venue: null,
+            format: null,
+            cfpStartDate: null,
+            cfpEndDate: null,
+            categories: [],
+            description: null,
+            themeColor: null,
+            createdAt: '2026-05-15T08:00:00+09:00',
+            updatedAt: '2026-05-15T08:00:00+09:00',
+            status: ConferenceStatus::Draft,
+            discoveryMetadata: [
+                'discoveredAt' => '2026-05-15T08:00:00+09:00',
+                'sourceId' => 'source-fortee',
+            ],
+        );
+        $captured = null;
+        $client->shouldReceive('putItem')
+            ->once()
+            ->with(Mockery::on(function ($args) use (&$captured) {
+                $captured = $args;
+
+                return true;
+            }))
+            ->andReturn(new Result([]));
+
+        // When
+        $repository->save($conference);
+
+        // Then: discoveryMetadata Map 属性が含まれる
+        /** @var array<string, mixed> $captured */
+        expect($captured)->not->toBeNull();
+        $item = (new Marshaler)->unmarshalItem($captured['Item']);
+        expect($item)->toHaveKey('discoveryMetadata');
+        expect($item['discoveryMetadata'])->toBe([
+            'discoveredAt' => '2026-05-15T08:00:00+09:00',
+            'sourceId' => 'source-fortee',
+        ]);
+    });
+
+    it('save は discoveryMetadata=null のとき discoveryMetadata 属性自体を含めない', function () {
+        // Given: discoveryMetadata 未指定 (= デフォルト null = 手動作成 Conference 想定)
+        [$client, $repository] = makeMockedRepo();
+        $conference = repoSampleConference();
+        $captured = null;
+        $client->shouldReceive('putItem')
+            ->once()
+            ->with(Mockery::on(function ($args) use (&$captured) {
+                $captured = $args;
+
+                return true;
+            }))
+            ->andReturn(new Result([]));
+
+        // When
+        $repository->save($conference);
+
+        // Then: discoveryMetadata キー自体が存在しない (= 「キー不在」と「null 値」を区別する方針)
+        /** @var array<string, mixed> $captured */
+        expect($captured)->not->toBeNull();
+        $item = (new Marshaler)->unmarshalItem($captured['Item']);
+        expect($item)->not->toHaveKey('discoveryMetadata');
+    });
+
+    it('findById は DDB アイテムの discoveryMetadata Map を Conference に復元する', function () {
+        // Given
+        [$client, $repository] = makeMockedRepo();
+        $item = makeMarshalledItem([
+            'conferenceId' => 'd-1',
+            'name' => 'Discovered',
+            'officialUrl' => 'https://x.example.com/',
+            'cfpUrl' => null,
+            'eventStartDate' => null,
+            'eventEndDate' => null,
+            'venue' => null,
+            'format' => null,
+            'cfpEndDate' => null,
+            'categories' => [],
+            'createdAt' => '2026-05-15T08:00:00+09:00',
+            'updatedAt' => '2026-05-15T08:00:00+09:00',
+            'status' => 'draft',
+            'discoveryMetadata' => [
+                'discoveredAt' => '2026-05-15T08:00:00+09:00',
+                'sourceId' => 'source-fortee',
+            ],
+        ]);
+        $client->shouldReceive('getItem')
+            ->once()
+            ->andReturn(new Result(['Item' => $item]));
+
+        // When
+        $result = $repository->findById('d-1');
+
+        // Then
+        expect($result)->toBeInstanceOf(Conference::class);
+        /** @var Conference $result */
+        expect($result->discoveryMetadata)->toBe([
+            'discoveredAt' => '2026-05-15T08:00:00+09:00',
+            'sourceId' => 'source-fortee',
+        ]);
+    });
+
+    it('findById は discoveryMetadata 属性の無いレガシーアイテムを null で復元する (= 既存 caller 不影響)', function () {
+        // Given: discoveryMetadata 無し
+        [$client, $repository] = makeMockedRepo();
+        $item = makeMarshalledItem([
+            'conferenceId' => 'legacy',
+            'name' => 'Legacy',
+            'officialUrl' => 'https://l.example.com/',
+            'cfpUrl' => null,
+            'eventStartDate' => null,
+            'eventEndDate' => null,
+            'venue' => null,
+            'format' => null,
+            'cfpEndDate' => null,
+            'categories' => [],
+            'createdAt' => '2026-04-15T10:30:00+09:00',
+            'updatedAt' => '2026-04-15T10:30:00+09:00',
+            'status' => 'published',
+        ]);
+        $client->shouldReceive('getItem')
+            ->once()
+            ->andReturn(new Result(['Item' => $item]));
+
+        // When
+        $result = $repository->findById('legacy');
+
+        // Then
+        expect($result)->toBeInstanceOf(Conference::class);
+        /** @var Conference $result */
+        expect($result->discoveryMetadata)->toBeNull();
+    });
+
+    it('findById は discoveryMetadata のキー欠落 (= 想定外データ) を null に丸める', function () {
+        // Given: sourceId 欠落
+        [$client, $repository] = makeMockedRepo();
+        $item = makeMarshalledItem([
+            'conferenceId' => 'partial',
+            'name' => 'Partial',
+            'officialUrl' => 'https://p.example.com/',
+            'cfpUrl' => null,
+            'eventStartDate' => null,
+            'eventEndDate' => null,
+            'venue' => null,
+            'format' => null,
+            'cfpEndDate' => null,
+            'categories' => [],
+            'createdAt' => '2026-04-15T10:30:00+09:00',
+            'updatedAt' => '2026-04-15T10:30:00+09:00',
+            'status' => 'draft',
+            'discoveryMetadata' => [
+                'discoveredAt' => '2026-05-15T08:00:00+09:00',
+                // sourceId 欠落
+            ],
+        ]);
+        $client->shouldReceive('getItem')->once()->andReturn(new Result(['Item' => $item]));
+
+        // When
+        $result = $repository->findById('partial');
+
+        // Then: 防御的に null
+        expect($result)->toBeInstanceOf(Conference::class);
+        /** @var Conference $result */
+        expect($result->discoveryMetadata)->toBeNull();
+    });
+});

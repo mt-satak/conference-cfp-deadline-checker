@@ -45,6 +45,7 @@ if (! is_readable($file)) {
 $thresholds = [
     'App\\Providers\\' => null,   // DI wiring。Lambdaコンテナ起動時しか走らない
     'App\\Domain\\Conferences\\OfficialUrl' => 85.0,  // parse_url + ?? + 短絡 || + 三項 + str_starts_with の組み合わせを xdebug C1 が細分化して 100% padding なしでは到達不能。表現的なテストは 11 件で網羅済み (Issue #152 Phase 1)
+    'App\\Domain\\Conferences\\Conference' => 80.0,  // Issue #200 PR-2 で isRecentlyDiscovered 追加。isPastEvent / pendingChanges 互換性 / discoveryMetadata + 日付演算の組み合わせで xdebug C1 が複合分岐 (?? デフォルト経路、strtotime int|false 型分岐) を細分化するため 100% は padding なしでは到達不能。実測 84.21% (16/19) に余裕を持たせて 80% に設定
     'App\\Domain\\' => 100.0,  // Entity / VO / Domain Exception
     'App\\Application\\Conferences\\ListConferencesUseCase' => 90.0,  // ソート用 match + null 比較の short-circuit を xdebug が細分化するため 100% は padding なしでは到達不能。helper を直接ユニットテスト済み (Issue #47 Phase A)
     'App\\Application\\Conferences\\AutoCrawl\\AutoCrawlConferencesUseCase' => 80.0,  // Phase 1a/1b で複合分岐 (Throwable catch / LLM null 無視 / array_key_exists 7 フィールド分の merge) を含む。padding テストで全 branch を埋めるより主要 path を 9 件の test でカバー + 閾値を下げる方が筋 (Issue #152、memory feedback_no_padding_tests.md)

@@ -242,6 +242,11 @@ class DynamoDbConferenceRepository implements ConferenceRepository
         if (! empty($conference->pendingChanges)) {
             $item['pendingChanges'] = $conference->pendingChanges;
         }
+        // Issue #200 PR-2: 週次自動 CfP 発見 (PR-3 で投入) の出自情報。
+        // null は属性ごと載せず、空配列も載せない (= pendingChanges と同方針)。
+        if (! empty($conference->discoveryMetadata)) {
+            $item['discoveryMetadata'] = $conference->discoveryMetadata;
+        }
 
         return $item;
     }
@@ -283,7 +288,43 @@ class DynamoDbConferenceRepository implements ConferenceRepository
             updatedAt: $this->stringify($item, 'updatedAt'),
             status: $this->resolveStatus($item),
             pendingChanges: $this->resolvePendingChanges($item),
+            discoveryMetadata: $this->resolveDiscoveryMetadata($item),
         );
+    }
+
+    /**
+     * Issue #200 PR-2: discoveryMetadata 属性 (DDB Map) を Conference の型に整形する。
+     *
+     * 期待形: array{discoveredAt: string, sourceId: string}
+     * - 属性なし or 不正形 → null
+     * - discoveredAt / sourceId のどちらかが欠落・非文字列 → null (= 防御的)
+     *
+     * @param  array<string, mixed>  $item
+     * @return array{discoveredAt: string, sourceId: string}|null
+     */
+    private function resolveDiscoveryMetadata(array $item): ?array
+    {
+        if (! array_key_exists('discoveryMetadata', $item)) {
+            return null;
+        }
+        $raw = $item['discoveryMetadata'];
+        if (! is_array($raw)) {
+            return null;
+        }
+
+        $discoveredAt = $raw['discoveredAt'] ?? null;
+        $sourceId = $raw['sourceId'] ?? null;
+        if (! is_string($discoveredAt) || ! is_string($sourceId)) {
+            return null;
+        }
+        if ($discoveredAt === '' || $sourceId === '') {
+            return null;
+        }
+
+        return [
+            'discoveredAt' => $discoveredAt,
+            'sourceId' => $sourceId,
+        ];
     }
 
     /**
