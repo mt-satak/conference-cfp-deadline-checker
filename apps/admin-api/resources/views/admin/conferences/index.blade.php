@@ -8,6 +8,7 @@
         /** @var ?string $statusFilter */
         /** @var string $sortKey */
         /** @var string $sortOrder */
+        /** @var string $today YYYY-MM-DD JST (Issue #200 PR-2 で自動発見バッジ判定用) */
         // Active タブは Draft + Published を意味する仮想 status (Issue #165)。
         // 「すべて」を撤廃して active を default にすることで、Archived がノイズとして
         // 表示されない状態を実現する。
@@ -105,6 +106,14 @@
                                        class="mt-1 inline-flex items-center rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 hover:bg-amber-200"
                                        title="クリックして編集画面でレビュー">
                                         🔔 保留中変更あり ({{ count($conf->pendingChanges) }} 件)
+                                    </a>
+                                @endif
+                                {{-- 自動発見バッジ (Issue #200 PR-2): 直近 14 日以内に DiscoverConferencesUseCase が投入した Draft --}}
+                                @if ($conf->isRecentlyDiscovered($today))
+                                    <a href="{{ route('admin.conferences.edit', $conf->conferenceId) }}"
+                                       class="mt-1 ml-1 inline-flex items-center rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-900 hover:bg-blue-200"
+                                       title="週次自動発見で投入された新規カンファレンス">
+                                        🆕 自動発見
                                     </a>
                                 @endif
                             </td>

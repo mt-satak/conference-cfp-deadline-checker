@@ -6,6 +6,7 @@ use App\Domain\Conferences\ConferenceFormat;
 use App\Domain\Conferences\ConferenceSortKey;
 use App\Domain\Conferences\ConferenceStatus;
 use App\Domain\Conferences\SortOrder;
+use Illuminate\Support\Carbon;
 
 /**
  * /admin/conferences (一覧画面) の Blade SSR Feature テスト。
@@ -280,4 +281,92 @@ it('?sort=name&order=desc で名称列に ▼、CfP 締切列には記号なし'
     $response->assertSee('名称 ▼', false);
     expect($response->getContent())->not->toContain('CfP 締切 ▲');
     expect($response->getContent())->not->toContain('CfP 締切 ▼');
+});
+
+// ── Issue #200 PR-2: 「🆕 自動発見」バッジ ──
+
+/**
+ * @param  array{discoveredAt: string, sourceId: string}|null  $meta
+ */
+function makeDiscoveryConference(?array $meta): Conference
+{
+    return new Conference(
+        conferenceId: 'd-conf-1',
+        name: '自動発見カンファ',
+        trackName: null,
+        officialUrl: 'https://discovered.example.com/',
+        cfpUrl: null,
+        eventStartDate: null,
+        eventEndDate: null,
+        venue: null,
+        format: null,
+        cfpStartDate: null,
+        cfpEndDate: null,
+        categories: [],
+        description: null,
+        themeColor: null,
+        createdAt: '2026-05-15T08:00:00+09:00',
+        updatedAt: '2026-05-15T08:00:00+09:00',
+        status: ConferenceStatus::Draft,
+        discoveryMetadata: $meta,
+    );
+}
+
+it('index は直近 14 日以内に自動発見された Draft に「🆕 自動発見」バッジを表示する', function () {
+    // Given: Carbon::now() = 2026-05-15 JST (固定) で「直近 14 日以内」に該当する
+    Carbon::setTestNow(Carbon::create(2026, 5, 15, 12, 0, 0, 'Asia/Tokyo'));
+
+    $conf = makeDiscoveryConference([
+        'discoveredAt' => '2026-05-15T08:00:00+09:00',  // today
+        'sourceId' => 'source-fortee',
+    ]);
+    $useCase = Mockery::mock(ListConferencesUseCase::class);
+    $useCase->shouldReceive('execute')->once()->andReturn([$conf]);
+    app()->instance(ListConferencesUseCase::class, $useCase);
+
+    // When
+    $response = $this->get('/admin/conferences');
+
+    // Then
+    $response->assertStatus(200);
+    $response->assertSee('🆕 自動発見', false);
+
+    Carbon::setTestNow();
+});
+
+it('index は 14 日より前 (= 15 日以上前) の自動発見 Draft にはバッジを表示しない', function () {
+    // Given: today=2026-05-15、discoveredAt=2026-04-30 (= 15 日前)
+    Carbon::setTestNow(Carbon::create(2026, 5, 15, 12, 0, 0, 'Asia/Tokyo'));
+
+    $conf = makeDiscoveryConference([
+        'discoveredAt' => '2026-04-30T08:00:00+09:00',
+        'sourceId' => 'source-fortee',
+    ]);
+    $useCase = Mockery::mock(ListConferencesUseCase::class);
+    $useCase->shouldReceive('execute')->once()->andReturn([$conf]);
+    app()->instance(ListConferencesUseCase::class, $useCase);
+
+    // When
+    $response = $this->get('/admin/conferences');
+
+    // Then: バッジ非表示
+    $response->assertStatus(200);
+    $response->assertDontSee('🆕 自動発見');
+
+    Carbon::setTestNow();
+});
+
+it('index は discoveryMetadata 無し (= 手動作成 Conference) にはバッジを表示しない', function () {
+    // Given
+    $conf = makeDiscoveryConference(null);
+    $useCase = Mockery::mock(ListConferencesUseCase::class);
+    $useCase->shouldReceive('execute')->once()->andReturn([$conf]);
+    app()->instance(ListConferencesUseCase::class, $useCase);
+
+    // When
+    $response = $this->get('/admin/conferences');
+
+    // Then
+    $response->assertStatus(200);
+    $response->assertDontSee('🆕 自動発見');
 });

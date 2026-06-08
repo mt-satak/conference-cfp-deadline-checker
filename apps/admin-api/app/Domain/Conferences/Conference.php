@@ -28,17 +28,22 @@ final readonly class Conference
      *                                                                             key は変更フィールド名 (cfpUrl / cfpEndDate 等)、value は {old, new}。
      *                                                                             null = 保留差分なし、空配列 = 「過去あった保留が解消された」状態を null と区別したい場合。
      *                                                                             Public Presenter (#178 #4 PUBLIC_FIELDS) には含めない (= 公開漏洩防止)。
+     * @param  array{discoveredAt: string, sourceId: string}|null  $discoveryMetadata
+     *                                                                                 Issue #200 PR-2: 週次自動 CfP 発見 (PR-3 で実装) が投入した Draft の出自情報。
+     *                                                                                 null = 既存・手動作成 / 値あり = DiscoverConferencesUseCase が投入。
+     *                                                                                 admin 一覧で「🆕 自動発見」バッジ表示の判定に使う (isRecentlyDiscovered)。
+     *                                                                                 Public Presenter には含めない (= PUBLIC_FIELDS ホワイトリストで構造的に保護)。
      *
      * status による必須/任意の差分:
      * - 必須 (両状態): conferenceId, name, officialUrl, createdAt, updatedAt, status
      * - 任意 (Draft では null 可): cfpUrl, eventStartDate, eventEndDate, venue, format, cfpEndDate
-     * - 任意 (元から両状態 null 可): trackName, cfpStartDate, description, themeColor, pendingChanges
+     * - 任意 (元から両状態 null 可): trackName, cfpStartDate, description, themeColor, pendingChanges, discoveryMetadata
      *
      * Published バリデーションは HTTP 層 (FormRequest) で実施。Domain Entity 側は
      * 「Draft 中の中間状態」と「Published の確定状態」の両方を表現できる柔軟な型に留める。
      *
      * status はデフォルト Published で既存呼出との後方互換を取る (Issue #41 PR-1 / PR-2)。
-     * pendingChanges もデフォルト null で既存 caller への後方互換を取る (Issue #188)。
+     * pendingChanges / discoveryMetadata もデフォルト null で既存 caller への後方互換を取る。
      */
     public function __construct(
         public string $conferenceId,
@@ -59,6 +64,7 @@ final readonly class Conference
         public string $updatedAt,
         public ConferenceStatus $status = ConferenceStatus::Published,
         public ?array $pendingChanges = null,
+        public ?array $discoveryMetadata = null,
     ) {}
 
     /**
@@ -111,6 +117,44 @@ final readonly class Conference
             updatedAt: $updatedAt,
             status: $status,
             pendingChanges: $this->pendingChanges,
+            discoveryMetadata: $this->discoveryMetadata,
         );
+    }
+
+    /**
+     * Issue #200 PR-2: 「直近 $withinDays 日以内に自動発見された Draft か」を判定。
+     *
+     * - discoveryMetadata 無し (= 手動作成) は常に false
+     * - discoveryMetadata 内の discoveredAt が ISO 8601 文字列で、その YYYY-MM-DD 部分が
+     *   $today から $withinDays 日以内なら true
+     * - 不正データ (空 / 形式不正) は防御的に false
+     *
+     * 文字列比較で済むのは ISO 8601 YYYY-MM-DD が辞書順 = 時系列順だから (= isPastEvent と同方針)。
+     * 14 日は admin が「新しい」と感じる範囲の標準値。バッジ表示の閾値として一覧画面 (Blade) から呼ぶ。
+     */
+    public function isRecentlyDiscovered(string $today, int $withinDays = 14): bool
+    {
+        if ($this->discoveryMetadata === null) {
+            return false;
+        }
+        $discoveredAt = $this->discoveryMetadata['discoveredAt'] ?? '';
+        if ($discoveredAt === '') {
+            return false;
+        }
+
+        // ISO 8601 の先頭 10 文字 = YYYY-MM-DD
+        $discoveredDate = substr($discoveredAt, 0, 10);
+        if (strlen($discoveredDate) !== 10) {
+            return false;
+        }
+
+        // 14 日前 を today から計算した境界 (inclusive)
+        $timestamp = strtotime($today.' -'.$withinDays.' days');
+        if ($timestamp === false) {
+            return false;
+        }
+        $boundary = date('Y-m-d', $timestamp);
+
+        return $discoveredDate >= $boundary && $discoveredDate <= $today;
     }
 }

@@ -28,6 +28,7 @@ use App\Http\Requests\Conferences\UpdateConferenceRequest;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
@@ -82,6 +83,9 @@ class ConferenceController extends Controller
             // Blade 側で列ヘッダの「現在のソート」表示と次にクリックした時の order 反転に使う
             'sortKey' => ($sortKey ?? ConferenceSortKey::CfpEndDate)->value,
             'sortOrder' => $order->value,
+            // Issue #200 PR-2: 「🆕 自動発見」バッジ判定用 (= isRecentlyDiscovered の引数)。
+            // Asia/Tokyo の YYYY-MM-DD で渡す (= Conference の日付フィールドと同タイムゾーン)。
+            'today' => Carbon::now('Asia/Tokyo')->toDateString(),
         ]);
     }
 

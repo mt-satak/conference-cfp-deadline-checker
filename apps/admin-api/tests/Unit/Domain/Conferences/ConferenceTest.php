@@ -358,3 +358,134 @@ describe('Conference::pendingChanges (Issue #188)', function () {
         expect($conference->pendingChanges)->not->toBeNull();
     });
 });
+
+/**
+ * Issue #200 PR-2: 自動 CfP 発見 (PR-3 で実装) で投入された Draft を識別する
+ * メタデータ。Conference に discoveryMetadata 持たせ、admin 一覧で「🆕 自動発見」
+ * バッジ表示する。
+ *
+ * - discoveryMetadata: ?array{discoveredAt: string, sourceId: string} (default null)
+ *   null = 既存・手動作成 / 値あり = PR-3 の DiscoverConferencesUseCase が投入
+ * - isRecentlyDiscovered(today, withinDays = 14): 直近 N 日以内かを判定する純粋関数
+ * - PublicConferencePresenter には含めない (= PUBLIC_FIELDS ホワイトリストで構造的に保護)
+ */
+describe('Conference::discoveryMetadata (Issue #200 PR-2)', function () {
+    it('discoveryMetadata を省略するとデフォルト null (= 既存 caller への後方互換)', function () {
+        // Given/When
+        $conference = makeConference();
+
+        // Then
+        expect($conference->discoveryMetadata)->toBeNull();
+    });
+
+    it('discoveryMetadata は {discoveredAt, sourceId} の連想配列で受け取って公開する', function () {
+        // Given
+        $meta = [
+            'discoveredAt' => '2026-05-15T08:00:00+09:00',
+            'sourceId' => 'source-fortee',
+        ];
+
+        // When
+        $conference = new Conference(
+            conferenceId: 'dm-1',
+            name: 'Discovered Conf',
+            trackName: null,
+            officialUrl: 'https://x.example.com',
+            cfpUrl: null,
+            eventStartDate: null,
+            eventEndDate: null,
+            venue: null,
+            format: null,
+            cfpStartDate: null,
+            cfpEndDate: null,
+            categories: [],
+            description: null,
+            themeColor: null,
+            createdAt: '2026-05-15T08:00:00+09:00',
+            updatedAt: '2026-05-15T08:00:00+09:00',
+            status: ConferenceStatus::Draft,
+            discoveryMetadata: $meta,
+        );
+
+        // Then
+        expect($conference->discoveryMetadata)->toBe($meta);
+    });
+});
+
+describe('Conference::isRecentlyDiscovered (Issue #200 PR-2)', function () {
+    /**
+     * @param  array{discoveredAt: string, sourceId: string}|null  $meta
+     */
+    function makeConferenceForDiscovery(?array $meta): Conference
+    {
+        return new Conference(
+            conferenceId: 'd-1',
+            name: 'Test',
+            trackName: null,
+            officialUrl: 'https://x.example.com',
+            cfpUrl: null,
+            eventStartDate: null,
+            eventEndDate: null,
+            venue: null,
+            format: null,
+            cfpStartDate: null,
+            cfpEndDate: null,
+            categories: [],
+            description: null,
+            themeColor: null,
+            createdAt: '2026-05-15T08:00:00+09:00',
+            updatedAt: '2026-05-15T08:00:00+09:00',
+            status: ConferenceStatus::Draft,
+            discoveryMetadata: $meta,
+        );
+    }
+
+    it('discoveryMetadata 無し (= 手動作成) は常に false', function () {
+        // Given/When/Then: 14 日以内であろうとも null なら自動発見ではない
+        expect(makeConferenceForDiscovery(null)->isRecentlyDiscovered('2026-05-15'))->toBeFalse();
+    });
+
+    it('discoveredAt が今日と同じ日付なら true', function () {
+        // Given
+        $conf = makeConferenceForDiscovery([
+            'discoveredAt' => '2026-05-15T08:00:00+09:00',
+            'sourceId' => 'source-1',
+        ]);
+
+        // When/Then
+        expect($conf->isRecentlyDiscovered('2026-05-15'))->toBeTrue();
+    });
+
+    it('discoveredAt が 14 日以内なら true (= 直近 14 日)', function () {
+        // Given: 14 日前 (= 上限の境界)
+        $conf = makeConferenceForDiscovery([
+            'discoveredAt' => '2026-05-01T08:00:00+09:00',
+            'sourceId' => 'source-1',
+        ]);
+
+        // When/Then: 5/15 から見て 5/1 はちょうど 14 日前 = true
+        expect($conf->isRecentlyDiscovered('2026-05-15'))->toBeTrue();
+    });
+
+    it('discoveredAt が 15 日以上前なら false', function () {
+        // Given: 15 日前 (= 範囲外)
+        $conf = makeConferenceForDiscovery([
+            'discoveredAt' => '2026-04-30T08:00:00+09:00',
+            'sourceId' => 'source-1',
+        ]);
+
+        // When/Then
+        expect($conf->isRecentlyDiscovered('2026-05-15'))->toBeFalse();
+    });
+
+    it('discoveryMetadata に discoveredAt キーが無い (= 想定外データ) は false', function () {
+        // Given: 壊れた meta
+        $conf = makeConferenceForDiscovery([
+            'discoveredAt' => '',  // 空文字列 (= データ欠落想定)
+            'sourceId' => 'source-1',
+        ]);
+
+        // When/Then: 防御的に false
+        expect($conf->isRecentlyDiscovered('2026-05-15'))->toBeFalse();
+    });
+});
