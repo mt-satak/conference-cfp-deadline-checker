@@ -19,7 +19,6 @@ function makeConference(id: string, cfpEndDate: string | null): Conference {
         venue: null,
         format: null,
         cfpEndDate,
-        description: null,
         categories: [],
     };
 }

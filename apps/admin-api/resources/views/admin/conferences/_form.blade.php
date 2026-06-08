@@ -45,13 +45,6 @@
         <x-admin.error-message field="name" />
     </x-admin.form-group>
 
-    {{-- trackName --}}
-    <x-admin.form-group>
-        <x-admin.label for="trackName">トラック名</x-admin.label>
-        <x-admin.input id="trackName" name="trackName" maxlength="100" :value="$val('trackName')" />
-        <x-admin.error-message field="trackName" />
-    </x-admin.form-group>
-
     {{-- URLs --}}
     <div class="grid gap-5 sm:grid-cols-2">
         <x-admin.form-group>
@@ -130,13 +123,6 @@
             </div>
         @endif
         <x-admin.error-message field="categories" />
-    </x-admin.form-group>
-
-    {{-- description --}}
-    <x-admin.form-group>
-        <x-admin.label for="description">説明</x-admin.label>
-        <x-admin.textarea id="description" name="description" rows="3" maxlength="2000">{{ $val('description') }}</x-admin.textarea>
-        <x-admin.error-message field="description" />
     </x-admin.form-group>
 
     {{-- themeColor --}}

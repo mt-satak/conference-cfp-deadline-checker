@@ -29,7 +29,6 @@ class PublicConferencePresenter
     public const PUBLIC_FIELDS = [
         'conferenceId',
         'name',
-        'trackName',
         'officialUrl',
         'cfpUrl',
         'eventStartDate',
@@ -39,7 +38,6 @@ class PublicConferencePresenter
         'cfpStartDate',
         'cfpEndDate',
         'categories',
-        'description',
         'themeColor',
         'createdAt',
         'updatedAt',
@@ -54,7 +52,6 @@ class PublicConferencePresenter
         return [
             'conferenceId' => $conference->conferenceId,
             'name' => $conference->name,
-            'trackName' => $conference->trackName,
             'officialUrl' => $conference->officialUrl,
             'cfpUrl' => $conference->cfpUrl,
             'eventStartDate' => $conference->eventStartDate,
@@ -64,7 +61,6 @@ class PublicConferencePresenter
             'cfpStartDate' => $conference->cfpStartDate,
             'cfpEndDate' => $conference->cfpEndDate,
             'categories' => $conference->categories,
-            'description' => $conference->description,
             'themeColor' => $conference->themeColor,
             'createdAt' => $conference->createdAt,
             'updatedAt' => $conference->updatedAt,

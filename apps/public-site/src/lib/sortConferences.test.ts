@@ -18,7 +18,6 @@ function makeConference(id: string, name: string, cfpEndDate: string | null): Co
         venue: null,
         format: null,
         cfpEndDate,
-        description: null,
         categories: [],
     };
 }

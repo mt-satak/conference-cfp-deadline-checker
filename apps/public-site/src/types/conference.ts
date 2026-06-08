@@ -26,8 +26,6 @@ export interface Conference {
     readonly format: ConferenceFormat | null;
     /** CfP 終了日 YYYY-MM-DD。null は未入力扱い */
     readonly cfpEndDate: string | null;
-    /** カンファレンス説明 (オーガナイザの一言など) */
-    readonly description: string | null;
     /** カテゴリ (将来 admin-api の categories と紐付ける) */
     readonly categories: readonly string[];
 }

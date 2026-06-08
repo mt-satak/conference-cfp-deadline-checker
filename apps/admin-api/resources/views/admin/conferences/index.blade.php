@@ -97,9 +97,6 @@
                         <tr class="hover:bg-gray-50">
                             <td class="px-4 py-3">
                                 <div class="font-medium">{{ $conf->name }}</div>
-                                @if ($conf->trackName)
-                                    <div class="text-xs text-gray-500">{{ $conf->trackName }}</div>
-                                @endif
                                 {{-- AutoCrawl 保留中変更バッジ (Issue #188 PR-3) --}}
                                 @if (! empty($conf->pendingChanges))
                                     <a href="{{ route('admin.conferences.edit', $conf->conferenceId) }}"

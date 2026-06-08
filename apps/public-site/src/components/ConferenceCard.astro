@@ -46,12 +46,6 @@ const formatLabel = conference.format ? formatLabelMap[conference.format] : null
         </a>
     </h2>
 
-    {conference.description && (
-        <p class="mt-2 text-sm text-gray-600 leading-relaxed line-clamp-3">
-            {conference.description}
-        </p>
-    )}
-
     {/* 詳細情報を flex-grow で下端に伸ばし、カード高さを揃える */}
     <dl class="mt-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
         {conference.eventStartDate && (

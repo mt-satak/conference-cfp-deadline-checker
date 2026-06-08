@@ -20,7 +20,6 @@ function makeApiConference(overrides: Partial<ApiConference> = {}): ApiConferenc
     return {
         conferenceId: '550e8400-e29b-41d4-a716-446655440000',
         name: 'Sample Conf',
-        trackName: null,
         officialUrl: 'https://example.com',
         cfpUrl: null,
         eventStartDate: '2026-09-19',
@@ -30,7 +29,6 @@ function makeApiConference(overrides: Partial<ApiConference> = {}): ApiConferenc
         cfpStartDate: null,
         cfpEndDate: '2026-07-15',
         categories: ['1d4f2a83-6b48-4f1c-9c8a-7e2b3d4f5a02'],
-        description: '説明',
         themeColor: null,
         createdAt: '2026-04-15T10:30:00+09:00',
         updatedAt: '2026-04-15T10:30:00+09:00',
@@ -56,7 +54,6 @@ describe('mapApiToConference', () => {
         expect(result.venue).toBe('東京');
         expect(result.format).toBe('offline');
         expect(result.cfpEndDate).toBe('2026-07-15');
-        expect(result.description).toBe('説明');
     });
 
     it('categories の UUID 配列を Category 一覧を使って slug 配列に解決する', () => {
@@ -91,7 +88,7 @@ describe('mapApiToConference', () => {
         expect(result.categories).toEqual(['php']);
     });
 
-    it('null 値を持つフィールド (eventStartDate / venue / format / cfpEndDate / description) はそのまま null', () => {
+    it('null 値を持つフィールド (eventStartDate / venue / format / cfpEndDate) はそのまま null', () => {
         // Given
         const api = makeApiConference({
             eventStartDate: null,
@@ -99,7 +96,6 @@ describe('mapApiToConference', () => {
             venue: null,
             format: null,
             cfpEndDate: null,
-            description: null,
         });
 
         // When
@@ -111,6 +107,5 @@ describe('mapApiToConference', () => {
         expect(result.venue).toBeNull();
         expect(result.format).toBeNull();
         expect(result.cfpEndDate).toBeNull();
-        expect(result.description).toBeNull();
     });
 });

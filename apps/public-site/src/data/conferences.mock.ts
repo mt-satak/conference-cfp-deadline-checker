@@ -18,7 +18,6 @@ export const mockConferences: readonly Conference[] = [
         venue: '大田区産業プラザ PiO',
         format: 'offline',
         cfpEndDate: '2026-05-15',
-        description: '日本 PHP ユーザ会が主催する PHP に関する国内最大級のカンファレンス。',
         categories: ['php', 'web'],
     },
     {
@@ -30,7 +29,6 @@ export const mockConferences: readonly Conference[] = [
         venue: '東京ミッドタウン',
         format: 'hybrid',
         cfpEndDate: '2026-06-30',
-        description: 'Go 言語コミュニティの祭典。最先端の事例セッションと懇親イベント。',
         categories: ['go', 'backend'],
     },
     {
@@ -42,7 +40,6 @@ export const mockConferences: readonly Conference[] = [
         venue: '東京国際フォーラム',
         format: 'offline',
         cfpEndDate: '2026-05-10',
-        description: 'Python 開発者向けの国内最大級の年次カンファレンス。',
         categories: ['python', 'data', 'web'],
     },
     {
@@ -54,7 +51,6 @@ export const mockConferences: readonly Conference[] = [
         venue: 'オンライン',
         format: 'online',
         cfpEndDate: '2026-04-30',
-        description: 'JavaScript / TypeScript / Web プラットフォーム関連の祭典。締切は終了済み。',
         categories: ['javascript', 'typescript', 'web'],
     },
     {
@@ -66,7 +62,6 @@ export const mockConferences: readonly Conference[] = [
         venue: '松山市総合コミュニティセンター',
         format: 'offline',
         cfpEndDate: null,
-        description: '日本最大の Ruby 国際カンファレンス。CfP 締切は未定 (公式発表待ち)。',
         categories: ['ruby'],
     },
     {
@@ -81,7 +76,6 @@ export const mockConferences: readonly Conference[] = [
         venue: 'テスト会場',
         format: 'hybrid',
         cfpEndDate: '2026-05-07',
-        description: 'ローカル開発で「本日締切」UI を確認するためのモックデータ。実在しないカンファレンス。',
         categories: ['web'],
     },
 ];
