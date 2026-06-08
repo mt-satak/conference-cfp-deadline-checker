@@ -488,4 +488,13 @@ describe('Conference::isRecentlyDiscovered (Issue #200 PR-2)', function () {
         // When/Then: 防御的に false
         expect($conf->isRecentlyDiscovered('2026-05-15'))->toBeFalse();
     });
+
+    it('discoveryMetadata 配列に discoveredAt キー自体が無い (= ?? のデフォルト経路) は false', function () {
+        // Given: discoveredAt キー欠落 (= ?? '' で空文字列フォールバック)
+        // @phpstan-ignore-next-line - intentional shape violation to exercise the ?? default branch
+        $conf = makeConferenceForDiscovery(['sourceId' => 'source-1']);
+
+        // When/Then
+        expect($conf->isRecentlyDiscovered('2026-05-15'))->toBeFalse();
+    });
 });

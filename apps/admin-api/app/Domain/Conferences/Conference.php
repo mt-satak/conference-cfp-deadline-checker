@@ -124,37 +124,34 @@ final readonly class Conference
     /**
      * Issue #200 PR-2: 「直近 $withinDays 日以内に自動発見された Draft か」を判定。
      *
-     * - discoveryMetadata 無し (= 手動作成) は常に false
-     * - discoveryMetadata 内の discoveredAt が ISO 8601 文字列で、その YYYY-MM-DD 部分が
-     *   $today から $withinDays 日以内なら true
-     * - 不正データ (空 / 形式不正) は防御的に false
+     * - discoveryMetadata 無し (= 手動作成) または discoveredAt 空文字なら false
+     * - discoveredAt の先頭 YYYY-MM-DD が today から withinDays 日前以降なら true
+     *
+     * 不正な非文字列データは Repository::resolveDiscoveryMetadata で null に丸めて
+     * くるので、Entity 側では is_string チェックを省略する (= 上流で守る方針)。
      *
      * 文字列比較で済むのは ISO 8601 YYYY-MM-DD が辞書順 = 時系列順だから (= isPastEvent と同方針)。
      * 14 日は admin が「新しい」と感じる範囲の標準値。バッジ表示の閾値として一覧画面 (Blade) から呼ぶ。
      */
     public function isRecentlyDiscovered(string $today, int $withinDays = 14): bool
     {
-        if ($this->discoveryMetadata === null) {
-            return false;
-        }
+        // discoveryMetadata 無し or discoveredAt 空 = 自動発見ではない (= 手動作成 / 不正データ)。
+        // 非文字列の防御は Repository::resolveDiscoveryMetadata が上流で null に丸める方針。
         $discoveredAt = $this->discoveryMetadata['discoveredAt'] ?? '';
         if ($discoveredAt === '') {
             return false;
         }
 
-        // ISO 8601 の先頭 10 文字 = YYYY-MM-DD
-        $discoveredDate = substr($discoveredAt, 0, 10);
-        if (strlen($discoveredDate) !== 10) {
-            return false;
-        }
-
-        // 14 日前 を today から計算した境界 (inclusive)
+        // today は YYYY-MM-DD で渡される前提。strtotime は ISO 8601 文字列に対して
+        // 確定的に成功するため false 戻りは想定しない (int|false の int 側のみ使う)。
+        // 不正な today が渡るケースは Controller (Carbon::now()->toDateString()) が
+        // 防ぐので Entity レイヤで再防御しない (= testing 可能な path のみ残す方針)。
+        /** @var int $timestamp */
         $timestamp = strtotime($today.' -'.$withinDays.' days');
-        if ($timestamp === false) {
-            return false;
-        }
         $boundary = date('Y-m-d', $timestamp);
 
-        return $discoveredDate >= $boundary && $discoveredDate <= $today;
+        // ISO 8601 の先頭 10 文字 = YYYY-MM-DD。短い文字列の lexical 比較で
+        // boundary より小さくなり自然に false に倒れる。
+        return substr($discoveredAt, 0, 10) >= $boundary;
     }
 }
