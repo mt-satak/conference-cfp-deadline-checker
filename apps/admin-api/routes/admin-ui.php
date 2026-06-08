@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\BuildController;
 use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\CfpSourceController;
 use App\Http\Controllers\Admin\ConferenceController;
 use App\Http\Controllers\Admin\HomeController;
 use Illuminate\Support\Facades\Route;
@@ -43,6 +44,14 @@ Route::post('/categories', [CategoryController::class, 'store'])->name('admin.ca
 Route::get('/categories/{id}/edit', [CategoryController::class, 'edit'])->name('admin.categories.edit');
 Route::put('/categories/{id}', [CategoryController::class, 'update'])->name('admin.categories.update');
 Route::delete('/categories/{id}', [CategoryController::class, 'destroy'])->name('admin.categories.destroy');
+
+// ── CfP Sources (Issue #200 PR-1: 週次自動 CfP 発見の巡回対象 URL 管理) ──
+Route::get('/cfp-sources', [CfpSourceController::class, 'index'])->name('admin.cfp-sources.index');
+Route::get('/cfp-sources/create', [CfpSourceController::class, 'create'])->name('admin.cfp-sources.create');
+Route::post('/cfp-sources', [CfpSourceController::class, 'store'])->name('admin.cfp-sources.store');
+Route::get('/cfp-sources/{id}/edit', [CfpSourceController::class, 'edit'])->name('admin.cfp-sources.edit');
+Route::put('/cfp-sources/{id}', [CfpSourceController::class, 'update'])->name('admin.cfp-sources.update');
+Route::delete('/cfp-sources/{id}', [CfpSourceController::class, 'destroy'])->name('admin.cfp-sources.destroy');
 
 // ── Build (静的サイト再ビルド) ──
 Route::get('/build', [BuildController::class, 'index'])->name('admin.build.index');

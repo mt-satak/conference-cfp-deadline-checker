@@ -36,6 +36,7 @@ export interface DataTablesProps {
 export class DataTables extends Construct {
   public readonly conferences: Table;
   public readonly categories: Table;
+  public readonly cfpSources: Table;
 
   constructor(scope: Construct, id: string, props?: DataTablesProps) {
     super(scope, id);
@@ -60,6 +61,20 @@ export class DataTables extends Construct {
     this.categories = new Table(this, 'Categories', {
       tableName: 'cfp-categories',
       partitionKey: { name: 'categoryId', type: AttributeType.STRING },
+      billingMode: BillingMode.PAY_PER_REQUEST,
+      encryption: TableEncryption.AWS_MANAGED,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
+      deletionProtection,
+      removalPolicy,
+    });
+
+    // Issue #200 PR-1: 週次自動 CfP 発見の巡回対象 URL 管理。
+    // 想定件数は数〜数十件で全件 Scan する運用、PITR は念のため有効化。
+    this.cfpSources = new Table(this, 'CfpSources', {
+      tableName: 'cfp-sources',
+      partitionKey: { name: 'sourceId', type: AttributeType.STRING },
       billingMode: BillingMode.PAY_PER_REQUEST,
       encryption: TableEncryption.AWS_MANAGED,
       pointInTimeRecoverySpecification: {

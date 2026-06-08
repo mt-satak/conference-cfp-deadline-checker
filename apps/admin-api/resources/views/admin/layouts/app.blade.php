@@ -27,6 +27,10 @@
                    class="{{ request()->routeIs('admin.categories.*') ? 'font-semibold text-blue-700' : 'text-gray-600 hover:text-gray-900' }}">
                     カテゴリ
                 </a>
+                <a href="{{ route('admin.cfp-sources.index') }}"
+                   class="{{ request()->routeIs('admin.cfp-sources.*') ? 'font-semibold text-blue-700' : 'text-gray-600 hover:text-gray-900' }}">
+                    CfP ソース
+                </a>
                 <a href="{{ route('admin.build.index') }}"
                    class="{{ request()->routeIs('admin.build.*') ? 'font-semibold text-blue-700' : 'text-gray-600 hover:text-gray-900' }}">
                     ビルド

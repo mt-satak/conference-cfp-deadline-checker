@@ -57,6 +57,21 @@ describe('DataTables (Issue #28: env flag)', () => {
             });
         });
 
+        it('CfpSources テーブルも RETAIN + deletionProtection: true (Issue #200 PR-1)', () => {
+            // Given/When
+            const { template } = synthTemplate();
+
+            // Then
+            template.hasResource('AWS::DynamoDB::Table', {
+                DeletionPolicy: 'Retain',
+                UpdateReplacePolicy: 'Retain',
+                Properties: Match.objectLike({
+                    TableName: 'cfp-sources',
+                    DeletionProtectionEnabled: true,
+                }),
+            });
+        });
+
         it('警告 Annotation は出ない', () => {
             // Given/When
             const { stack } = synthTemplate();
@@ -81,6 +96,21 @@ describe('DataTables (Issue #28: env flag)', () => {
                 UpdateReplacePolicy: 'Delete',
                 Properties: Match.objectLike({
                     TableName: 'cfp-conferences',
+                    DeletionProtectionEnabled: false,
+                }),
+            });
+        });
+
+        it('CfpSources テーブルも DELETE + deletionProtection: false (Issue #200 PR-1)', () => {
+            // Given/When
+            const { template } = synthTemplate({ env: 'dev' });
+
+            // Then
+            template.hasResource('AWS::DynamoDB::Table', {
+                DeletionPolicy: 'Delete',
+                UpdateReplacePolicy: 'Delete',
+                Properties: Match.objectLike({
+                    TableName: 'cfp-sources',
                     DeletionProtectionEnabled: false,
                 }),
             });
