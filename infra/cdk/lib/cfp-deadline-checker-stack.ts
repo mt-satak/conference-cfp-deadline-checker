@@ -117,6 +117,7 @@ export class CfpDeadlineCheckerStack extends cdk.Stack {
     const adminApi = new AdminApi(this, 'AdminApi', {
       conferences: dataTables.conferences,
       categories: dataTables.categories,
+      cfpSources: dataTables.cfpSources,
       appUrl: props.appUrl,
       cloudfrontOriginSecret: cloudfrontOriginSecretValue,
     });

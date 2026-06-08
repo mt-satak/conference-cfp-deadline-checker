@@ -8,8 +8,10 @@ use App\Domain\Build\BuildStatusReader;
 use App\Domain\Build\BuildTriggerer;
 use App\Domain\Categories\Category;
 use App\Domain\Categories\CategoryRepository;
+use App\Domain\CfpSources\CfpSourceRepository;
 use App\Domain\Conferences\ConferenceRepository;
 use App\Infrastructure\DynamoDb\DynamoDbCategoryRepository;
+use App\Infrastructure\DynamoDb\DynamoDbCfpSourceRepository;
 use App\Infrastructure\DynamoDb\DynamoDbConferenceRepository;
 use App\Infrastructure\GitHubApp\FirebaseGitHubAppClient;
 use App\Infrastructure\GitHubApp\GitHubActionsBuildStatusReader;
@@ -148,6 +150,16 @@ class AppServiceProvider extends ServiceProvider
             return new DynamoDbCategoryRepository(
                 $app->make(DynamoDbClient::class),
                 is_string($tableName) ? $tableName : 'cfp-categories',
+            );
+        });
+
+        // Issue #200 PR-1: CfP ソース管理 (週次自動 CfP 発見の巡回対象 URL)
+        $this->app->bind(CfpSourceRepository::class, function (Application $app): DynamoDbCfpSourceRepository {
+            $tableName = config('dynamodb.tables.cfp_sources');
+
+            return new DynamoDbCfpSourceRepository(
+                $app->make(DynamoDbClient::class),
+                is_string($tableName) ? $tableName : 'cfp-sources',
             );
         });
     }

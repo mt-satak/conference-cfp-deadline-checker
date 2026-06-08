@@ -36,5 +36,7 @@ return [
     'tables' => [
         'conferences' => env('DYNAMODB_CONFERENCES_TABLE', 'cfp-conferences'),
         'categories' => env('DYNAMODB_CATEGORIES_TABLE', 'cfp-categories'),
+        // Issue #200 PR-1: 週次自動 CfP 発見の巡回対象 URL を保持
+        'cfp_sources' => env('DYNAMODB_CFP_SOURCES_TABLE', 'cfp-sources'),
     ],
 ];
