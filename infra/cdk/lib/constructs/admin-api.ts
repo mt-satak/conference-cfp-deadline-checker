@@ -90,6 +90,16 @@ export class AdminApi extends Construct {
   public readonly autoCrawlFunction: LambdaFunction;
 
   /**
+   * 週次自動 CfP 発見 (Issue #200 PR-3) 用 Lambda 関数。
+   *
+   * 既存 admin-api Lambda と同じ asset を共有しつつ Bref console mode で
+   * `conferences:discover-new --apply` を実行する。EventBridge schedule
+   * (月曜 JST 08:00) から起動。AutoCrawl (月曜 JST 09:00) の 1 時間前に走らせて
+   * 新規 Draft を投入してから既存 Published の差分検知に進む順序にする。
+   */
+  public readonly discoverConferencesFunction: LambdaFunction;
+
+  /**
    * 開催日を過ぎた Published Conference を Archived 状態へ遷移させる Lambda console
    * + EventBridge schedule (毎朝 JST 06:00、Issue #165 Phase 3)。
    *
@@ -496,6 +506,93 @@ export class AdminApi extends Construct {
         new LambdaTarget(this.autoCrawlFunction, {
           event: RuleTargetInput.fromObject({
             cli: 'conferences:auto-crawl',
+          }),
+        }),
+      ],
+    });
+
+    // ── 自動 CfP 発見 Lambda console + EventBridge schedule (Issue #200 PR-3) ──
+    // AutoCrawl と同パターン: admin-api asset を共有しつつ Bref console モードで
+    // `conferences:discover-new --apply` を実行する。月曜 JST 08:00 (= UTC 日曜 23:00)
+    // 起動で、AutoCrawl (月曜 09:00) の 1 時間前に新規 Draft を投入してから既存
+    // Published の差分検知が走る順序にする。
+    this.discoverConferencesFunction = new LambdaFunction(this, 'DiscoverConferencesFunction', {
+      runtime: Runtime.PROVIDED_AL2023,
+      handler: 'artisan',
+      code: adminApiCode,
+      layers: [phpLayer],
+      architecture: Architecture.X86_64,
+      timeout: Duration.minutes(15),
+      memorySize: 1024,
+      environment: {
+        BREF_RUNTIME: 'console',
+        BREF_LOOP_MAX: '1',
+        APP_KEY: appKeySecret.secretValue.unsafeUnwrap(),
+        APP_ENV: 'production',
+        APP_DEBUG: 'false',
+        SESSION_DRIVER: 'cookie',
+        SESSION_SECURE_COOKIE: 'true',
+        SESSION_SAME_SITE: 'strict',
+        CACHE_STORE: 'array',
+        DYNAMODB_CONFERENCES_TABLE: props.conferences.tableName,
+        DYNAMODB_CATEGORIES_TABLE: props.categories.tableName,
+        DYNAMODB_CFP_SOURCES_TABLE: props.cfpSources.tableName,
+        LLM_PROVIDER: 'bedrock',
+        LLM_MODEL: 'jp.anthropic.claude-sonnet-4-6',
+        LLM_REGION: region,
+        APP_URL: props.appUrl,
+      },
+      description: 'Weekly auto CfP discovery task for Conference CfP Deadline Checker (Issue #200 PR-3)',
+    });
+
+    // DynamoDB 権限:
+    // - cfp_sources: read (= 巡回対象の取得)
+    // - conferences: read+write (= 既存 dedup + 新規 Draft 投入)
+    // - categories: read のみ (= 念のため categorySlugs 解決の余地、現状は categories=[] で投入)
+    props.cfpSources.grantReadData(this.discoverConferencesFunction);
+    props.conferences.grantReadWriteData(this.discoverConferencesFunction);
+    props.categories.grantReadData(this.discoverConferencesFunction);
+
+    // Bedrock 権限 (= AutoCrawl と同じ Sonnet 4.6 限定)
+    this.discoverConferencesFunction.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ['bedrock:InvokeModel', 'bedrock:Converse'],
+        resources: [
+          `arn:aws:bedrock:${region}::foundation-model/anthropic.claude-sonnet-4-6*`,
+          `arn:aws:bedrock:${region}:*:inference-profile/*anthropic.claude-sonnet-4-6*`,
+          `arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6*`,
+        ],
+      }),
+    );
+
+    // AWS Marketplace subscribe 権限 (= 初回 Bedrock 呼出で必要、Issue #83)
+    this.discoverConferencesFunction.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: [
+          'aws-marketplace:ViewSubscriptions',
+          'aws-marketplace:Subscribe',
+        ],
+        resources: ['*'],
+      }),
+    );
+
+    // EventBridge schedule: 週 1 (JST 月曜 08:00 = UTC 日曜 23:00)
+    // weekDay='SUN' + hour='23' で UTC 日曜 23:00 = JST 月曜 08:00 を表す。
+    // AutoCrawl (月曜 09:00 JST) の 1 時間前に走らせる順序にする。
+    // payload `{cli: 'conferences:discover-new --apply'}` で実投入モードを指定。
+    new Rule(this, 'DiscoverConferencesSchedule', {
+      schedule: Schedule.cron({
+        weekDay: 'SUN',
+        hour: '23',
+        minute: '0',
+      }),
+      description: 'Weekly auto CfP discovery (Issue #200 PR-3, JST Mon 08:00 = UTC Sun 23:00)',
+      targets: [
+        new LambdaTarget(this.discoverConferencesFunction, {
+          event: RuleTargetInput.fromObject({
+            cli: 'conferences:discover-new --apply',
           }),
         }),
       ],

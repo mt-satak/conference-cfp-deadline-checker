@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Application\Conferences\Discovery\ListConferenceUrlsExtractor;
 use App\Application\Conferences\Extraction\ConferenceDraftExtractor;
 use App\Application\Conferences\Extraction\HtmlFetcher;
 use App\Domain\Build\BuildStatusReader;
@@ -23,7 +24,9 @@ use App\Infrastructure\Http\HostValidator;
 use App\Infrastructure\Http\LaravelHtmlFetcher;
 use App\Infrastructure\Http\PhpDnsResolver;
 use App\Infrastructure\LlmExtraction\BedrockConferenceDraftExtractor;
+use App\Infrastructure\LlmExtraction\BedrockListConferenceUrlsExtractor;
 use App\Infrastructure\LlmExtraction\MockConferenceDraftExtractor;
+use App\Infrastructure\LlmExtraction\MockListConferenceUrlsExtractor;
 use Aws\BedrockRuntime\BedrockRuntimeClient;
 use Aws\DynamoDb\DynamoDbClient;
 use Illuminate\Contracts\Foundation\Application;
@@ -270,6 +273,23 @@ class AppServiceProvider extends ServiceProvider
                 client: $app->make(BedrockRuntimeClient::class),
                 modelId: is_string($modelId) ? $modelId : 'anthropic.claude-sonnet-4-6',
                 availableSlugs: $availableSlugs,
+            );
+        });
+
+        // Issue #200 PR-3: 自動 CfP 発見の URL 列挙 Extractor も同じ provider 切替で
+        // bind する。Bedrock 実装は availableSlugs を持たない (= URL リストだけ返す)。
+        $this->app->bind(ListConferenceUrlsExtractor::class, function (Application $app): ListConferenceUrlsExtractor {
+            $provider = config('llm.provider');
+
+            if ($provider !== 'bedrock') {
+                return new MockListConferenceUrlsExtractor;
+            }
+
+            $modelId = config('llm.model');
+
+            return new BedrockListConferenceUrlsExtractor(
+                client: $app->make(BedrockRuntimeClient::class),
+                modelId: is_string($modelId) ? $modelId : 'anthropic.claude-sonnet-4-6',
             );
         });
     }
