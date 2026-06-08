@@ -19,7 +19,6 @@ function makeConference(id: string, categories: readonly string[]): Conference {
         venue: null,
         format: null,
         cfpEndDate: '2026-12-31',
-        description: null,
         categories,
     };
 }

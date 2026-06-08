@@ -11,7 +11,6 @@ import { resolveCategoryUuidsToSlugs } from './categoryResolver';
 export interface ApiConference {
     readonly conferenceId: string;
     readonly name: string;
-    readonly trackName: string | null;
     readonly officialUrl: string;
     readonly cfpUrl: string | null;
     readonly eventStartDate: string | null;
@@ -24,7 +23,6 @@ export interface ApiConference {
      * admin-api 側は UUID v4 配列。mapApiToConference で Categories 一覧を使い slug 配列に解決する。
      */
     readonly categories: readonly string[];
-    readonly description: string | null;
     readonly themeColor: string | null;
     readonly createdAt: string;
     readonly updatedAt: string;
@@ -55,7 +53,6 @@ export function mapApiToConference(
         venue: api.venue,
         format: api.format,
         cfpEndDate: api.cfpEndDate,
-        description: api.description,
         categories: resolveCategoryUuidsToSlugs(api.categories, categories),
     };
 }
