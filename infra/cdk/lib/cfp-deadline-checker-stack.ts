@@ -1,7 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { CloudFrontTarget } from 'aws-cdk-lib/aws-route53-targets';
 import { ARecord, HostedZone, RecordTarget } from 'aws-cdk-lib/aws-route53';
-import { Secret } from 'aws-cdk-lib/aws-secretsmanager';
+import { StringParameter } from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 import { AdminApi } from './constructs/admin-api';
 import { AuditTrail } from './constructs/audit-trail';
@@ -90,27 +90,27 @@ export class CfpDeadlineCheckerStack extends cdk.Stack {
       env: props.dataTablesEnv,
     });
 
-    // ── CloudFront Custom Origin Header 用 secret (Issue #77) ──
+    // ── CloudFront Custom Origin Header 用 secret (Issue #77, #206 #1 で SSM 移行) ──
     // Lambda Function URL の AuthType=NONE に切り替えたため、CloudFront 経由
     // リクエストかどうかを判別する材料として `X-CloudFront-Secret: <random>` を
     // CloudFront Origin に仕込み、Laravel の CloudFrontSecretMiddleware で検証する。
     // AdminApi (Lambda 環境変数) と StaticSite (CloudFront Origin Custom Header)
-    // の両方で同じ値を参照する必要があるため、MainStack で 1 度生成して両方に渡す。
-    const cloudfrontOriginSecret = new Secret(
+    // の両方で同じ値を参照する必要があるため、MainStack で 1 度解決して両方に渡す。
+    //
+    // パラメータは CDK 管理外 (= CLI で事前作成、CDK は参照のみ)。deploy 時解決のため
+    // 値はテンプレートに焼き込まれない。設計判断 (平文 String 採用理由) は
+    // admin-api.ts の APP_KEY セクション参照。
+    //
+    // 投入手順 (1 回限り、deploy 前):
+    //   aws ssm put-parameter --name /cfp/admin-api/cloudfront-origin-secret --type String \
+    //     --value "$(openssl rand -base64 64 | tr -dc 'a-zA-Z0-9' | head -c 48)"
+    //
+    // rotate 時は put-parameter --overwrite → 再 deploy (CloudFront 側 Origin Header と
+    // Lambda env の両方が同一 deploy で更新されるため、片方だけ古くなる事故は起きない)。
+    const cloudfrontOriginSecretValue = StringParameter.valueForStringParameter(
       this,
-      'CloudFrontOriginSecret',
-      {
-        secretName: 'cfp/admin-cloudfront-origin-secret',
-        description:
-          'Custom origin header value for CloudFront → AdminApi Function URL (Issue #77)',
-        generateSecretString: {
-          passwordLength: 48,
-          excludePunctuation: true,
-        },
-      },
+      '/cfp/admin-api/cloudfront-origin-secret',
     );
-    const cloudfrontOriginSecretValue =
-      cloudfrontOriginSecret.secretValue.unsafeUnwrap();
 
     // 管理 API Lambda。DynamoDB 2 テーブルへの最小権限を持つ。
     // appUrl は bin/ 側で確定済みの文字列を受け取る (Issue #67)。
