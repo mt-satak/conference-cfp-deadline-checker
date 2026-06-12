@@ -13,7 +13,7 @@ import {
   LayerVersion,
   Runtime,
 } from 'aws-cdk-lib/aws-lambda';
-import { Secret } from 'aws-cdk-lib/aws-secretsmanager';
+import { StringParameter } from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 import { ArchivePastTask } from './archive-past-task';
 
@@ -112,48 +112,56 @@ export class AdminApi extends Construct {
 
     const region = Stack.of(this).region;
 
-    // ── Laravel APP_KEY 用 Secrets Manager シークレット ──
+    // ── Laravel APP_KEY (SSM Parameter Store, Issue #206 #1 で Secrets Manager から移行) ──
     // Laravel は暗号化用に 32 byte (256 bit) key を APP_KEY 環境変数で要求する
     // (Encrypter::supported() 内で `mb_strlen($key, '8bit') === 32` を validation)。
-    // コードに直接書かず Secrets Manager で管理することでローテーションとアクセス
-    // 監査を可能にする。
     //
-    // 値の形式について:
-    //   `excludePunctuation: true` で生成される 32 文字は ASCII 英数字のみのため
-    //   1 文字 = 1 byte、生 32 byte として APP_KEY に渡せる。Laravel docs 推奨の
-    //   `base64:<encoded>` 形式は使わない。`base64:` prefix 付きで 32 文字の
-    //   random string を渡すと Laravel が base64_decode して 24 byte になり、
-    //   `Unsupported cipher or incorrect key length` で起動失敗する。
-    const appKeySecret = new Secret(this, 'AppKeySecret', {
-      secretName: 'cfp/admin-api-app-key',
-      description: 'Laravel APP_KEY for admin-api Lambda (raw 32-byte ASCII)',
-      generateSecretString: {
-        passwordLength: 32,
-        excludePunctuation: true,
-      },
-    });
+    // Standard String パラメータ (無料) を採用した理由 (Issue #206 #1):
+    //  - SecureString は CloudFormation の dynamic reference が Lambda 環境変数に
+    //    使えないため、起動時 SDK 取得 (= cold start 増 + コード変更) が必要になる
+    //  - 値はどのみち Lambda 環境変数としてコンソールに表示されるため、平文 String
+    //    でも実質的なセキュリティ低下はない (どちらも IAM で読み取りを制御)
+    //
+    // パラメータは CDK 管理外 (= CLI で事前作成、CDK は参照のみ)。
+    // valueForStringParameter は deploy 時に値を解決するため、値はテンプレートに
+    // 焼き込まれない (= 旧 secretsmanager dynamic reference と同じ性質)。
+    //
+    // 投入手順 (1 回限り、deploy 前。値は 32 文字 ASCII 英数字のみ):
+    //   `excludePunctuation` 相当の英数字 32 文字を生成して渡す。Laravel docs 推奨の
+    //   `base64:<encoded>` 形式は使わない (base64_decode で 24 byte になり起動失敗する)。
+    //     aws ssm put-parameter --name /cfp/admin-api/app-key --type String \
+    //       --value "$(openssl rand -base64 48 | tr -dc 'a-zA-Z0-9' | head -c 32)"
+    //
+    // rotate 時は put-parameter --overwrite で値を更新 → deploy.yml を workflow_dispatch
+    // で再 deploy (= 次回 deploy 時に新値が Lambda env に反映される)。
+    // NOTE: APP_KEY を変えると既存セッション cookie と暗号化済みデータが無効になる。
+    const appKey = StringParameter.valueForStringParameter(
+      this,
+      '/cfp/admin-api/app-key',
+    );
 
-    // ── GitHub App 認証用 Secrets Manager シークレット (Phase 5.3 / Issue #110) ──
+    // ── GitHub App 認証 3 値 (SSM Parameter Store, Issue #110 / #206 #1 で移行) ──
     // admin UI のビルドボタンから GitHub Actions deploy.yml を workflow_dispatch
     // で起動するため、GitHub App の認証 3 値 (app_id, installation_id, private_key)
-    // を Secrets Manager に置く。長期 PAT を Lambda 上に置かないために GitHub App
+    // を SSM Parameter Store に置く。長期 PAT を Lambda 上に置かないために GitHub App
     // 経由で 1 時間有効な installation token を都度発行する設計
     // (memory project_no_api_keys_policy.md の方針に整合)。
     //
-    // この Secret は CDK 管理外 (= AWS console / CLI で事前作成、CDK は参照のみ)
-    // とする。理由:
+    // パラメータは CDK 管理外 (= CLI で事前作成、CDK は参照のみ) とする。理由:
     //  - private_key は GitHub App 設定画面で発行された .pem ファイルの中身で、
     //    CDK のコードに焼くと CloudFormation テンプレートに値が残ってしまう
-    //  - cdk destroy で誤って消えると GitHub App の private_key を再発行する手間が
-    //    かかる (rotate 手順との整合)
+    //  - cdk destroy で誤って消えると GitHub App の private_key を再発行する手間がかかる
+    //
+    // 旧 Secrets Manager (cfp/admin-api-github-app) は JSON 1 本だったが、SSM の
+    // dynamic reference は JSON キー抽出をサポートしないため 3 パラメータに分割した。
     //
     // 投入手順 (1 回限り、deploy 前):
-    //   aws secretsmanager create-secret \
-    //     --name cfp/admin-api-github-app \
-    //     --description "GitHub App credentials for admin-api Lambda" \
-    //     --secret-string '{"app_id":"...","installation_id":"...","private_key":"...(改行は \\n でエスケープ)"}'
+    //   aws ssm put-parameter --name /cfp/admin-api/github-app/app-id --type String --value "..."
+    //   aws ssm put-parameter --name /cfp/admin-api/github-app/installation-id --type String --value "..."
+    //   aws ssm put-parameter --name /cfp/admin-api/github-app/private-key --type String \
+    //     --value "$(cat key.pem)"   # 複数行 PEM をそのまま渡せる (4KB 以内)
     //
-    // ── private_key rotate 手順 (Issue #177 #6) ──
+    // ── private_key rotate 手順 (Issue #177 #6 / #206 #1 で SSM 版に更新) ──
     //
     // 想定タイミング:
     //  - private_key 流出が疑われる時 (= GitHub App 設定画面 / git history / logs に
@@ -164,28 +172,26 @@ export class AdminApi extends Construct {
     //  1. https://github.com/settings/apps/<app名> の Private keys セクションで
     //     "Generate a private key" を押下し、新しい .pem ファイルをダウンロード。
     //     旧鍵はまだ削除しない (= rollback 用に残す)。
-    //  2. .pem の中身を JSON エスケープ可能な形に変換:
-    //       PEM=$(cat new-key.pem | awk 'BEGIN{ORS="\\n"} {print}')
-    //  3. Secrets Manager の値を更新 (app_id / installation_id は据え置き、
-    //     private_key のみ差し替え):
-    //       aws secretsmanager update-secret \
-    //         --secret-id cfp/admin-api-github-app \
-    //         --secret-string "{\"app_id\":\"...\",\"installation_id\":\"...\",\"private_key\":\"${PEM}\"}"
-    //  4. Lambda の env は次回 cold start で更新値を読むため、即時反映したいなら
-    //     Lambda コンソールから手動で latest version を publish するか deploy.yml を
-    //     workflow_dispatch で叩いて再 deploy。
-    //  5. admin UI のビルドボタン押下で動作確認 → BuildController が 200 を返す
+    //  2. SSM パラメータを新 .pem で更新 (app_id / installation_id は据え置き):
+    //       aws ssm put-parameter --name /cfp/admin-api/github-app/private-key \
+    //         --type String --overwrite --value "$(cat new-key.pem)"
+    //  3. deploy.yml を workflow_dispatch で叩いて再 deploy (= valueForStringParameter は
+    //     deploy 時解決のため、再 deploy しないと Lambda env に反映されない)。
+    //  4. admin UI のビルドボタン押下で動作確認 → BuildController が 200 を返す
     //     ことを確認。失敗時は CloudWatch Logs で Lambda 側のエラーを確認し、必要なら
-    //     旧鍵に戻して原因調査 (= 5. でこけるなら 1. の旧鍵を Secrets Manager に
-    //     書き戻して rollback)。
-    //  6. 動作確認 OK なら GitHub App 設定画面で旧 .pem を Delete。
-    //
-    // 値の更新 (rotate 以外、例えば installation_id 変更時) も同じ update-secret
-    // コマンドを使う。secret 全体を再投入する形なので、変えない値は元の値を維持して渡す。
-    const githubAppSecret = Secret.fromSecretNameV2(
+    //     旧鍵に戻して原因調査 (= 2. を旧 .pem で再実行 + 再 deploy で rollback)。
+    //  5. 動作確認 OK なら GitHub App 設定画面で旧 .pem を Delete。
+    const githubAppId = StringParameter.valueForStringParameter(
       this,
-      'GitHubAppSecret',
-      'cfp/admin-api-github-app',
+      '/cfp/admin-api/github-app/app-id',
+    );
+    const githubAppInstallationId = StringParameter.valueForStringParameter(
+      this,
+      '/cfp/admin-api/github-app/installation-id',
+    );
+    const githubAppPrivateKey = StringParameter.valueForStringParameter(
+      this,
+      '/cfp/admin-api/github-app/private-key',
     );
 
     // Bref の統合 PHP レイヤー (公開アカウント ID 873528684822 は Bref のもの)。
@@ -287,7 +293,7 @@ export class AdminApi extends Construct {
         // ですべて渡す。
         // APP_KEY は Secrets Manager で管理する 32 文字 (= 32 byte) の ASCII 英数字を
         // 生のまま渡す (`base64:` prefix なし)。詳細は AppKeySecret 定義のコメント参照。
-        APP_KEY: appKeySecret.secretValue.unsafeUnwrap(),
+        APP_KEY: appKey,
         APP_ENV: 'production',
         APP_DEBUG: 'false',
         // Lambda の filesystem は read-only (`/tmp` 以外) なので file 系 driver は使わない。
@@ -332,24 +338,17 @@ export class AdminApi extends Construct {
         // Function URL の AuthType=NONE に切り替えたため、CloudFront 経由か
         // 直アクセスかを CloudFrontSecretMiddleware で判別する材料。
         CLOUDFRONT_ORIGIN_SECRET: props.cloudfrontOriginSecret,
-        // ── GitHub App 認証用 env (Phase 5.3 / Issue #110) ──
-        // 3 値は Secrets Manager の `cfp/admin-api-github-app` シークレット
-        // (JSON 構造) から CFN deploy 時に展開される。`unsafeUnwrap()` を経由する
-        // が CFN テンプレートには `{{resolve:secretsmanager:...}}` 関数として残るため
+        // ── GitHub App 認証用 env (Phase 5.3 / Issue #110, #206 #1 で SSM 移行) ──
+        // 3 値は SSM Parameter Store (/cfp/admin-api/github-app/*) から CFN deploy 時に
+        // 解決される (= CFN Parameter type AWS::SSM::Parameter::Value<String>)。
         // 実値はテンプレートに焼き込まれない。
         //
         // owner / repo / workflow_file / ref は plain な値 (= 漏洩リスクが無く
         // パブリック情報) なので env に直接書く。これらが variation する場合は
         // config/github_app.php の env 経由で local override 可能。
-        GITHUB_APP_ID: githubAppSecret
-          .secretValueFromJson('app_id')
-          .unsafeUnwrap(),
-        GITHUB_APP_INSTALLATION_ID: githubAppSecret
-          .secretValueFromJson('installation_id')
-          .unsafeUnwrap(),
-        GITHUB_APP_PRIVATE_KEY: githubAppSecret
-          .secretValueFromJson('private_key')
-          .unsafeUnwrap(),
+        GITHUB_APP_ID: githubAppId,
+        GITHUB_APP_INSTALLATION_ID: githubAppInstallationId,
+        GITHUB_APP_PRIVATE_KEY: githubAppPrivateKey,
         GITHUB_APP_REPO_OWNER: 'mt-satak',
         GITHUB_APP_REPO_NAME: 'conference-cfp-deadline-checker',
         GITHUB_APP_WORKFLOW_FILE: 'deploy.yml',
@@ -440,7 +439,7 @@ export class AdminApi extends Construct {
         BREF_RUNTIME: 'console',
         BREF_LOOP_MAX: '1',
         // ── Laravel ランタイム環境変数 (= 既存の admin-api Lambda と同じ値で揃える) ──
-        APP_KEY: appKeySecret.secretValue.unsafeUnwrap(),
+        APP_KEY: appKey,
         APP_ENV: 'production',
         APP_DEBUG: 'false',
         SESSION_DRIVER: 'cookie',
@@ -527,7 +526,7 @@ export class AdminApi extends Construct {
       environment: {
         BREF_RUNTIME: 'console',
         BREF_LOOP_MAX: '1',
-        APP_KEY: appKeySecret.secretValue.unsafeUnwrap(),
+        APP_KEY: appKey,
         APP_ENV: 'production',
         APP_DEBUG: 'false',
         SESSION_DRIVER: 'cookie',
@@ -605,7 +604,7 @@ export class AdminApi extends Construct {
     this.archivePastTask = new ArchivePastTask(this, 'ArchivePastTask', {
       adminApiCode,
       phpLayer,
-      appKey: appKeySecret.secretValue,
+      appKey,
       appUrl: props.appUrl,
       conferences: props.conferences,
       architecture: Architecture.X86_64,

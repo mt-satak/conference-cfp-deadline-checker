@@ -1,4 +1,4 @@
-import { App, SecretValue, Stack } from 'aws-cdk-lib';
+import { App, Stack } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { AttributeType, Table } from 'aws-cdk-lib/aws-dynamodb';
 import { Architecture, Code, LayerVersion } from 'aws-cdk-lib/aws-lambda';
@@ -43,7 +43,7 @@ function synthTemplate(): Template {
     new ArchivePastTask(stack, 'ArchivePastTaskUnderTest', {
         adminApiCode,
         phpLayer,
-        appKey: SecretValue.unsafePlainText('dummy-app-key'),
+        appKey: 'dummy-app-key',
         appUrl: 'https://admin.example.com',
         conferences,
         architecture: Architecture.X86_64,

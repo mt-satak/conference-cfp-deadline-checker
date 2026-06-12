@@ -1,4 +1,4 @@
-import { Duration, type SecretValue } from 'aws-cdk-lib';
+import { Duration } from 'aws-cdk-lib';
 import { type ITable } from 'aws-cdk-lib/aws-dynamodb';
 import { Rule, RuleTargetInput, Schedule } from 'aws-cdk-lib/aws-events';
 import { LambdaFunction as LambdaTarget } from 'aws-cdk-lib/aws-events-targets';
@@ -22,8 +22,11 @@ export interface ArchivePastTaskProps {
   readonly adminApiCode: Code;
   /** admin-api と同じ Bref PHP runtime layer */
   readonly phpLayer: ILayerVersion;
-  /** Laravel APP_KEY (admin-api Lambda と同値で揃える) */
-  readonly appKey: SecretValue;
+  /**
+   * Laravel APP_KEY (admin-api Lambda と同値で揃える)。
+   * Issue #206 #1: SSM Parameter Store の deploy 時解決トークン (string) を受け取る。
+   */
+  readonly appKey: string;
   /** Laravel APP_URL (= admin URL、boot 時の警告抑制用) */
   readonly appUrl: string;
   /** 操作対象の DynamoDB conferences テーブル */
@@ -72,7 +75,7 @@ export class ArchivePastTask extends Construct {
         BREF_RUNTIME: 'console',
         BREF_LOOP_MAX: '1',
         // ── Laravel ランタイム環境変数 (= admin-api Lambda と揃える) ──
-        APP_KEY: props.appKey.unsafeUnwrap(),
+        APP_KEY: props.appKey,
         APP_ENV: 'production',
         APP_DEBUG: 'false',
         SESSION_DRIVER: 'cookie',
