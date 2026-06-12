@@ -165,6 +165,94 @@ it('30000 文字超は冒頭のみに切り詰める', function () {
     expect(mb_strlen($result))->toBeLessThanOrEqual(30000);
 });
 
+// ── Issue #206 #3: LLM 入力トークン削減のためのトリミング強化 ──
+
+it('nav / footer / aside は body fallback 時にも除去される (Issue #206 #3)', function () {
+    // Given: <main> 無し → body 抽出に fallback するページ
+    $html = '<html><body>'
+        .'<nav>NAV LINKS</nav>'
+        .'<aside>SIDEBAR</aside>'
+        .'<h1>PHP Conf 2026</h1>'
+        .'<footer>FOOTER COPYRIGHT</footer>'
+        .'</body></html>';
+    Http::fake(['https://a.example.com' => Http::response($html, 200, ['Content-Type' => 'text/html'])]);
+    $fetcher = new LaravelHtmlFetcher(makeAllowAllHostValidator());
+
+    // When
+    $result = $fetcher->fetch('https://a.example.com');
+
+    // Then: 非コンテンツ領域は除去、本文は保持
+    expect($result)->not->toContain('NAV LINKS');
+    expect($result)->not->toContain('SIDEBAR');
+    expect($result)->not->toContain('FOOTER COPYRIGHT');
+    expect($result)->toContain('PHP Conf 2026');
+});
+
+it('href / datetime 以外の属性 (class / id / style / data-* / aria-*) を除去する (Issue #206 #3)', function () {
+    // Given: Tailwind 風の長大 class 属性等を持つ HTML (= 実ページのトークン浪費の主因)
+    $html = '<html><body><main>'
+        .'<div class="flex min-h-screen flex-col items-center justify-center gap-4 bg-gradient-to-r" id="hero" data-test="x" aria-label="hero" style="color:red" role="banner">'
+        .'<a href="https://fortee.jp/phpcon-2026/cfp" class="rounded bg-emerald-600 px-4 py-2 text-white" target="_blank" rel="noopener">CfP 応募</a>'
+        .'<time datetime="2026-07-20" class="text-sm">2026 年 7 月 20 日</time>'
+        .'</div>'
+        .'</main></body></html>';
+    Http::fake(['https://a.example.com' => Http::response($html, 200, ['Content-Type' => 'text/html'])]);
+    $fetcher = new LaravelHtmlFetcher(makeAllowAllHostValidator());
+
+    // When
+    $result = $fetcher->fetch('https://a.example.com');
+
+    // Then: cfpUrl 抽出に必須の href と日付解釈に役立つ datetime は保持
+    expect($result)->toContain('href="https://fortee.jp/phpcon-2026/cfp"');
+    expect($result)->toContain('datetime="2026-07-20"');
+    expect($result)->toContain('CfP 応募');
+    // 装飾系・JS フック系の属性は全て除去 (= トークン削減)
+    expect($result)->not->toContain('class=');
+    expect($result)->not->toContain('id=');
+    expect($result)->not->toContain('data-test');
+    expect($result)->not->toContain('aria-label');
+    expect($result)->not->toContain('style=');
+    expect($result)->not->toContain('target=');
+    expect($result)->not->toContain('rel=');
+});
+
+it('img / video / source 等のメディアタグを除去する (Issue #206 #3、data URI 肥大対策)', function () {
+    // Given: base64 data URI を持つ img (= 数十 KB に膨らみ得る) + video
+    $html = '<html><body><main>'
+        .'<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUg" alt="logo">'
+        .'<video><source src="movie.mp4" type="video/mp4"></video>'
+        .'<p>開催概要</p>'
+        .'</main></body></html>';
+    Http::fake(['https://a.example.com' => Http::response($html, 200, ['Content-Type' => 'text/html'])]);
+    $fetcher = new LaravelHtmlFetcher(makeAllowAllHostValidator());
+
+    // When
+    $result = $fetcher->fetch('https://a.example.com');
+
+    // Then
+    expect($result)->not->toContain('<img');
+    expect($result)->not->toContain('data:image');
+    expect($result)->not->toContain('<video');
+    expect($result)->not->toContain('<source');
+    expect($result)->toContain('開催概要');
+});
+
+it('連続する空白・改行・インデントは 1 スペースに圧縮される (Issue #206 #3)', function () {
+    // Given: 整形済み HTML (= インデント + 改行がトークンを浪費する)
+    $html = "<html><body><main>\n    <h1>\n        PHP Conf 2026\n    </h1>\n\n\n    <p>本文</p>\n</main></body></html>";
+    Http::fake(['https://a.example.com' => Http::response($html, 200, ['Content-Type' => 'text/html'])]);
+    $fetcher = new LaravelHtmlFetcher(makeAllowAllHostValidator());
+
+    // When
+    $result = $fetcher->fetch('https://a.example.com');
+
+    // Then: 連続空白が存在しない (= "  " が無い)
+    expect($result)->not->toContain('  ');
+    expect($result)->not->toContain("\n");
+    expect($result)->toContain('PHP Conf 2026');
+    expect($result)->toContain('本文');
+});
+
 it('正常な HTML は <main> の本文を返す', function () {
     $html = '<!DOCTYPE html><html><body>'
         .'<header>HEADER</header>'

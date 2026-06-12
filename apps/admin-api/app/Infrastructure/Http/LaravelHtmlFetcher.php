@@ -28,7 +28,16 @@ use Throwable;
  *    (= プロンプトインジェクション攻撃面の縮小)
  * 5. 30000 文字での切り詰め (= LLM トークン消費上限と一致)
  *
+ * LLM 入力トークン削減 (Issue #206 #3):
+ * 6. 非コンテンツタグ除去: nav / footer / aside / img / video 等 (= CfP 情報を含まず、
+ *    img の data URI は数十 KB に膨らみ得る)
+ * 7. 属性ホワイトリスト: href (cfpUrl 抽出に必須) / datetime (日付解釈の補助) のみ
+ *    保持し、class / id / style / data-* / aria-* 等は全削除
+ *    (= Tailwind 等の長大 class 文字列が実ページの最大のトークン浪費源)
+ * 8. 連続空白の 1 スペース圧縮 (= 整形 HTML のインデント / 改行を削減)
+ *
  * <main> > <article> > <body> の優先順で本文を抽出 (= ナビ / フッタを排除)。
+ * 本 fetcher は admin 手動抽出 / AutoCrawl / 自動 CfP 発見の 3 経路で共有される。
  */
 class LaravelHtmlFetcher implements HtmlFetcher
 {
@@ -141,31 +150,100 @@ class LaravelHtmlFetcher implements HtmlFetcher
         libxml_use_internal_errors($previousLevel);
 
         $this->removeDangerousTags($dom);
+        $this->removeNonContentTags($dom);
         $this->removeComments($dom);
+        $this->stripAttributes($dom);
 
         // 抽出優先順: <main> > <article> > <body>
         $extracted = $this->findFirstByTag($dom, 'main')
             ?? $this->findFirstByTag($dom, 'article')
             ?? $this->findFirstByTag($dom, 'body');
 
-        if ($extracted === null) {
+        $output = $extracted === null
             // 抽出対象が無ければ全 HTML を返す (= 解析失敗時のフォールバック)
-            return $dom->saveHTML() ?: '';
-        }
+            ? ($dom->saveHTML() ?: '')
+            : ($dom->saveHTML($extracted) ?: '');
 
-        return $dom->saveHTML($extracted) ?: '';
+        // Issue #206 #3: 整形 HTML のインデント / 改行 / 連続空白を 1 スペースに圧縮。
+        // <pre> 等の whitespace-sensitive な内容は CfP ページでは重要でないため一律で潰す。
+        return trim(preg_replace('/\s+/u', ' ', $output) ?? $output);
     }
 
     private function removeDangerousTags(DOMDocument $dom): void
     {
         $dangerous = ['script', 'style', 'iframe', 'svg', 'form', 'noscript', 'object', 'embed'];
-        foreach ($dangerous as $tag) {
+        $this->removeTags($dom, $dangerous);
+    }
+
+    /**
+     * CfP 情報を含まない非コンテンツタグを除去する (Issue #206 #3)。
+     *
+     * - nav / footer / aside: ナビゲーション・フッタ・サイドバー (= body fallback 時の
+     *   トークン浪費源。<main> 抽出時は元々含まれない)
+     * - img / picture / source / video / audio / canvas / track: メディア系。
+     *   特に img の data URI (base64) は単体で数十 KB に膨らみ得る
+     * - link / meta: body 内に紛れた preload 等
+     * - select / input / textarea / button / template: 操作 UI (form 除去後の残骸)
+     *
+     * <header> は除去しない: カンファレンス名の h1 が <header> 内にあるページが
+     * 多く、name 抽出を壊すリスクがあるため。
+     */
+    private function removeNonContentTags(DOMDocument $dom): void
+    {
+        $nonContent = [
+            'nav', 'footer', 'aside',
+            'img', 'picture', 'source', 'video', 'audio', 'canvas', 'track',
+            'link', 'meta',
+            'select', 'input', 'textarea', 'button', 'template',
+        ];
+        $this->removeTags($dom, $nonContent);
+    }
+
+    /**
+     * @param  string[]  $tags
+     */
+    private function removeTags(DOMDocument $dom, array $tags): void
+    {
+        foreach ($tags as $tag) {
             $nodes = $dom->getElementsByTagName($tag);
             // getElementsByTagName は live なので逆順で removeChild する
             for ($i = $nodes->length - 1; $i >= 0; $i--) {
                 $node = $nodes->item($i);
                 if ($node !== null && $node->parentNode !== null) {
                     $node->parentNode->removeChild($node);
+                }
+            }
+        }
+    }
+
+    /**
+     * href / datetime 以外の属性を全要素から除去する (Issue #206 #3)。
+     *
+     * - href: cfpUrl / 個別 conference URL 抽出の生命線 (LLM プロンプトも <a href> を参照)
+     * - datetime: <time> 要素の機械可読日付 (= 日付正規化の補助)
+     * - それ以外 (class / id / style / data-* / aria-* / role / target / rel 等) は
+     *   LLM 抽出に寄与せず、特に Tailwind 系の class 文字列が最大のトークン浪費源
+     */
+    private function stripAttributes(DOMDocument $dom): void
+    {
+        $keep = ['href', 'datetime'];
+        $xpath = new DOMXPath($dom);
+        $elements = $xpath->query('//*');
+        if ($elements === false) {
+            return;
+        }
+        foreach ($elements as $element) {
+            if (! $element instanceof DOMElement) {
+                continue;
+            }
+            // attributes は live なので名前を先に集めてから削除する
+            $names = [];
+            foreach ($element->attributes as $attr) {
+                $names[] = $attr->nodeName;
+            }
+            foreach ($names as $name) {
+                if (! in_array($name, $keep, true)) {
+                    $element->removeAttribute($name);
                 }
             }
         }
