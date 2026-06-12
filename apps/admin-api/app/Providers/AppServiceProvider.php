@@ -278,6 +278,10 @@ class AppServiceProvider extends ServiceProvider
 
         // Issue #200 PR-3: 自動 CfP 発見の URL 列挙 Extractor も同じ provider 切替で
         // bind する。Bedrock 実装は availableSlugs を持たない (= URL リストだけ返す)。
+        //
+        // Issue #206 #2: モデルは llm.model_discovery (Haiku 想定) を優先し、未設定なら
+        // llm.model (Sonnet) に fallback する。URL 列挙は単純抽出タスクなので安価な
+        // モデルで十分 (詳細抽出の ConferenceDraftExtractor は llm.model のまま)。
         $this->app->bind(ListConferenceUrlsExtractor::class, function (Application $app): ListConferenceUrlsExtractor {
             $provider = config('llm.provider');
 
@@ -285,7 +289,10 @@ class AppServiceProvider extends ServiceProvider
                 return new MockListConferenceUrlsExtractor;
             }
 
-            $modelId = config('llm.model');
+            $discoveryModelId = config('llm.model_discovery');
+            $modelId = is_string($discoveryModelId) && $discoveryModelId !== ''
+                ? $discoveryModelId
+                : config('llm.model');
 
             return new BedrockListConferenceUrlsExtractor(
                 client: $app->make(BedrockRuntimeClient::class),
