@@ -537,7 +537,13 @@ export class AdminApi extends Construct {
         DYNAMODB_CATEGORIES_TABLE: props.categories.tableName,
         DYNAMODB_CFP_SOURCES_TABLE: props.cfpSources.tableName,
         LLM_PROVIDER: 'bedrock',
+        // 詳細抽出 (ConferenceDraftExtractor) 用。人間レビューに乗る Draft の品質に
+        // 直結するため Sonnet を維持。
         LLM_MODEL: 'jp.anthropic.claude-sonnet-4-6',
+        // Issue #206 #2: URL 列挙 (ListConferenceUrlsExtractor) は単純抽出タスクの
+        // ため安価な Haiku 4.5 に分離 (単価 Sonnet の 1/3 以下)。jp.* プロファイルで
+        // 国内推論のデータレジデンシは維持。
+        LLM_MODEL_DISCOVERY: 'jp.anthropic.claude-haiku-4-5-20251001-v1:0',
         LLM_REGION: region,
         APP_URL: props.appUrl,
       },
@@ -552,7 +558,8 @@ export class AdminApi extends Construct {
     props.conferences.grantReadWriteData(this.discoverConferencesFunction);
     props.categories.grantReadData(this.discoverConferencesFunction);
 
-    // Bedrock 権限 (= AutoCrawl と同じ Sonnet 4.6 限定)
+    // Bedrock 権限: Sonnet 4.6 (詳細抽出) + Haiku 4.5 (URL 列挙、Issue #206 #2) の
+    // 2 モデルに限定。他モデルは IAM レベルで呼び出せない (= 最小権限の原則)。
     this.discoverConferencesFunction.addToRolePolicy(
       new PolicyStatement({
         effect: Effect.ALLOW,
@@ -561,6 +568,9 @@ export class AdminApi extends Construct {
           `arn:aws:bedrock:${region}::foundation-model/anthropic.claude-sonnet-4-6*`,
           `arn:aws:bedrock:${region}:*:inference-profile/*anthropic.claude-sonnet-4-6*`,
           `arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6*`,
+          `arn:aws:bedrock:${region}::foundation-model/anthropic.claude-haiku-4-5*`,
+          `arn:aws:bedrock:${region}:*:inference-profile/*anthropic.claude-haiku-4-5*`,
+          `arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5*`,
         ],
       }),
     );

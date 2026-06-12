@@ -28,6 +28,16 @@ return [
     'model' => env('LLM_MODEL', 'anthropic.claude-sonnet-4-6'),
 
     /*
+     * 自動 CfP 発見の URL 列挙 (ListConferenceUrlsExtractor) 専用モデル ID (Issue #206 #2)。
+     *
+     * URL リスト列挙は単純抽出タスクで Sonnet 不要のため、安価な Haiku を充てて
+     * LLM コストを下げる。null (= env 未設定) 時は model に fallback する。
+     * 詳細抽出 (ConferenceDraftExtractor) は人間レビューに乗る Draft の品質に
+     * 直結するため Sonnet のまま (= model を使用)。
+     */
+    'model_discovery' => env('LLM_MODEL_DISCOVERY'),
+
+    /*
      * AWS リージョン。Bedrock 用。dynamodb.php と同じ値が一般的だが、Bedrock は
      * モデル可用性がリージョン依存なので独立に設定できるようにする。
      */
