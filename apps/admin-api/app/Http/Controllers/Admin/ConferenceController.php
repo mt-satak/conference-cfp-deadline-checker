@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Application\Categories\ListCategoriesUseCase;
+use App\Application\Conferences\BulkDelete\BulkDeleteConferencesUseCase;
 use App\Application\Conferences\CreateConferenceUseCase;
 use App\Application\Conferences\DeleteConferenceUseCase;
 use App\Application\Conferences\Extraction\ConferenceDraft;
@@ -23,6 +24,7 @@ use App\Domain\Conferences\ConferenceStatus;
 use App\Domain\Conferences\SortOrder;
 use App\Http\Controllers\Conferences\ConferenceInputResolver;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Conferences\BulkDeleteConferencesRequest;
 use App\Http\Requests\Conferences\StoreConferenceRequest;
 use App\Http\Requests\Conferences\UpdateConferenceRequest;
 use Illuminate\Contracts\View\View;
@@ -207,6 +209,30 @@ class ConferenceController extends Controller
         return redirect()
             ->route('admin.conferences.index')
             ->with('status', 'カンファレンスを削除しました');
+    }
+
+    /**
+     * POST /admin/conferences/bulk-delete — 一覧でチェックした複数行を一括削除 (Issue #219)。
+     *
+     * fail-soft (UseCase 参照): 別タブで既に削除済みの行が混ざっても全体を止めず、
+     * 実削除できた件数を flash で報告する。要求件数と削除件数が食い違う場合は
+     * その旨も添える (= ユーザーが「指定したのに減ってない」と混乱しないように)。
+     */
+    public function bulkDestroy(
+        BulkDeleteConferencesRequest $request,
+        BulkDeleteConferencesUseCase $useCase,
+    ): RedirectResponse {
+        $result = $useCase->execute($request->conferenceIds());
+
+        $message = "{$result->deletedCount} 件のカンファレンスを削除しました";
+        if ($result->deletedCount < $result->requestedCount) {
+            $skipped = $result->requestedCount - $result->deletedCount;
+            $message .= " ({$skipped} 件は既に削除済みでした)";
+        }
+
+        return redirect()
+            ->route('admin.conferences.index')
+            ->with('status', $message);
     }
 
     /**
