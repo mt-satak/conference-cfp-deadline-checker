@@ -370,6 +370,8 @@ class DynamoDbConferenceRepository implements ConferenceRepository
      *
      * 後方互換のため、属性欠落 (Phase 0.5 導入前のレガシーアイテム) または
      * 未知値は Published に丸めて fail-safe 復元する。例外は投げない。
+     * Issue #221 で廃止した旧 'archived' 値も tryFrom が null を返すため Published
+     * に丸まる (本番に該当行は 0 件確認済)。
      *
      * @param  array<string, mixed>  $item
      */

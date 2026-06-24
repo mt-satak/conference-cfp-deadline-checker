@@ -91,37 +91,6 @@ final readonly class Conference
     }
 
     /**
-     * status と updatedAt のみ差し替えた新しい Conference を返す (Issue #165)。
-     *
-     * readonly class なので元インスタンスは不変。Application 層でアーカイブ処理時に使う。
-     * 他フィールド全てを保持しつつ、ステータス遷移と更新時刻だけを表現する。
-     */
-    public function withStatus(ConferenceStatus $status, string $updatedAt): self
-    {
-        return new self(
-            conferenceId: $this->conferenceId,
-            name: $this->name,
-            trackName: $this->trackName,
-            officialUrl: $this->officialUrl,
-            cfpUrl: $this->cfpUrl,
-            eventStartDate: $this->eventStartDate,
-            eventEndDate: $this->eventEndDate,
-            venue: $this->venue,
-            format: $this->format,
-            cfpStartDate: $this->cfpStartDate,
-            cfpEndDate: $this->cfpEndDate,
-            categories: $this->categories,
-            description: $this->description,
-            themeColor: $this->themeColor,
-            createdAt: $this->createdAt,
-            updatedAt: $updatedAt,
-            status: $status,
-            pendingChanges: $this->pendingChanges,
-            discoveryMetadata: $this->discoveryMetadata,
-        );
-    }
-
-    /**
      * Issue #200 PR-2: 「直近 $withinDays 日以内に自動発見された Draft か」を判定。
      *
      * - discoveryMetadata 無し (= 手動作成) または discoveredAt 空文字なら false

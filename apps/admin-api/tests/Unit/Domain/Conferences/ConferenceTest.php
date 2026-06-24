@@ -109,17 +109,16 @@ it('ConferenceFormat::tryFrom() は不正値で null を返す', function () {
 });
 
 it('ConferenceStatus::from() で文字列から enum を取得できる', function () {
-    // When / Then: 各文字列値が対応する enum ケースに変換される (Issue #165 で archived 追加)
+    // When / Then: 各文字列値が対応する enum ケースに変換される
     expect(ConferenceStatus::from('draft'))->toBe(ConferenceStatus::Draft);
     expect(ConferenceStatus::from('published'))->toBe(ConferenceStatus::Published);
-    expect(ConferenceStatus::from('archived'))->toBe(ConferenceStatus::Archived);
 });
 
 it('ConferenceStatus::tryFrom() は不正値で null を返す', function () {
     // When / Then: 列挙にない値は null を返す (例外を投げない)。
-    // 'archived' は Issue #165 で正式な enum 値として追加されたため、
-    // 不正値として 'unknown-status' で検証する。
+    // 廃止した 'archived' (Issue #221) も未知値として null になる。
     expect(ConferenceStatus::tryFrom('unknown-status'))->toBeNull();
+    expect(ConferenceStatus::tryFrom('archived'))->toBeNull();
 });
 
 it('Conference は status を指定して構築でき、プロパティとして公開する', function () {
@@ -240,46 +239,8 @@ describe('Conference::isPastEvent (Issue #165)', function () {
     });
 });
 
-describe('Conference::withStatus (Issue #165)', function () {
-    it('status と updatedAt を差し替えた新インスタンスを返す', function () {
-        // Given: Draft の Conference
-        $original = makeConferenceForIsPast('2026-05-07', '2026-05-08');
-        // 元の updatedAt を確認用に取っておく
-        expect($original->updatedAt)->toBe('2026-04-01T10:00:00+09:00');
-
-        // When: Archived に切り替え + 新しい updatedAt
-        $archived = $original->withStatus(
-            ConferenceStatus::Archived,
-            '2026-05-09T06:00:00+09:00',
-        );
-
-        // Then
-        expect($archived)->not->toBe($original); // 新規インスタンス
-        expect($archived->status)->toBe(ConferenceStatus::Archived);
-        expect($archived->updatedAt)->toBe('2026-05-09T06:00:00+09:00');
-        // 他フィールドは保持
-        expect($archived->conferenceId)->toBe($original->conferenceId);
-        expect($archived->name)->toBe($original->name);
-        expect($archived->createdAt)->toBe($original->createdAt);
-        expect($archived->eventStartDate)->toBe($original->eventStartDate);
-        expect($archived->eventEndDate)->toBe($original->eventEndDate);
-    });
-
-    it('元の Conference は不変 (= readonly class の保証確認)', function () {
-        // Given
-        $original = makeConferenceForIsPast('2026-05-07', '2026-05-08');
-
-        // When: 新インスタンスを作る
-        $original->withStatus(
-            ConferenceStatus::Archived,
-            '2026-05-09T06:00:00+09:00',
-        );
-
-        // Then: 元は変わらない
-        expect($original->status)->toBe(ConferenceStatus::Published);
-        expect($original->updatedAt)->toBe('2026-04-01T10:00:00+09:00');
-    });
-});
+// NOTE: Conference::withStatus は archive 専用メソッドだったため Issue #221 で削除
+// (= 過去イベントはステータス遷移ではなくハード削除に変更)。対応するテストも撤去。
 
 /**
  * Issue #188: AutoCrawl の差分検知を Conference.pendingChanges に集約。

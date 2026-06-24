@@ -171,22 +171,6 @@ it('?status=published で UseCase に [Published] フィルタが渡る', functi
     $response->assertStatus(200);
 });
 
-it('?status=archived で UseCase に [Archived] フィルタが渡る (Issue #165)', function () {
-    // Given
-    $useCase = Mockery::mock(ListConferencesUseCase::class);
-    $useCase->shouldReceive('execute')
-        ->once()
-        ->with([ConferenceStatus::Archived], null, SortOrder::Asc)
-        ->andReturn([]);
-    app()->instance(ListConferencesUseCase::class, $useCase);
-
-    // When
-    $response = $this->get('/admin/conferences?status=archived');
-
-    // Then
-    $response->assertStatus(200);
-});
-
 it('?status=active (= デフォルト) で UseCase に [Draft, Published] が渡る (Issue #165)', function () {
     // Given: Active タブは「Draft + Published」を意味する仮想 status 値。
     // Archived を一覧から自動的にノイズとして消すための仕掛け。
@@ -221,8 +205,8 @@ it('?status 未指定は active タブ相当の挙動になる (Issue #165 デ�
     $response->assertStatus(200);
 });
 
-it('admin タブに「アーカイブ」が含まれる (Issue #165)', function () {
-    // Given: タブ表示確認のためテスト用にエラーなく描画されるよう mock
+it('admin タブに「アーカイブ」が含まれない (Issue #221 で廃止)', function () {
+    // Given
     $useCase = Mockery::mock(ListConferencesUseCase::class);
     $useCase->shouldReceive('execute')->andReturn([]);
     app()->instance(ListConferencesUseCase::class, $useCase);
@@ -230,10 +214,10 @@ it('admin タブに「アーカイブ」が含まれる (Issue #165)', function 
     // When
     $response = $this->get('/admin/conferences');
 
-    // Then: タブのラベルに「アーカイブ」が含まれる + リンク先が ?status=archived
+    // Then: アーカイブタブ / ?status=archived リンクは撤去済み
     $response->assertStatus(200);
-    $response->assertSee('アーカイブ', false);
-    $response->assertSee('?status=archived', false);
+    $response->assertDontSee('アーカイブ', false);
+    $response->assertDontSee('?status=archived', false);
 });
 
 it('Draft 行には「公開する」ショートカットボタンが表示される', function () {

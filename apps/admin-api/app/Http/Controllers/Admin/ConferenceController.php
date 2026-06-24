@@ -103,7 +103,7 @@ class ConferenceController extends Controller
         }
 
         return match ($statusParam) {
-            'draft', 'published', 'archived' => $statusParam,
+            'draft', 'published' => $statusParam,
             default => 'active',
         };
     }

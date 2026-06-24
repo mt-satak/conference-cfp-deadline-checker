@@ -75,29 +75,6 @@ function makeCleanupDraft(string $id, string $officialUrl): Conference
     );
 }
 
-function makeCleanupArchived(string $id, string $officialUrl): Conference
-{
-    return new Conference(
-        conferenceId: $id,
-        name: "Arc {$id}",
-        trackName: null,
-        officialUrl: $officialUrl,
-        cfpUrl: null,
-        eventStartDate: '2025-09-19',
-        eventEndDate: '2025-09-20',
-        venue: null,
-        format: ConferenceFormat::Offline,
-        cfpStartDate: null,
-        cfpEndDate: '2025-07-15',
-        categories: [],
-        description: null,
-        themeColor: null,
-        createdAt: '2025-04-01T10:00:00+09:00',
-        updatedAt: '2025-04-01T10:00:00+09:00',
-        status: ConferenceStatus::Archived,
-    );
-}
-
 describe('CleanupAutoCrawlDraftsUseCase', function () {
     it('dry-run はデフォルト挙動で deleteById を呼ばず候補 ID 一覧だけ返す', function () {
         // Given: Published と同 URL の Draft が 1 件
@@ -172,26 +149,6 @@ describe('CleanupAutoCrawlDraftsUseCase', function () {
 
         // Then: 表記揺れも候補に
         expect($result->candidateIds)->toBe(['draft-1']);
-    });
-
-    it('Archived は Published 集合に含めない (= Archived の URL と被る Draft は削除対象外)', function () {
-        // Given: 過去 conference (Archived) と同 URL の Draft (= 来年版を AutoCrawl 起源で作ったわけではない)
-        // Archived は新規 AutoCrawl の対象外なので、Draft が Archived と同じ URL でも
-        // それは新規 conference 用の admin 手動作成の可能性が高い → 保護する
-        $arc = makeCleanupArchived('arc-1', 'https://a.example.com/2025');
-        $draft = makeCleanupDraft('draft-1', 'https://a.example.com/2025');
-        $repo = Mockery::mock(ConferenceRepository::class);
-        $repo->shouldReceive('findAll')->once()->andReturn([$arc, $draft]);
-        $repo->shouldNotReceive('deleteById');
-
-        $useCase = new CleanupAutoCrawlDraftsUseCase($repo);
-
-        // When
-        $result = $useCase->execute(dryRun: false);
-
-        // Then: Archived 基準では削除対象にしない (= 保守的に)
-        expect($result->candidateIds)->toBe([]);
-        expect($result->deletedIds)->toBe([]);
     });
 
     it('Published 0 件 / Draft 0 件のいずれかが空でも安全に空結果を返す', function () {

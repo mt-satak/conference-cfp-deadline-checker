@@ -329,8 +329,8 @@ it('status 省略時は published 扱いで cfpUrl 欠落は 422 (後方互換)'
 });
 
 it('status に未知値を指定すると 422', function () {
-    // Given: status に enum 外の文字列 ('archived' は Issue #165 で正式 enum 値に
-    // 昇格したため、未知値として 'unknown-status' を使用)
+    // Given: status に enum 外の文字列を指定 (廃止した 'archived' も今は未知値だが、
+    // 例として 'unknown-status' を使用)
     $payload = validCreatePayload();
     $payload['status'] = 'unknown-status';
     $useCase = Mockery::mock(CreateConferenceUseCase::class);

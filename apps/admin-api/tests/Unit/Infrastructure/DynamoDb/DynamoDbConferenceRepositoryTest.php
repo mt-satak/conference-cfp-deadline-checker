@@ -507,9 +507,8 @@ it('findById は cfpUrl 等の任意属性が欠落した Draft アイテムを 
 });
 
 it('findById は status に未知の文字列があったら Published で fail-safe 復元する', function () {
-    // Given: 'unknown-status' のような未知値を持つアイテム
-    // (Issue #165 で 'archived' は正式 enum 値となったため、未知値の例として
-    // 'unknown-status' を使う)
+    // Given: 'unknown-status' のような未知値を持つアイテム。
+    // 廃止した 'archived' (Issue #221) も同じく未知値として Published に丸まる。
     [$client, $repository] = makeMockedRepo();
     $item = makeMarshalledItem([
         'conferenceId' => 'unknown-status',

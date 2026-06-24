@@ -28,9 +28,10 @@ describe('resolveStatusFilters (URL ?status → ConferenceStatus[]|null)', funct
             ->toBe([ConferenceStatus::Published]);
     });
 
-    it('?status=archived で [Archived]', function () {
+    it('廃止した ?status=archived は default にフォールバックする (Issue #221)', function () {
+        // Archived enum 廃止後は未知値扱い → defaultForUnknown を返す
         expect(ConferenceInputResolver::resolveStatusFilters('archived', null))
-            ->toBe([ConferenceStatus::Archived]);
+            ->toBeNull();
     });
 
     it('?status=active で [Draft, Published] (= Active 仮想 status)', function () {
@@ -155,9 +156,9 @@ describe('castUpdateFields (PUT $validated string → enum cast)', function () {
     });
 
     it('status string を enum に cast する', function () {
-        $fields = ConferenceInputResolver::castUpdateFields(['status' => 'archived']);
+        $fields = ConferenceInputResolver::castUpdateFields(['status' => 'published']);
         expect($fields)->toHaveKey('status');
-        expect($fields['status'] ?? null)->toBe(ConferenceStatus::Archived);
+        expect($fields['status'] ?? null)->toBe(ConferenceStatus::Published);
     });
 
     it('status キー不在の時は cast 対象に含まない', function () {

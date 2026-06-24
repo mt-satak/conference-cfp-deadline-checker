@@ -42,7 +42,8 @@ class ConferenceInputResolver
         return match ($statusParam) {
             'draft' => [ConferenceStatus::Draft],
             'published' => [ConferenceStatus::Published],
-            'archived' => [ConferenceStatus::Archived],
+            // 'active' は Draft + Published を意味する仮想 status。Archived 廃止 (Issue #221)
+            // 後は全ステータスと等価だが、後方互換のため受け付け続ける。
             'active' => [ConferenceStatus::Draft, ConferenceStatus::Published],
             default => $defaultForUnknown,
         };
