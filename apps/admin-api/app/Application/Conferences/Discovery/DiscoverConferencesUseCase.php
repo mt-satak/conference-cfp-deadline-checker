@@ -75,6 +75,7 @@ class DiscoverConferencesUseCase
         $failedSourceUrls = [];
         $createdDraftIds = [];
         $extractionFailed = 0;
+        $officialFollowCount = 0;
         // 「今回の run 内で見たことがある正規化後 URL」を保持 (= source 間 dedup)
         $seenInThisRun = [];
 
@@ -132,7 +133,7 @@ class DiscoverConferencesUseCase
             // ── 各新規 URL の詳細抽出 + Draft 保存 ──
             foreach ($newUrlsForThisSource as $newUrl) {
                 try {
-                    $draft = $this->extractDraftUseCase->execute($newUrl);
+                    $draft = $this->extractWithConditionalFollow($newUrl, $source->sourceId, $officialFollowCount);
                 } catch (HtmlFetchFailedException|LlmExtractionFailedException $e) {
                     $extractionFailed++;
                     Log::warning('discover: draft extraction failed', [
@@ -180,7 +181,65 @@ class DiscoverConferencesUseCase
             extractionFailed: $extractionFailed,
             failedSourceUrls: $failedSourceUrls,
             createdDraftIds: $createdDraftIds,
+            officialFollowCount: $officialFollowCount,
         );
+    }
+
+    /**
+     * 候補 URL を詳細抽出し、欠損があれば公式リンクを 1 回だけ追加抽出して補完する
+     * (Issue #224、条件付き follow)。
+     *
+     * 1. 候補 URL を ExtractConferenceDraftUseCase で抽出 (= 1 ページ目)
+     * 2. Publish 必須項目に欠損があり、かつ draft.officialUrl が候補 URL と
+     *    正規化後に異なる場合のみ、officialUrl を追加抽出 (= 2 ページ目)
+     * 3. 1 ページ目の非 null を優先しつつ、null を 2 ページ目で補完してマージ
+     *
+     * 追加抽出の失敗は非致命 (= 1 ページ目をそのまま返す)。follow は 1 段のみ。
+     * follow を試みた回数 (成否問わず) を $officialFollowCount に加算する (= 追加 LLM
+     * 呼び出し数 = コストの観測値)。
+     *
+     * @param  int  $officialFollowCount  参照渡しで follow 試行回数を加算
+     *
+     * @throws HtmlFetchFailedException 1 ページ目の取得失敗 (= 呼び出し側で握る)
+     * @throws LlmExtractionFailedException 1 ページ目の抽出失敗
+     */
+    private function extractWithConditionalFollow(
+        string $candidateUrl,
+        string $sourceId,
+        int &$officialFollowCount,
+    ): ConferenceDraft {
+        $draft = $this->extractDraftUseCase->execute($candidateUrl);
+
+        // 必須項目が揃っていれば追加抽出しない
+        if (! $draft->isMissingPublishableField()) {
+            return $draft;
+        }
+
+        // officialUrl が無い / 候補 URL と同一なら追加抽出しても無意味
+        $officialUrl = $draft->officialUrl;
+        if ($officialUrl === null
+            || OfficialUrl::normalize($officialUrl) === OfficialUrl::normalize($candidateUrl)) {
+            return $draft;
+        }
+
+        // ── 公式リンクを 1 回だけ追加抽出 (失敗は非致命) ──
+        $officialFollowCount++;
+        try {
+            $officialDraft = $this->extractDraftUseCase->execute($officialUrl);
+        } catch (Throwable $e) {
+            Log::warning('discover: official follow extraction failed (fallback to candidate draft)', [
+                'channel' => 'discover',
+                'source_id' => $sourceId,
+                'candidate_url' => $candidateUrl,
+                'official_url' => $officialUrl,
+                'exception_type' => $e::class,
+                'exception_message' => $e->getMessage(),
+            ]);
+
+            return $draft;
+        }
+
+        return $draft->mergeFillingNullsFrom($officialDraft);
     }
 
     /**
