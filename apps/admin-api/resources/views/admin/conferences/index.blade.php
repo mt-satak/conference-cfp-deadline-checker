@@ -69,10 +69,34 @@
             該当するカンファレンスがありません
         </div>
     @else
+        {{-- 一括削除ツールバー (Issue #219)。
+             テーブルを <form> で囲むと per-row の publish form がネストして不正 HTML に
+             なるため、form は一覧の外に置き、各行 checkbox を form="bulkDeleteForm" 属性で
+             紐付ける。件数表示・ボタン活性制御・確認ダイアログは app.js が担当。 --}}
+        <form method="POST"
+              action="{{ route('admin.conferences.bulk-delete') }}"
+              id="bulkDeleteForm"
+              data-bulk-delete-form
+              class="mb-3 flex items-center gap-3">
+            @csrf
+            <x-admin.button type="submit" variant="danger" size="sm" data-bulk-delete-submit disabled
+                            class="disabled:cursor-not-allowed disabled:opacity-50">
+                選択した行を削除
+            </x-admin.button>
+            <span class="text-sm text-gray-500" data-bulk-delete-count>0 件選択中</span>
+        </form>
+
         <x-admin.card class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead class="bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
                     <tr>
+                        <th class="px-4 py-3">
+                            {{-- 全選択 checkbox。name 無し (= 送信対象外、JS 制御専用) --}}
+                            <input type="checkbox"
+                                   data-bulk-select-all
+                                   aria-label="全選択"
+                                   class="h-4 w-4 cursor-pointer rounded border-gray-300">
+                        </th>
                         <th class="px-4 py-3">
                             <a href="{{ $sortUrl('name') }}" class="hover:text-gray-900">名称{{ $sortIndicator('name') }}</a>
                         </th>
@@ -95,6 +119,16 @@
                             $isArchived = $conf->status === \App\Domain\Conferences\ConferenceStatus::Archived;
                         @endphp
                         <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3">
+                                {{-- 行選択 checkbox。form 属性で一覧外の bulkDeleteForm に紐付ける --}}
+                                <input type="checkbox"
+                                       name="ids[]"
+                                       value="{{ $conf->conferenceId }}"
+                                       form="bulkDeleteForm"
+                                       data-bulk-row-checkbox
+                                       aria-label="「{{ $conf->name }}」を選択"
+                                       class="h-4 w-4 cursor-pointer rounded border-gray-300">
+                            </td>
                             <td class="px-4 py-3">
                                 <div class="font-medium">{{ $conf->name }}</div>
                                 {{-- AutoCrawl 保留中変更バッジ (Issue #188 PR-3) --}}
