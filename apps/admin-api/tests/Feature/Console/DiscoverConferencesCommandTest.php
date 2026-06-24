@@ -50,6 +50,7 @@ it('--apply は実行モード (= UseCase に dryRun=false を渡す)', function
         extractionFailed: 1,
         failedSourceUrls: [],
         createdDraftIds: ['d-1', 'd-2'],
+        officialFollowCount: 2,
     );
     $useCase = Mockery::mock(DiscoverConferencesUseCase::class);
     $useCase->shouldReceive('execute')->once()->with(false)->andReturn($result);
@@ -60,6 +61,7 @@ it('--apply は実行モード (= UseCase に dryRun=false を渡す)', function
         ->expectsOutputToContain('apply')
         ->expectsOutputToContain('Draft 作成数: 2')
         ->expectsOutputToContain('詳細抽出失敗: 1')
+        ->expectsOutputToContain('公式リンク追加抽出: 2')
         ->assertExitCode(0);
 });
 

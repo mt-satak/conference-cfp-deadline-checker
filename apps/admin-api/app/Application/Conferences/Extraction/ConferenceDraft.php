@@ -39,4 +39,49 @@ final readonly class ConferenceDraft
         public ?string $description = null,
         public ?string $themeColor = null,
     ) {}
+
+    /**
+     * Publish 必須 6 項目 (cfpUrl / eventStartDate / eventEndDate / venue / format /
+     * cfpEndDate) のいずれかが null かを返す (Issue #224)。
+     *
+     * 公式リンク条件付き follow の判定に使う。trackName / cfpStartDate / description /
+     * themeColor / categorySlugs は Publish 必須ではないため判定対象外。
+     * (= ConferenceController::missingPublishedFields と同じ項目集合)
+     */
+    public function isMissingPublishableField(): bool
+    {
+        return $this->cfpUrl === null
+            || $this->eventStartDate === null
+            || $this->eventEndDate === null
+            || $this->venue === null
+            || $this->format === null
+            || $this->cfpEndDate === null;
+    }
+
+    /**
+     * 自分の null フィールドを $other の値で補完した新しい Draft を返す (Issue #224)。
+     *
+     * 公式リンク follow で得た 2 ページ目の結果 ($other) を、1 ページ目 ($this) の
+     * 非 null 値を優先しつつマージする。sourceUrl は $this を維持 (= 主たる抽出元)。
+     * categorySlugs は配列のため「$this が空配列なら $other を採用」とする。
+     */
+    public function mergeFillingNullsFrom(self $other): self
+    {
+        return new self(
+            sourceUrl: $this->sourceUrl,
+            name: $this->name ?? $other->name,
+            trackName: $this->trackName ?? $other->trackName,
+            officialUrl: $this->officialUrl ?? $other->officialUrl,
+            cfpUrl: $this->cfpUrl ?? $other->cfpUrl,
+            eventStartDate: $this->eventStartDate ?? $other->eventStartDate,
+            eventEndDate: $this->eventEndDate ?? $other->eventEndDate,
+            venue: $this->venue ?? $other->venue,
+            format: $this->format ?? $other->format,
+            cfpStartDate: $this->cfpStartDate ?? $other->cfpStartDate,
+            cfpEndDate: $this->cfpEndDate ?? $other->cfpEndDate,
+            categorySlugs: $this->categorySlugs === [] ? $other->categorySlugs : $this->categorySlugs,
+            description: $this->description ?? $other->description,
+            themeColor: $this->themeColor ?? $other->themeColor,
+        );
+    }
 }

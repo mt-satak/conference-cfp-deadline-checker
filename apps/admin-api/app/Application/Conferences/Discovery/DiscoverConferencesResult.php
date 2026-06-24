@@ -17,6 +17,8 @@ namespace App\Application\Conferences\Discovery;
  *   - failedSourceUrls: 失敗ソース URL の一覧 (= ログ + 観測用)
  *   - createdDraftIds: 作成された Draft Conference の ID 一覧
  *   - dryRun: true なら save なし (候補列挙のみ)
+ *   - officialFollowCount: 1 ページ目の欠損を埋めるため公式リンクを追加抽出した
+ *     回数 (Issue #224、= 追加 LLM 呼び出し数の観測値。コストレビュー用)
  */
 final readonly class DiscoverConferencesResult
 {
@@ -34,5 +36,6 @@ final readonly class DiscoverConferencesResult
         public int $extractionFailed,
         public array $failedSourceUrls,
         public array $createdDraftIds,
+        public int $officialFollowCount = 0,
     ) {}
 }

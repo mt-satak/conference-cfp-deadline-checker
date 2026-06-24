@@ -397,3 +397,178 @@ describe('DiscoverConferencesUseCase', function () {
         expect($result->createdDraftIds)->toBe([]);
     });
 });
+
+describe('DiscoverConferencesUseCase 公式リンク条件付き follow (Issue #224)', function () {
+    it('1 ページ目に欠損があり officialUrl が別ページなら追加抽出してマージする', function () {
+        // Given: source の個別ページ (fortee) は薄く、公式サイトに実データがある想定
+        $source = makeDiscoverSource('s-1', 'https://fortee.jp/events');
+        $sourceRepo = Mockery::mock(CfpSourceRepository::class);
+        $sourceRepo->shouldReceive('findAll')->once()->andReturn([$source]);
+
+        $confRepo = Mockery::mock(ConferenceRepository::class);
+        $confRepo->shouldReceive('findAll')->once()->andReturn([]);
+
+        $htmlFetcher = Mockery::mock(HtmlFetcher::class);
+        $htmlFetcher->shouldReceive('fetch')->once()->andReturn('<html>...</html>');
+
+        $listExtractor = Mockery::mock(ListConferenceUrlsExtractor::class);
+        $listExtractor->shouldReceive('extract')->once()->andReturn(['https://fortee.jp/conf-x']);
+
+        // 1 ページ目: name + cfpEndDate + officialUrl のみ (venue/開催日/format/cfpUrl 欠損)
+        $page1 = new ConferenceDraft(
+            sourceUrl: 'https://fortee.jp/conf-x',
+            name: 'Conf X',
+            officialUrl: 'https://conf-x.example.com/',
+            cfpEndDate: '2026-09-30',
+        );
+        // 2 ページ目 (公式): 欠損していた項目を持つ
+        $page2 = new ConferenceDraft(
+            sourceUrl: 'https://conf-x.example.com/',
+            name: 'Conf X 公式',
+            cfpUrl: 'https://conf-x.example.com/cfp',
+            eventStartDate: '2026-11-01',
+            eventEndDate: '2026-11-02',
+            venue: '東京',
+            format: ConferenceFormat::Hybrid,
+        );
+        $extractDraft = Mockery::mock(ExtractConferenceDraftUseCase::class);
+        $extractDraft->shouldReceive('execute')->once()->with('https://fortee.jp/conf-x')->andReturn($page1);
+        $extractDraft->shouldReceive('execute')->once()->with('https://conf-x.example.com/')->andReturn($page2);
+
+        $saved = null;
+        $confRepo->shouldReceive('save')->once()->with(Mockery::on(function (Conference $c) use (&$saved) {
+            $saved = $c;
+
+            return true;
+        }));
+
+        $useCase = new DiscoverConferencesUseCase($sourceRepo, $confRepo, $htmlFetcher, $listExtractor, $extractDraft);
+
+        // When
+        $result = $useCase->execute(dryRun: false);
+
+        // Then: マージされ欠損が埋まった Conference が保存される
+        /** @var Conference $saved */
+        expect($saved->name)->toBe('Conf X');                  // 1 ページ目優先
+        expect($saved->cfpEndDate)->toBe('2026-09-30');        // 1 ページ目維持
+        expect($saved->venue)->toBe('東京');                    // 公式で補完
+        expect($saved->eventStartDate)->toBe('2026-11-01');    // 公式で補完
+        expect($saved->format)->toBe(ConferenceFormat::Hybrid); // 公式で補完
+        expect($saved->cfpUrl)->toBe('https://conf-x.example.com/cfp');
+        expect($result->officialFollowCount)->toBe(1);
+        expect($result->draftsCreated)->toBe(1);
+    });
+
+    it('1 ページ目で必須項目が揃っていれば追加抽出しない', function () {
+        // Given: 完全な 1 ページ目
+        $source = makeDiscoverSource('s-1', 'https://fortee.jp/events');
+        $sourceRepo = Mockery::mock(CfpSourceRepository::class);
+        $sourceRepo->shouldReceive('findAll')->once()->andReturn([$source]);
+        $confRepo = Mockery::mock(ConferenceRepository::class);
+        $confRepo->shouldReceive('findAll')->once()->andReturn([]);
+        $htmlFetcher = Mockery::mock(HtmlFetcher::class);
+        $htmlFetcher->shouldReceive('fetch')->once()->andReturn('<html>...</html>');
+        $listExtractor = Mockery::mock(ListConferenceUrlsExtractor::class);
+        $listExtractor->shouldReceive('extract')->once()->andReturn(['https://fortee.jp/conf-y']);
+
+        $complete = new ConferenceDraft(
+            sourceUrl: 'https://fortee.jp/conf-y',
+            name: 'Conf Y',
+            officialUrl: 'https://conf-y.example.com/',
+            cfpUrl: 'https://conf-y.example.com/cfp',
+            eventStartDate: '2026-11-01',
+            eventEndDate: '2026-11-02',
+            venue: '東京',
+            format: ConferenceFormat::Offline,
+            cfpEndDate: '2026-09-30',
+        );
+        // 追加抽出は呼ばれない (= execute は 1 回のみ)
+        $extractDraft = Mockery::mock(ExtractConferenceDraftUseCase::class);
+        $extractDraft->shouldReceive('execute')->once()->with('https://fortee.jp/conf-y')->andReturn($complete);
+        $confRepo->shouldReceive('save')->once();
+
+        $useCase = new DiscoverConferencesUseCase($sourceRepo, $confRepo, $htmlFetcher, $listExtractor, $extractDraft);
+
+        // When
+        $result = $useCase->execute(dryRun: false);
+
+        // Then
+        expect($result->officialFollowCount)->toBe(0);
+    });
+
+    it('officialUrl が候補 URL と同一なら追加抽出しない', function () {
+        // Given: 欠損はあるが officialUrl == 候補 URL (= 同じページを 2 度叩かない)
+        $source = makeDiscoverSource('s-1', 'https://fortee.jp/events');
+        $sourceRepo = Mockery::mock(CfpSourceRepository::class);
+        $sourceRepo->shouldReceive('findAll')->once()->andReturn([$source]);
+        $confRepo = Mockery::mock(ConferenceRepository::class);
+        $confRepo->shouldReceive('findAll')->once()->andReturn([]);
+        $htmlFetcher = Mockery::mock(HtmlFetcher::class);
+        $htmlFetcher->shouldReceive('fetch')->once()->andReturn('<html>...</html>');
+        $listExtractor = Mockery::mock(ListConferenceUrlsExtractor::class);
+        $listExtractor->shouldReceive('extract')->once()->andReturn(['https://fortee.jp/conf-z']);
+
+        // officialUrl が候補 URL と同一 (正規化後一致)
+        $sameUrl = new ConferenceDraft(
+            sourceUrl: 'https://fortee.jp/conf-z',
+            name: 'Conf Z',
+            officialUrl: 'https://fortee.jp/conf-z',
+            cfpEndDate: '2026-09-30',
+        );
+        $extractDraft = Mockery::mock(ExtractConferenceDraftUseCase::class);
+        $extractDraft->shouldReceive('execute')->once()->with('https://fortee.jp/conf-z')->andReturn($sameUrl);
+        $confRepo->shouldReceive('save')->once();
+
+        $useCase = new DiscoverConferencesUseCase($sourceRepo, $confRepo, $htmlFetcher, $listExtractor, $extractDraft);
+
+        // When
+        $result = $useCase->execute(dryRun: false);
+
+        // Then
+        expect($result->officialFollowCount)->toBe(0);
+    });
+
+    it('追加抽出が失敗しても 1 ページ目の Draft で保存する (非致命)', function () {
+        // Given: 欠損あり + officialUrl 別ページだが、公式ページ抽出が失敗
+        $source = makeDiscoverSource('s-1', 'https://fortee.jp/events');
+        $sourceRepo = Mockery::mock(CfpSourceRepository::class);
+        $sourceRepo->shouldReceive('findAll')->once()->andReturn([$source]);
+        $confRepo = Mockery::mock(ConferenceRepository::class);
+        $confRepo->shouldReceive('findAll')->once()->andReturn([]);
+        $htmlFetcher = Mockery::mock(HtmlFetcher::class);
+        $htmlFetcher->shouldReceive('fetch')->once()->andReturn('<html>...</html>');
+        $listExtractor = Mockery::mock(ListConferenceUrlsExtractor::class);
+        $listExtractor->shouldReceive('extract')->once()->andReturn(['https://fortee.jp/conf-w']);
+
+        $page1 = new ConferenceDraft(
+            sourceUrl: 'https://fortee.jp/conf-w',
+            name: 'Conf W',
+            officialUrl: 'https://conf-w.example.com/',
+            cfpEndDate: '2026-09-30',
+        );
+        $extractDraft = Mockery::mock(ExtractConferenceDraftUseCase::class);
+        $extractDraft->shouldReceive('execute')->once()->with('https://fortee.jp/conf-w')->andReturn($page1);
+        $extractDraft->shouldReceive('execute')->once()->with('https://conf-w.example.com/')
+            ->andThrow(new HtmlFetchFailedException('official page fetch failed'));
+
+        $saved = null;
+        $confRepo->shouldReceive('save')->once()->with(Mockery::on(function (Conference $c) use (&$saved) {
+            $saved = $c;
+
+            return true;
+        }));
+
+        $useCase = new DiscoverConferencesUseCase($sourceRepo, $confRepo, $htmlFetcher, $listExtractor, $extractDraft);
+
+        // When: 例外を投げず保存まで到達
+        $result = $useCase->execute(dryRun: false);
+
+        // Then: 1 ページ目の内容で保存 (venue は null のまま)、件数はカウント
+        /** @var Conference $saved */
+        expect($saved->name)->toBe('Conf W');
+        expect($saved->venue)->toBeNull();
+        expect($result->draftsCreated)->toBe(1);
+        // follow は試行したが補完できなかった (= カウントは試行ベースで 1)
+        expect($result->officialFollowCount)->toBe(1);
+    });
+});

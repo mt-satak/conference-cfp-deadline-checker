@@ -52,6 +52,8 @@ class DiscoverConferencesCommand extends Command
         if (! $dryRun) {
             $this->info("Draft 作成数: {$result->draftsCreated}");
             $this->info("詳細抽出失敗: {$result->extractionFailed}");
+            // Issue #224: 欠損補完のため公式リンクを追加抽出した回数 (= 追加 LLM 呼び出し数)
+            $this->info("公式リンク追加抽出: {$result->officialFollowCount}");
         }
         $this->info("経過時間: {$elapsed} 秒");
 
