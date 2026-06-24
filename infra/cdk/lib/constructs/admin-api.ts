@@ -16,6 +16,7 @@ import {
 import { StringParameter } from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 import { ArchivePastTask } from './archive-past-task';
+import { DeletePastTask } from './delete-past-task';
 
 /**
  * AdminApi Construct のオプション
@@ -106,6 +107,14 @@ export class AdminApi extends Construct {
    * 詳細は ArchivePastTask construct のクラスドキュメント参照。
    */
   public readonly archivePastTask: ArchivePastTask;
+
+  /**
+   * 開催日を過ぎた Conference を全ステータス対象でハード削除する Lambda console
+   * + EventBridge schedule (毎週 月曜 JST 08:00、Issue #221 PR-1)。
+   *
+   * 詳細は DeletePastTask construct のクラスドキュメント参照。
+   */
+  public readonly deletePastTask: DeletePastTask;
 
   constructor(scope: Construct, id: string, props: AdminApiProps) {
     super(scope, id);
@@ -612,6 +621,18 @@ export class AdminApi extends Construct {
     // AutoCrawl と同じ admin-api asset / PHP layer を共有する設計。詳細は
     // ArchivePastTask construct のクラスドキュメント参照。
     this.archivePastTask = new ArchivePastTask(this, 'ArchivePastTask', {
+      adminApiCode,
+      phpLayer,
+      appKey,
+      appUrl: props.appUrl,
+      conferences: props.conferences,
+      architecture: Architecture.X86_64,
+    });
+
+    // ── Delete-past Lambda console + EventBridge schedule (Issue #221 PR-1) ──
+    // 開催日を過ぎた Conference を全ステータス対象でハード削除する週次タスク
+    // (月曜 JST 08:00)。詳細は DeletePastTask construct のクラスドキュメント参照。
+    this.deletePastTask = new DeletePastTask(this, 'DeletePastTask', {
       adminApiCode,
       phpLayer,
       appKey,
