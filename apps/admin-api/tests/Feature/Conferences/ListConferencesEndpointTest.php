@@ -124,22 +124,6 @@ it('?status=published で UseCase に [Published] フィルタが渡る', functi
     $response->assertStatus(200);
 });
 
-it('?status=archived で UseCase に [Archived] フィルタが渡る (Issue #165)', function () {
-    // Given
-    $useCase = Mockery::mock(ListConferencesUseCase::class);
-    $useCase->shouldReceive('execute')
-        ->once()
-        ->with([ConferenceStatus::Archived], null, SortOrder::Asc)
-        ->andReturn([]);
-    app()->instance(ListConferencesUseCase::class, $useCase);
-
-    // When
-    $response = $this->getJson('/admin/api/conferences?status=archived');
-
-    // Then
-    $response->assertStatus(200);
-});
-
 it('?status=active で UseCase に [Draft, Published] フィルタが渡る (Issue #165)', function () {
     // Given: API でも active 仮想 status をサポート (Admin UI と同じ意味)
     $useCase = Mockery::mock(ListConferencesUseCase::class);
@@ -173,8 +157,8 @@ it('?status 未指定なら UseCase はフィルタなしで呼ばれる', funct
 });
 
 it('?status に未知値があってもフィルタなしで処理する (fail-soft)', function () {
-    // Given: 'archived' は Issue #165 で正式 status 値になったため、未知値の例として
-    // 'unknown-status' を使用する。resolveStatusFilters が null を返し UseCase に伝搬する。
+    // Given: 未知値 (廃止した 'archived' を含む) は resolveStatusFilters が null を返し
+    // UseCase にフィルタ無しで伝搬する (fail-soft)。例として 'unknown-status' を使用。
     $useCase = Mockery::mock(ListConferencesUseCase::class);
     $useCase->shouldReceive('execute')
         ->once()

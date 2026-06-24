@@ -10,13 +10,11 @@
         /** @var string $sortOrder */
         /** @var string $today YYYY-MM-DD JST (Issue #200 PR-2 で自動発見バッジ判定用) */
         // Active タブは Draft + Published を意味する仮想 status (Issue #165)。
-        // 「すべて」を撤廃して active を default にすることで、Archived がノイズとして
-        // 表示されない状態を実現する。
+        // Archived 廃止 (Issue #221) 後は実質「全件」だが、後方互換でタブは残す。
         $tabs = [
             ['label' => 'アクティブ', 'value' => 'active'],
             ['label' => '公開中', 'value' => 'published'],
             ['label' => '下書き', 'value' => 'draft'],
-            ['label' => 'アーカイブ', 'value' => 'archived'],
         ];
 
         // 列ヘッダのソートリンク URL を生成。
@@ -116,7 +114,6 @@
                     @foreach ($conferences as $conf)
                         @php
                             $isDraft = $conf->status === \App\Domain\Conferences\ConferenceStatus::Draft;
-                            $isArchived = $conf->status === \App\Domain\Conferences\ConferenceStatus::Archived;
                         @endphp
                         <tr class="hover:bg-gray-50">
                             <td class="px-4 py-3">
@@ -151,8 +148,6 @@
                             <td class="px-4 py-3">
                                 @if ($isDraft)
                                     <span class="inline-flex whitespace-nowrap rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-800">下書き</span>
-                                @elseif ($isArchived)
-                                    <span class="inline-flex whitespace-nowrap rounded bg-gray-300 px-2 py-0.5 text-xs font-medium text-gray-700">アーカイブ</span>
                                 @else
                                     <span class="inline-flex whitespace-nowrap rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">公開中</span>
                                 @endif

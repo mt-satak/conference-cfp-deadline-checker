@@ -52,18 +52,19 @@ function makeDeletePastConference(
 
 describe('DeletePastConferencesUseCase', function () {
     it('開催日が過去の行を全ステータス対象で削除する', function () {
-        // Given: 過去 Draft / 過去 Published / 過去 Archived / 未来 Published
+        // Given: 過去 Draft / 過去 Published (2 件) / 未来 Published
+        // (ステータスを問わず過去なら削除されることを Draft + Published で確認)
         $pastDraft = makeDeletePastConference('past-draft', ConferenceStatus::Draft, '2026-06-01');
-        $pastPublished = makeDeletePastConference('past-pub', ConferenceStatus::Published, '2026-06-10');
-        $pastArchived = makeDeletePastConference('past-arch', ConferenceStatus::Archived, '2026-05-01');
+        $pastPub1 = makeDeletePastConference('past-pub1', ConferenceStatus::Published, '2026-06-10');
+        $pastPub2 = makeDeletePastConference('past-pub2', ConferenceStatus::Published, '2026-05-01');
         $future = makeDeletePastConference('future', ConferenceStatus::Published, '2026-12-01');
 
         $repo = Mockery::mock(ConferenceRepository::class);
-        $repo->shouldReceive('findAll')->once()->andReturn([$pastDraft, $pastPublished, $pastArchived, $future]);
+        $repo->shouldReceive('findAll')->once()->andReturn([$pastDraft, $pastPub1, $pastPub2, $future]);
         // 過去の 3 件すべてが削除される (ステータス不問)、未来は呼ばれない
         $repo->shouldReceive('deleteById')->once()->with('past-draft')->andReturn(true);
-        $repo->shouldReceive('deleteById')->once()->with('past-pub')->andReturn(true);
-        $repo->shouldReceive('deleteById')->once()->with('past-arch')->andReturn(true);
+        $repo->shouldReceive('deleteById')->once()->with('past-pub1')->andReturn(true);
+        $repo->shouldReceive('deleteById')->once()->with('past-pub2')->andReturn(true);
 
         $useCase = new DeletePastConferencesUseCase($repo);
 
@@ -74,7 +75,7 @@ describe('DeletePastConferencesUseCase', function () {
         expect($result)->toBeInstanceOf(DeletePastConferencesResult::class);
         expect($result->totalChecked)->toBe(4);
         expect($result->deletedCount)->toBe(3);
-        expect($result->deletedIds)->toBe(['past-draft', 'past-pub', 'past-arch']);
+        expect($result->deletedIds)->toBe(['past-draft', 'past-pub1', 'past-pub2']);
         expect($result->dryRun)->toBeFalse();
     });
 

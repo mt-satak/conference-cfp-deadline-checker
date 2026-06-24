@@ -15,7 +15,6 @@ import {
 } from 'aws-cdk-lib/aws-lambda';
 import { StringParameter } from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
-import { ArchivePastTask } from './archive-past-task';
 import { DeletePastTask } from './delete-past-task';
 
 /**
@@ -99,14 +98,6 @@ export class AdminApi extends Construct {
    * 新規 Draft を投入してから既存 Published の差分検知に進む順序にする。
    */
   public readonly discoverConferencesFunction: LambdaFunction;
-
-  /**
-   * 開催日を過ぎた Published Conference を Archived 状態へ遷移させる Lambda console
-   * + EventBridge schedule (毎朝 JST 06:00、Issue #165 Phase 3)。
-   *
-   * 詳細は ArchivePastTask construct のクラスドキュメント参照。
-   */
-  public readonly archivePastTask: ArchivePastTask;
 
   /**
    * 開催日を過ぎた Conference を全ステータス対象でハード削除する Lambda console
@@ -614,19 +605,6 @@ export class AdminApi extends Construct {
           }),
         }),
       ],
-    });
-
-    // ── Archive-past Lambda console + EventBridge schedule (Issue #165 Phase 3) ──
-    // 開催日を過ぎた Published を Archived に遷移させる日次タスク。
-    // AutoCrawl と同じ admin-api asset / PHP layer を共有する設計。詳細は
-    // ArchivePastTask construct のクラスドキュメント参照。
-    this.archivePastTask = new ArchivePastTask(this, 'ArchivePastTask', {
-      adminApiCode,
-      phpLayer,
-      appKey,
-      appUrl: props.appUrl,
-      conferences: props.conferences,
-      architecture: Architecture.X86_64,
     });
 
     // ── Delete-past Lambda console + EventBridge schedule (Issue #221 PR-1) ──
