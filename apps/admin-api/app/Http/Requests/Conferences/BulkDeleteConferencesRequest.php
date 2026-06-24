@@ -44,17 +44,16 @@ class BulkDeleteConferencesRequest extends FormRequest
     /**
      * バリデーション済みの ID リストを取り出す。
      *
+     * rules() が `ids` を required array / 各要素 string として検証済みのため、
+     * validated()['ids'] は list<string> であることが保証される。
+     *
      * @return list<string>
      */
     public function conferenceIds(): array
     {
+        /** @var array{ids: list<string>} $validated */
         $validated = $this->validated();
-        $ids = $validated['ids'] ?? [];
 
-        // 文字列のみに narrow (PHPStan 向け + defensive)
-        return array_values(array_filter(
-            is_array($ids) ? $ids : [],
-            static fn ($id): bool => is_string($id),
-        ));
+        return $validated['ids'];
     }
 }
