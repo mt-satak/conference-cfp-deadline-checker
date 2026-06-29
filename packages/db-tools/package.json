@@ -11,11 +11,11 @@
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
-    "tsx": "^4.21.0",
+    "tsx": "^4.22.4",
     "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.1040.0",
-    "@aws-sdk/lib-dynamodb": "^3.1040.0"
+    "@aws-sdk/client-dynamodb": "^3.1075.0",
+    "@aws-sdk/lib-dynamodb": "^3.1075.0"
   }
 }
